@@ -3,53 +3,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowUp, Square } from "lucide-react";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
-import { Transcript, type TranscriptItem } from "./transcript";
+import { Transcript } from "./transcript";
+import { applyEvent, finishTurn, newTurn, type Turn } from "./turns";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
-function closeThinking(items: TranscriptItem[], now: number): TranscriptItem[] {
-  const last = items.at(-1);
-  if (last?.kind !== "thinking" || last.endedAt !== null) return items;
-  return [...items.slice(0, -1), { ...last, endedAt: now }];
-}
-
-/** Folds one streamed event into the transcript. */
-function applyEvent(items: TranscriptItem[], event: AssistantEvent, now: number): TranscriptItem[] {
-  switch (event.type) {
-    case "thinking": {
-      const last = items.at(-1);
-      if (last?.kind === "thinking" && last.endedAt === null) {
-        return [...items.slice(0, -1), { ...last, text: last.text + event.delta }];
-      }
-      return [...items, { kind: "thinking", id: crypto.randomUUID(), text: event.delta, startedAt: now, endedAt: null }];
-    }
-    case "text": {
-      const settled = closeThinking(items, now);
-      const last = settled.at(-1);
-      if (last?.kind === "text") return [...settled.slice(0, -1), { ...last, text: last.text + event.delta }];
-      return [...settled, { kind: "text", id: crypto.randomUUID(), text: event.delta }];
-    }
-    case "tool_start":
-      return [
-        ...closeThinking(items, now),
-        { kind: "tool", id: event.id, label: event.label, detail: event.detail, input: event.input, status: "running" },
-      ];
-    case "tool_end":
-      return items.map((item) =>
-        item.kind === "tool" && item.id === event.id
-          ? { ...item, status: event.ok ? "done" : "error", summary: event.summary, result: event.result, ms: event.ms }
-          : item,
-      );
-    case "error":
-      return [...closeThinking(items, now), { kind: "error", id: crypto.randomUUID(), text: event.message }];
-    case "done":
-      return closeThinking(items, now);
-  }
-}
-
 export function Assistant({ connected }: { connected: boolean }) {
   const [input, setInput] = useState("");
-  const [items, setItems] = useState<TranscriptItem[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   // The conversation in API form, including tool results and DeepSeek's reasoning, sent back on each question.
   const [history, setHistory] = useState<ApiMessage[]>([]);
   const [running, setRunning] = useState(false);
@@ -61,7 +22,7 @@ export function Assistant({ connected }: { connected: boolean }) {
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (el && followRef.current) el.scrollTop = el.scrollHeight;
-  }, [items]);
+  }, [turns]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -72,11 +33,14 @@ export function Assistant({ connected }: { connected: boolean }) {
 
     const userMessage: ApiMessage = { role: "user", content: question };
     const controller = new AbortController();
+    const turnId = crypto.randomUUID();
+    const update = (change: (turn: Turn) => Turn) =>
+      setTurns((prev) => prev.map((turn) => (turn.id === turnId ? change(turn) : turn)));
     abortRef.current = controller;
     followRef.current = true;
     setInput("");
     setRunning(true);
-    setItems((prev) => [...prev, { kind: "user", id: crypto.randomUUID(), text: question }]);
+    setTurns((prev) => [...prev, newTurn(turnId, question)]);
 
     try {
       const res = await fetch("/api/assistant", {
@@ -104,21 +68,18 @@ export function Assistant({ connected }: { connected: boolean }) {
           if (!line) continue;
           const parsed = JSON.parse(line) as AssistantEvent;
           if (parsed.type === "done") setHistory((prev) => [...prev, userMessage, ...parsed.messages]);
-          setItems((prev) => applyEvent(prev, parsed, Date.now()));
+          update((turn) => applyEvent(turn, parsed, Date.now()));
         }
       }
+      // If the stream ended without a "done" event, don't leave the turn spinning.
+      update((turn) => (turn.done ? turn : finishTurn(turn, Date.now(), "The response ended unexpectedly.")));
     } catch (error) {
-      const stopped = controller.signal.aborted;
-      setItems((prev) => [
-        ...closeThinking(prev, Date.now()).map((item) =>
-          item.kind === "tool" && item.status === "running" ? { ...item, status: "error" as const, summary: "Stopped" } : item,
-        ),
-        {
-          kind: "error",
-          id: crypto.randomUUID(),
-          text: stopped ? "Stopped." : error instanceof Error ? error.message : "Something went wrong.",
-        },
-      ]);
+      const message = controller.signal.aborted
+        ? "Stopped."
+        : error instanceof Error
+          ? error.message
+          : "Something went wrong.";
+      update((turn) => finishTurn(turn, Date.now(), message));
     } finally {
       setRunning(false);
       abortRef.current = null;
@@ -199,7 +160,7 @@ export function Assistant({ connected }: { connected: boolean }) {
         )}
       </form>
 
-      {items.length === 0 ? (
+      {turns.length === 0 ? (
         <p className="mt-2 text-xs text-fg-muted">
           Uses public Roblox data only. Revenue estimates aren&apos;t available yet.
         </p>
@@ -211,9 +172,9 @@ export function Assistant({ connected }: { connected: boolean }) {
             followRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
           }}
           aria-busy={running}
-          className="mt-3 max-h-[min(60vh,36rem)] overflow-y-auto rounded-xl border border-line p-4 tabular-nums"
+          className="mt-3 max-h-[min(70vh,48rem)] overflow-y-auto rounded-xl border border-line p-4"
         >
-          <Transcript items={items} />
+          <Transcript turns={turns} />
         </div>
       )}
       <p role="status" className="sr-only">

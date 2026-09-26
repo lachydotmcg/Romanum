@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { SYSTEM_PROMPT } from "@/lib/assistant/prompt";
+import { FetchedData } from "@/lib/assistant/fetched-data";
 import { prepareCall, runTool, TOOLS } from "@/lib/assistant/tools";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 
@@ -8,7 +9,7 @@ const BASE_URL = "https://api.deepseek.com";
 const MODEL = "deepseek-flash";
 const MAX_TOKENS = 16000;
 /** Model calls per user message, so a confused tool loop can't run up the bill. */
-const MAX_STEPS = 6;
+const MAX_STEPS = 8;
 const MAX_MESSAGES = 80;
 const MAX_USER_CHARS = 4000;
 const MAX_BODY_CHARS = 500_000;
@@ -94,6 +95,8 @@ export async function POST(request: Request) {
       };
       // Everything the model and tools add during this turn, returned so the client can send it back next time.
       const turn: ApiMessage[] = [];
+      // What the tools have fetched so far in the conversation; charts can only plot these values.
+      const fetched = FetchedData.fromMessages(conversation);
 
       try {
         for (let step = 0; step < MAX_STEPS; step++) {
@@ -153,28 +156,46 @@ export async function POST(request: Request) {
             return;
           }
 
-          const results = await Promise.all(
-            toolCalls.map(async (call) => {
-              const prepared = prepareCall(call.name, call.arguments);
-              send({ type: "tool_start", id: call.id, label: prepared.label, detail: prepared.detail, input: prepared.args });
-              const started = Date.now();
-              const outcome = await runTool(prepared);
-              send({
-                type: "tool_end",
-                id: call.id,
-                ok: outcome.ok,
-                summary: outcome.ok ? outcome.summary : outcome.error,
-                result: outcome.ok ? outcome.result : null,
-                ms: Date.now() - started,
-              });
-              return {
-                role: "tool" as const,
-                tool_call_id: call.id,
-                content: JSON.stringify(outcome.ok ? outcome.result : { error: outcome.error }),
-              };
-            }),
-          );
-          turn.push(...results);
+          const execute = async (call: (typeof toolCalls)[number]) => {
+            const prepared = prepareCall(call.name, call.arguments);
+            send({
+              type: "tool_start",
+              id: call.id,
+              label: prepared.label,
+              activity: prepared.activity,
+              detail: prepared.detail,
+              input: prepared.args,
+            });
+            const started = Date.now();
+            const outcome = await runTool(prepared, fetched);
+            if (outcome.ok) fetched.add(outcome.result);
+            send({
+              type: "tool_end",
+              id: call.id,
+              ok: outcome.ok,
+              summary: outcome.ok ? outcome.summary : outcome.error,
+              result: outcome.ok ? outcome.result : null,
+              ms: Date.now() - started,
+            });
+            if (outcome.ok && outcome.chart) send({ type: "chart", id: call.id, chart: outcome.chart });
+            return {
+              role: "tool" as const,
+              tool_call_id: call.id,
+              content: JSON.stringify(outcome.ok ? outcome.result : { error: outcome.error }),
+            };
+          };
+
+          // Lookups run in parallel; charts run after them, so a chart requested alongside a lookup sees its data.
+          const lookups = toolCalls.filter((call) => call.name !== "create_chart");
+          const charts = toolCalls.filter((call) => call.name === "create_chart");
+          const results = new Map<string, ApiMessage>();
+          for (const message of await Promise.all(lookups.map(execute))) results.set(message.tool_call_id, message);
+          for (const call of charts) {
+            const message = await execute(call);
+            results.set(message.tool_call_id, message);
+          }
+          // Tool results go back in the order the model made the calls.
+          turn.push(...toolCalls.map((call) => results.get(call.id)!));
         }
 
         send({ type: "error", message: `Stopped after ${MAX_STEPS} steps without a final answer.` });

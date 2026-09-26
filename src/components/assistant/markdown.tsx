@@ -19,7 +19,7 @@ const COMPONENTS: Components = {
   ),
   table: ({ children }) => (
     <div className="my-3 overflow-x-auto">
-      <table className="w-full border-collapse text-left">{children}</table>
+      <table className="w-full border-collapse text-left tabular-nums">{children}</table>
     </div>
   ),
   th: ({ children }) => (

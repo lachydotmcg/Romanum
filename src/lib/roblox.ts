@@ -2,11 +2,12 @@
 
 const TIMEOUT_MS = 8000;
 
-async function getJson<T>(url: string): Promise<T> {
+/** `revalidate` (seconds) lets Next.js reuse the response; without it every call hits Roblox. */
+async function getJson<T>(url: string, revalidate?: number): Promise<T> {
   const res = await fetch(url, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
-    cache: "no-store",
+    ...(revalidate ? { next: { revalidate } } : { cache: "no-store" as const }),
   });
   if (!res.ok) throw new Error(`Roblox returned ${res.status} for ${new URL(url).pathname}`);
   return (await res.json()) as T;
@@ -124,6 +125,70 @@ export async function getGameStats(universeIds: number[]): Promise<GameStats[]> 
       updated: game.updated,
     };
   });
+}
+
+/** Roblox's own charts, as shown on roblox.com/charts. */
+export const ROBLOX_CHARTS = {
+  "top-playing-now": "Top Playing Now",
+  "top-trending": "Top Trending",
+  "up-and-coming": "Up-and-Coming",
+  "top-earning": "Top Earning",
+  "top-rated": "Top Rated",
+  "top-revisited": "Top Revisited",
+  "most-popular": "Most Popular",
+  "fun-with-friends": "Fun with Friends",
+  "top-paid-access": "Top Paid Access",
+} as const;
+
+export type RobloxChartId = keyof typeof ROBLOX_CHARTS;
+export const ROBLOX_CHART_IDS = Object.keys(ROBLOX_CHARTS) as RobloxChartId[];
+
+type ExploreGame = {
+  universeId: number;
+  rootPlaceId: number;
+  name: string;
+  playerCount: number;
+  totalUpVotes: number;
+  totalDownVotes: number;
+  isSponsored: boolean;
+  genreL1?: string;
+};
+
+export type ChartGame = {
+  rank: number;
+  universeId: number;
+  rootPlaceId: number;
+  name: string;
+  playing: number;
+  likes: number;
+  dislikes: number;
+  genre: string | null;
+  sponsored: boolean;
+};
+
+// Any stable ID works; keeping it fixed keeps the URL stable so cached responses can be reused.
+const EXPLORE_SESSION = "7f3c2a9e-2b1d-4c6e-9a8f-5d4e3c2b1a09";
+
+/** Games in one of Roblox's charts, in chart order. Uses the endpoint behind roblox.com/charts (undocumented). */
+export async function getRobloxChart(chart: RobloxChartId, revalidate?: number): Promise<ChartGame[]> {
+  const url = new URL("https://apis.roblox.com/explore-api/v1/get-sort-content");
+  url.searchParams.set("sessionId", revalidate ? EXPLORE_SESSION : crypto.randomUUID());
+  url.searchParams.set("sortId", chart);
+  url.searchParams.set("device", "computer");
+  url.searchParams.set("country", "all");
+
+  const data = await getJson<{ games?: ExploreGame[] }>(url.toString(), revalidate);
+  return (data.games ?? []).map((game, index) => ({
+    rank: index + 1,
+    universeId: game.universeId,
+    rootPlaceId: game.rootPlaceId,
+    name: game.name,
+    playing: game.playerCount,
+    likes: game.totalUpVotes,
+    dislikes: game.totalDownVotes,
+    genre: game.genreL1 || null,
+    sponsored: game.isSponsored,
+  }));
 }
 
 export async function universeIdForPlace(placeId: number): Promise<number> {

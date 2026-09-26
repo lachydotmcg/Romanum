@@ -1,4 +1,5 @@
 import type OpenAI from "openai";
+import type { ChartSpec } from "@/lib/charts/spec";
 
 /** DeepSeek returns its reasoning alongside the reply and needs it sent back on later requests. */
 export type AssistantApiMessage = OpenAI.Chat.ChatCompletionAssistantMessageParam & {
@@ -15,7 +16,8 @@ export type ApiMessage =
 export type AssistantEvent =
   | { type: "thinking"; delta: string }
   | { type: "text"; delta: string }
-  | { type: "tool_start"; id: string; label: string; detail: string; input: unknown }
+  | { type: "tool_start"; id: string; label: string; activity: string; detail: string; input: unknown }
   | { type: "tool_end"; id: string; ok: boolean; summary: string; result: unknown; ms: number }
+  | { type: "chart"; id: string; chart: ChartSpec }
   | { type: "done"; messages: ApiMessage[] }
   | { type: "error"; message: string };
