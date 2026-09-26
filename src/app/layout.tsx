@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#050505",
+  themeColor: "#000000",
   colorScheme: "dark",
 };
 
@@ -25,7 +25,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <a href="#main-content" className="sr-only z-50 rounded-lg bg-fg px-4 py-3 text-sm text-canvas focus:not-sr-only focus:fixed focus:top-3 focus:left-20">Skip to content</a>
         <Sidebar />
         <main id="main-content" tabIndex={-1} className="pl-16 outline-none">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 sm:py-8">{children}</div>
+          {/* Wide enough for dashboards on large screens; reading text constrains its own width. */}
+          <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-8 sm:py-8 xl:px-12">{children}</div>
         </main>
       </body>
     </html>

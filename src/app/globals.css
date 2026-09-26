@@ -1,16 +1,17 @@
 @import "tailwindcss";
 
-/* Dark only: deep blacks for the canvas, dark greys for surfaces. */
+/* Dark only, modelled on ChatGPT's dark theme: a pure black canvas, #1b1b1b surfaces, #262626 borders.
+   The sidebar stays one step lighter than the canvas so it reads as its own surface. */
 @theme {
-  --color-canvas: #050505;
+  --color-canvas: #000000;
   --color-sidebar: #0d0d0d;
-  --color-surface: #111111;
-  --color-surface-hover: #1a1a1a;
-  --color-line: #1f1f1f;
-  --color-line-strong: #2b2b2b;
+  --color-surface: #1b1b1b;
+  --color-surface-hover: #2a2a2a;
+  --color-line: #262626;
+  --color-line-strong: #3a3a3a;
   --color-fg: #ededed;
-  --color-fg-muted: #a1a1a1;
-  --color-fg-subtle: #6e6e6e;
+  --color-fg-muted: #afafaf;
+  --color-fg-subtle: #838383;
 
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
 

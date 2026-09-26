@@ -24,8 +24,7 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const rail = useRef<HTMLElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
-  const pinned = useRef(false);
-  const close = () => { pinned.current = false; setExpanded(false); };
+  const close = () => setExpanded(false);
 
   useEffect(() => {
     if (!expanded) return;
@@ -51,40 +50,41 @@ export function Sidebar() {
       ref={rail}
       id="romanum-sidebar"
       data-expanded={expanded}
-      onPointerEnter={(event) => {
-        // A direct click on the toggle must not first expand on hover and then collapse.
-        if (event.pointerType === "mouse" && !(event.target instanceof Element && event.target.closest("[data-sidebar-toggle]"))) setExpanded(true);
-      }}
-      onPointerLeave={() => {
-        if (!pinned.current && !rail.current?.querySelector(":focus-visible")) setExpanded(false);
-      }}
-      onFocusCapture={(event) => { if (event.target.matches(":focus-visible")) setExpanded(true); }}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget) && !pinned.current) setExpanded(false);
-      }}
       className="group/sidebar fixed inset-y-0 left-0 z-40 flex w-16 flex-col overflow-x-hidden overflow-y-auto border-r border-line bg-sidebar transition-[width] duration-200 ease-emphasized data-[expanded=true]:w-60 motion-reduce:transition-none"
     >
-      <div className="flex h-16 shrink-0 items-center px-4">
-        <Link href="/analytics" onClick={close} className={`rounded-sm text-white ${FOCUS}`}>
+      {/* As in ChatGPT: collapsed, hovering the "Ro" logo turns it into the open button; expanded, the
+          close button sits at the right. The button is pinned right-3, so on the 64px rail it covers the
+          logo and it glides with the edge as the rail opens and closes. */}
+      <div className="group/logo relative flex h-16 shrink-0 items-center px-4">
+        <Link
+          href="/analytics"
+          onClick={close}
+          tabIndex={expanded ? undefined : -1}
+          aria-hidden={expanded ? undefined : true}
+          className={`rounded-sm text-white ${FOCUS}`}
+        >
           <Wordmark className="h-5" tailClassName={TAIL} symbolClassName={SYMBOL} />
         </Link>
-      </div>
-
-      <div className="px-3">
         <button
           ref={toggle}
-          data-sidebar-toggle
           type="button"
-          aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+          onClick={() => setExpanded((open) => !open)}
+          aria-label={expanded ? "Close sidebar" : "Open sidebar"}
+          title={expanded ? "Close sidebar" : "Open sidebar"}
           aria-expanded={expanded}
           aria-controls="romanum-sidebar"
-          onClick={() => { pinned.current = !expanded; setExpanded(!expanded); }}
-          className={`flex h-11 w-full items-center gap-3 rounded-lg px-2.5 text-fg-muted hover:bg-surface hover:text-fg ${FOCUS}`}
+          className={`absolute top-3 right-3 grid size-10 place-items-center rounded-lg bg-sidebar text-fg-muted transition-opacity duration-150 hover:bg-surface hover:text-fg ${FOCUS} ${
+            expanded ? "" : "opacity-0 group-hover/logo:opacity-100 focus-visible:opacity-100"
+          }`}
         >
-          {expanded ? <PanelLeftClose className="size-5 shrink-0" aria-hidden="true" /> : <PanelLeftOpen className="size-5 shrink-0" aria-hidden="true" />}
-          <span className={`text-sm ${LABEL}`}>Collapse</span>
+          {expanded ? (
+            <PanelLeftClose className="size-5" strokeWidth={1.75} aria-hidden="true" />
+          ) : (
+            <PanelLeftOpen className="size-5" strokeWidth={1.75} aria-hidden="true" />
+          )}
         </button>
       </div>
+
       <nav aria-label="Main" className="flex flex-col gap-1 px-3 pt-2">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -94,6 +94,8 @@ export function Sidebar() {
               href={href}
               onClick={close}
               aria-current={active ? "page" : undefined}
+              // Icons alone on the collapsed rail, so they get a tooltip there.
+              title={expanded ? undefined : label}
               className={`flex h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors ${FOCUS} ${
                 active ? "bg-surface-hover text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
               }`}
@@ -110,6 +112,7 @@ export function Sidebar() {
           href="/profile"
           onClick={close}
           aria-label="Profile"
+          title={expanded ? undefined : "Profile"}
           className={`flex h-12 items-center gap-3 rounded-lg px-1.5 hover:bg-surface ${FOCUS}`}
         >
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-hover text-fg-muted">

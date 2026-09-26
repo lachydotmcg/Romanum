@@ -118,14 +118,15 @@ function TurnView({ turn }: { turn: Turn }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <p className="max-w-[85%] rounded-lg bg-surface-hover px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
+        <p className="max-w-[min(85%,40rem)] rounded-lg bg-surface-hover px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
       </div>
       {(turn.steps.length > 0 || working) && <ProcessGroup steps={turn.steps} active={working} />}
       {turn.charts.map(({ id, chart }) => (
         <ChartCard key={id} chart={chart} />
       ))}
       {text && (
-        <div className="text-sm leading-6 text-fg">
+        // Charts may use the full width; prose stays at a comfortable line length.
+        <div className="max-w-3xl text-sm leading-6 text-fg">
           <AssistantMarkdown text={text} />
         </div>
       )}

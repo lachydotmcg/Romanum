@@ -2,7 +2,7 @@
 
 /**
  * Categorical palette in its fixed order (dataviz reference palette, dark steps).
- * Validated on Romanum's surfaces (#050505, #111111): all adjacent checks pass,
+ * Validated on Romanum's surfaces (#000000, #1b1b1b): all adjacent checks pass,
  * and the first three also pass all-pairs, which is why scatter and radar cap at three colours.
  */
 export const CHART_COLORS = {

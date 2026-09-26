@@ -3,13 +3,13 @@ import { type ChartSpec, formatValue } from "./spec";
 
 // Chart ink for Romanum's dark canvas. Marks carry colour; text always uses these tokens.
 export const INK = {
-  surface: "#050505",
+  surface: "#000000",
   primary: "#ededed",
-  secondary: "#a1a1a1",
-  muted: "#8a8a8a",
-  grid: "#1f1f1f",
-  axis: "#2b2b2b",
-  tooltip: "#111111",
+  secondary: "#afafaf",
+  muted: "#838383",
+  grid: "#1c1c1c",
+  axis: "#333333",
+  tooltip: "#1b1b1b",
 } as const;
 
 type Params = { name: string; value: unknown; color: string; dataIndex: number; seriesIndex: number; seriesName: string };

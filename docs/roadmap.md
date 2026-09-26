@@ -5,7 +5,8 @@ The complete product outline and eight-stage roadmap live in [PROJECT.md](../PRO
 ## Available now
 
 - SVG branding, the dark application shell and the animated `Ro` to `Romanum` sidebar.
-- Explicit sidebar expand/collapse control for touch, with keyboard expansion, Escape/outside dismissal, and a skip-to-content link. Navigation closes the rail.
+- ChatGPT-style sidebar control: on the collapsed rail, hovering the `Ro` logo turns it into the open button (tapping it opens the rail on touch); expanded, the close button sits at the right. Collapsed icons have tooltips; Escape, an outside click or navigating closes the rail. Skip-to-content link.
+- Theme modelled on ChatGPT's dark mode: pure black canvas, `#1b1b1b` surfaces, `#262626` borders; the sidebar stays one step lighter. The content area is up to 1600px wide; chat prose keeps a readable line length.
 - Concise chart retry actions, an Analytics error boundary and an application-styled missing-page state. The MCP URL field retains its height on narrow screens.
 - Navigation: Analytics, plus Your games as a shortcut to the profile (`/profile`), where games will live. The profile is the Guest with "No games connected"; the Guest row also opens it. Get MCP links to the connection page.
 - Assistant answers are short by default and offer more detail. After each answer, a separate small DeepSeek call predicts the next question; the prompt bar shows it and Tab (or the Tab badge) fills it in.
