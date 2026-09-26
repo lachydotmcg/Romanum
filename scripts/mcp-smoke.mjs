@@ -13,13 +13,16 @@ const call = async (name, args = {}) => {
 try {
   await client.connect(new StreamableHTTPClientTransport(endpoint));
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 8);
+  assert.equal(tools.length, 9);
   const { resources } = await client.listResources();
-  assert.equal(resources.length, 3);
+  assert.equal(resources.length, 5);
   await client.readResource({ uri: "romanum://skills/romanum-game-design" });
   await call("get_metric_definitions");
   await call("load_skill", { skill: "romanum-genre-analysis" });
   const search = await call("search_games", { query: "Blox Fruits" });
+  const research = await call("research_game_idea", { title: "Blox Fruits", terms: ["pirate adventure"] });
+  assert.equal(research.status, "complete");
+  assert.ok(research.games.length > 0, "idea research finds real candidate competitors");
   const chart = await call("get_roblox_charts", { chart: "top-playing-now", limit: 3 });
   assert.ok(chart.games.length > 0, "live chart contains experiences");
   const stats = await call("get_game_stats", { universeIds: chart.games.map((game) => game.universeId) });

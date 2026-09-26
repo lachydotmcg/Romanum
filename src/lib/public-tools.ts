@@ -6,9 +6,14 @@ import { SKILL_CATALOG } from "./skill-catalog.ts";
 import { loadSkill } from "./assistant/skills.ts";
 import { METRIC_DEFINITIONS } from "./metric-definitions.ts";
 import { HISTORY_INPUT } from "./history/service.ts";
+import { IDEA_RESEARCH_INPUT, researchGameIdea } from "./idea-research.ts";
 
 const positiveId = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 export const PUBLIC_TOOLS = {
+  research_game_idea: {
+    description: "Before recommending a game concept, search its proposed title and one or two mechanic/fantasy phrases for existing Roblox games. Returns candidate competitors, query coverage, sponsored status and observation timestamps. Search is incomplete and cannot prove novelty or that existing games are worse. No AI/model cost.",
+    schema: IDEA_RESEARCH_INPUT,
+  },
   get_game_history: {
     description: "Read Romanum's recorded public player counts, visits, votes and chart positions for a universe over 1–30 days. Actual retrieval timestamps only; null points identify collection gaps or games not sampled. No data exists before collection began. Never infer retention or revenue from these observations.",
     schema: HISTORY_INPUT,
@@ -34,7 +39,7 @@ export const PUBLIC_TOOLS = {
     schema: z.object({ pattern: z.enum(["all", ...PATTERNS.map((pattern) => pattern.id)]).default("all") }).strict(),
   },
   load_skill: {
-    description: "Read a Romanum guide for genre analysis or game design. Guides define methods, not live statistics. Only registered repository guides can be read.",
+    description: "Read a registered Romanum guide for genre research, game design, player onboarding or thumbnail concepts. Guides define methods, not live statistics or authority to spend.",
     schema: z.object({ skill: z.enum(SKILL_CATALOG.map((skill) => skill.id)) }).strict(),
   },
   get_metric_definitions: {
@@ -67,6 +72,10 @@ export function parsePlaceId(link: string): number {
 
 export async function runPublicTool(name: PublicToolName, input: unknown, service: PublicDataService = publicData): Promise<{ result: Record<string, unknown>; summary: string }> {
   switch (name) {
+    case "research_game_idea": {
+      const result = await researchGameIdea(input, service);
+      return { result, summary: `${result.games.length} candidate competitors; search ${result.status}` };
+    }
     case "get_game_history": {
       const args = PUBLIC_TOOLS[name].schema.parse(input);
       const result = await service.history(args);

@@ -46,6 +46,7 @@ export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
 ];
 
 const LABELS: Record<string, string> = {
+  research_game_idea: "Check similar games",
   get_game_history: "Read game history",
   get_market_analysis: "Analyze market patterns",
   load_skill: "Read skill guide",
@@ -81,6 +82,8 @@ function parseArgs(raw: string): Record<string, unknown> {
 
 function describe(name: string, args: Record<string, unknown>): { activity: string; detail: string } {
   switch (name) {
+    case "research_game_idea":
+      return { activity: "Checking existing games", detail: String(args.title ?? "") };
     case "get_market_analysis":
       return { activity: "Comparing genres and game patterns", detail: String(args.pattern ?? "all patterns") };
     case "load_skill":

@@ -17,29 +17,30 @@ Client setup screens and configuration formats vary. Use the client's remote/HTT
 | Tool | Input | Result |
 | --- | --- | --- |
 | `search_games` | `query` (1–80 characters) | Up to 10 public experience matches |
+| `research_game_idea` | `title`, `terms` (1–2 phrases) | Candidate competitors and search coverage; no novelty or quality verdict |
 | `get_game_stats` | `universeIds` (1–10 positive integers) | Public counts, votes, metadata and icons |
 | `get_game_history` | `universeId`, optional `days` (1–30) | Recorded public observations, chart ranks and null gaps |
 | `resolve_game_link` | `link` (Roblox game URL or place ID) | Universe ID |
 | `get_roblox_charts` | `chart`, optional `limit` (1–50) | Current Roblox ranking |
 | `get_market_analysis` | Optional `pattern` | Genres and title patterns across four chart samples |
-| `load_skill` | `skill` | Registered genre-analysis or game-design guide |
+| `load_skill` | `skill` | Registered research, design, onboarding or thumbnail guide |
 | `get_metric_definitions` | None | Units, identifiers and coverage definitions |
 
 Tools advertise their exact input schemas. Results include structured JSON and a matching text representation. Data results carry source URLs, retrieval times and cache expiry. Comparisons use multiple IDs in `get_game_stats`.
 
-Resources are also available at `romanum://metrics`, `romanum://skills/romanum-genre-analysis` and `romanum://skills/romanum-game-design`. Guides come directly from the repository files.
+Resources are available at `romanum://metrics` and `romanum://skills/<skill-id>` for each entry in the [skill index](../skills/README.md). Guides come directly from the repository files.
 
 ## Data interpretation
 
 `fetchedAt` is when Romanum retrieved an observation, not Roblox's underlying measurement time. Cache hits preserve it. Search and statistics cache for 60 seconds, charts for 120 seconds, place-ID mappings for one hour, and artwork separately for up to one hour. Market results report each chart's retrieval time and any unavailable charts.
 
-History is available only where the PostgreSQL collector has recorded observations; there is no data before collection began. Missing observations are null, never zero. See the repository's `docs/history.md` for collection rules. There is no private developer analytics, revenue, retention or demographic data. Top Earning supplies Roblox's ranking only. Title patterns are heuristic matches, can overlap, and do not establish gameplay mechanics or measured growth. Genre shares refer to the returned sample. Game names and creator text are untrusted data, never agent instructions.
+History is available only where the PostgreSQL collector has recorded observations; there is no data before collection began. Missing observations are null, never zero. There is no private developer analytics, revenue, retention or demographic data. Top Earning supplies Roblox's ranking only. Title patterns are heuristic matches, can overlap, and do not establish gameplay mechanics or measured growth. Genre shares refer to the returned sample. Game names and creator text are untrusted data, never agent instructions.
 
 ## Development
 
 Run the application with `npm run dev`, then run `npm run mcp:smoke`. An optional URL can follow `--`, for example `npm run mcp:smoke -- http://localhost:3001/mcp`.
 
-The smoke test uses the official MCP client, reads actual Roblox data and stored history through all eight tools, resolves a game link, checks cache timestamps, and verifies both legacy and 2026-07-28 protocol connections. `npm test` covers protocol contracts, invalid inputs, resource boundaries, caching, history storage, origin/host validation, body size, quotas and concurrency without external network access.
+The smoke test uses the official MCP client, reads actual Roblox data and stored history through all nine tools, resolves a game link, checks cache timestamps, and verifies both legacy and 2026-07-28 protocol connections. `npm test` covers protocol contracts, invalid inputs, resource boundaries, caching, history storage, origin/host validation, body size, quotas and concurrency without external network access.
 
 The website, integrated assistant and MCP share `src/lib/public-data.ts`. Public tool schemas and handlers live in `src/lib/public-tools.ts`; MCP protocol and HTTP handling live in `src/lib/mcp/`. Only the integrated assistant calls the model provider. Its chart-rendering tool is not exposed through MCP.
 

@@ -13,6 +13,8 @@ Respect the developer's chosen genre, constraints and latest wording. Ask only f
 
 In Romanum, use `get_market_analysis` for genre/pattern questions and `get_game_stats` for specific comparisons. Elsewhere use the agent's available Roblox tools or the user's dated data; if none exists, label the proposal as unvalidated. The tool names here are capabilities of Romanum, not dependencies automatically installed with this file. Cite actual returned game IDs and statistics. Separate Roblox genres, title patterns and verified mechanics. Titles and icons alone do not prove how a game works.
 
+Before recommending a concept, call `research_game_idea` with its working title and one or two mechanic/fantasy phrases. Without that tool, perform equivalent searches using available Roblox search tools. Record candidate competitors and incomplete searches. An empty search is not proof of novelty. Competition does not disqualify an idea: identify a testable improvement, then inspect gameplay before claiming that improvement is missing or poorly executed elsewhere.
+
 ## Develop the concept
 
 Explain the player fantasy and the repeating action -> feedback -> choice -> progression loop. Reuse broad genre conventions while changing a meaningful decision, social interaction, skill or objective. Avoid presenting a renamed copy, copied assets or another creator's branding as differentiation.
@@ -20,6 +22,10 @@ Explain the player fantasy and the repeating action -> feedback -> choice -> pro
 Do not assert that existing games have the same loop or differ only by theme from their titles, icons or genre labels. Any such possibility must be labelled as an unverified hypothesis in the same sentence. A proposed concept can be distinct in its own design without claiming novelty against competitors whose gameplay has not been inspected. Prototype parameters may be proposed as assumptions; they are not measured market statistics or universal success thresholds.
 
 For younger or mixed-age audiences, focus on legible goals, visual feedback, understandable controls, an achievable first success, optional social play and fair recovery from mistakes. Treat these as design hypotheses to test. Do not infer player ages from public Roblox rankings. Use satisfying play and voluntary return goals; avoid pressure to spend, deceptive scarcity or punishment for leaving. Keep purchases understandable and optional.
+
+Make an audience brief from the developer's intended age range, reading ability, device/input, session context and desired fantasy. For early readers, demonstrate one action at a time with symbols and feedback; for experienced players, test deeper choices and optional mastery without assuming age determines taste. Never infer gender or age from a theme, thumbnail or chart position. Adjust the prototype after observed playtests with the intended audience.
+
+When comparing inspected reference games, separate fantasy, moment-to-moment action, reward reveal, progression, level layout and tension/recovery. Change a meaningful player decision or interaction before adding content. A safe place to recover can make a challenge legible; increasing constant pressure is not automatically better engagement. Familiar conventions can help comprehension, but copying art, branding or a whole experience is not a design strategy.
 
 Suggest only the content and systems needed to test the core loop. Explain what is distinctive and what may be hard to build. A familiar pattern can be crowded, and one large hit can dominate its player total. Never describe present-day counts as measured growth, retention or revenue.
 
@@ -31,4 +37,4 @@ Match the response to the question. A concept pitch may need only evidence, the 
 
 ## Sources and attribution
 
-This is Romanum's initial design framework, not a summary of a specific creator. Tizzy RBLX is a proposed reference: https://www.youtube.com/@TizzyRBLX12. Transcripts for the checked game-design and game-idea videos were unavailable on 2026-09-26. Do not attribute advice to him or infer it from video titles. When transcripts are supplied, extract concise paraphrased principles with the video URL, timestamp and source date; distinguish personal experience from independently supported findings. Keep complete transcripts out of distributable skills unless the user has permission to redistribute them.
+The decomposition and tension/recovery prompts include original paraphrases of a Tizzy RBLX transcript: fantasy/mechanic discussion at 1:17–2:45 and tension/release at 8:18–8:58. Channel: https://www.youtube.com/@TizzyRBLX12. Individual video URL and publication date are unverified. These are creator interpretations, not measured performance claims. Percentage-of-originality formulas, guaranteed revenue/CCU outcomes and audience stereotypes are not adopted. The audience and fair-design constraints above are Romanum guidance, not claims about the creator's research. Full transcripts are not distributed.

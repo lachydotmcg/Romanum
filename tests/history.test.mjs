@@ -21,6 +21,7 @@ const loaders = (extra = {}) => ({ getRobloxChart: async () => [game()], getGame
 test("migration is repeatable and a duplicate slot does not fetch or overwrite data", async (t) => {
   const db = await database(t);
   await migrateHistory(db);
+  assert.deepEqual((await db.query("SELECT version FROM romanum_migrations ORDER BY version")).rows.map((row) => row.version), [1, 2]);
   const first = await collectHistory(db, { loaders: loaders(), now: () => baseTime });
   assert.equal(first.observed, 1);
   const duplicate = await collectHistory(db, { loaders: new Proxy({}, { get() { assert.fail("duplicate slot fetched Roblox"); } }), now: () => baseTime + 1000 });
@@ -32,6 +33,13 @@ test("migration is repeatable and a duplicate slot does not fetch or overwrite d
   assert.equal(result.points[0].visits, 100);
   assert.equal(result.points[0].chartRanks["top-playing-now"], 1);
   assert.equal((await db.query("SELECT count(*)::int AS count FROM history_chart_entries")).rows[0].count, 4);
+});
+
+test("migration refuses a changed applied checksum before applying new SQL", async (t) => {
+  const db = await database(t);
+  await db.query("UPDATE romanum_migrations SET checksum='changed' WHERE version=1");
+  await assert.rejects(migrateHistory(db), /Applied migration has changed or is missing/);
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM romanum_migrations")).rows[0].count, 2);
 });
 
 test("unavailable statistics and missing collection slots remain null between real observations", async (t) => {
