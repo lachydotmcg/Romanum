@@ -24,7 +24,9 @@ The integrated assistant uses `DEEPSEEK_API_KEY` in `.env.local`. Public analyti
 
 Charts use actual observations and preserve collection gaps. Public data does not reveal private retention, revenue, demographic or thumbnail CTR metrics. Idea research finds candidate competitors; it does not certify originality or compare gameplay quality.
 
-The credit ledger is a tested server-side foundation, with reservations, settlement and release. There is no payment checkout, public credit API or paid image generation enabled.
+The credit ledger supports reservations, settlement and release. Private creation services save project context, briefs, concepts, review decisions and image jobs. UI assets follow an approved render; thumbnail references keep rights and reported performance separate. The OpenAI adapter is disabled by default, and the job runner rejects all paid providers. There is no checkout, public creation API or paid image generation enabled.
+
+Creation code lives in `src/lib/creative`. It currently runs through trusted server calls and isolated tests. Test tariffs are arbitrary credit units, not prices. Jobs with ambiguous provider outcomes keep their reservation and require reconciliation; they are never retried automatically. Production needs authenticated owner identity, image decoding/moderation, private object storage, pricing and receipt reconciliation before these services can be exposed.
 
 ## Checks
 
