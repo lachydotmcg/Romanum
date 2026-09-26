@@ -15,7 +15,7 @@ try {
   const { tools } = await client.listTools();
   assert.equal(tools.length, 9);
   const { resources } = await client.listResources();
-  assert.equal(resources.length, 5);
+  assert.equal(resources.length, 6);
   await client.readResource({ uri: "romanum://skills/romanum-game-design" });
   await call("get_metric_definitions");
   await call("load_skill", { skill: "romanum-genre-analysis" });

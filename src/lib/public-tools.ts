@@ -39,7 +39,7 @@ export const PUBLIC_TOOLS = {
     schema: z.object({ pattern: z.enum(["all", ...PATTERNS.map((pattern) => pattern.id)]).default("all") }).strict(),
   },
   load_skill: {
-    description: "Read a registered Romanum guide for genre research, game design, player onboarding or thumbnail concepts. Guides define methods, not live statistics or authority to spend.",
+    description: "Read a registered Romanum guide for genre research, game design, onboarding, thumbnails or UI workflows. Guides define methods, not live statistics or authority to spend or publish.",
     schema: z.object({ skill: z.enum(SKILL_CATALOG.map((skill) => skill.id)) }).strict(),
   },
   get_metric_definitions: {

@@ -28,6 +28,8 @@ The credit ledger supports reservations, settlement and release. Private creatio
 
 Creation code lives in `src/lib/creative`. It currently runs through trusted server calls and isolated tests. Test tariffs are arbitrary credit units, not prices. Jobs with ambiguous provider outcomes keep their reservation and require reconciliation; they are never retried automatically. Production needs authenticated owner identity, image decoding/moderation, private object storage, pricing and receipt reconciliation before these services can be exposed.
 
+`src/lib/ui-library` provides private UI drafts, bounded search of explicitly shared entries, reuse into projects, and static Roblox UI export. Sharing needs a separate rights declaration and versioned consent to CC BY 4.0. Withdrawal removes related listings; listing deletion scrubs its content while private project assets and previously licensed copies remain separate. No marketplace is publicly enabled or seeded with third-party packs.
+
 ## Checks
 
 ```sh

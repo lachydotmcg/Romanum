@@ -8,6 +8,7 @@ Portable Roblox research and design guides. Romanum's assistant and MCP read the
 | Design | [Game design](romanum-game-design/SKILL.md) | Audience briefs, existing-game research, core loops and prototypes |
 | Design | [Player onboarding](romanum-player-onboarding/SKILL.md) | First-session learning and measured iteration |
 | Creative | [Thumbnail design](romanum-thumbnail-design/SKILL.md) | Concepts, generation briefs and experiment design |
+| Creative | [UI workflow](romanum-ui-workflow/SKILL.md) | Library reuse, visual review, separate assets and native Roblox UI |
 
 ## Use in an agent
 

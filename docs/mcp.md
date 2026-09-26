@@ -23,7 +23,7 @@ Client setup screens and configuration formats vary. Use the client's remote/HTT
 | `resolve_game_link` | `link` (Roblox game URL or place ID) | Universe ID |
 | `get_roblox_charts` | `chart`, optional `limit` (1–50) | Current Roblox ranking |
 | `get_market_analysis` | Optional `pattern` | Genres and title patterns across four chart samples |
-| `load_skill` | `skill` | Registered research, design, onboarding or thumbnail guide |
+| `load_skill` | `skill` | Registered research, design, onboarding, thumbnail or UI guide |
 | `get_metric_definitions` | None | Units, identifiers and coverage definitions |
 
 Tools advertise their exact input schemas. Results include structured JSON and a matching text representation. Data results carry source URLs, retrieval times and cache expiry. Comparisons use multiple IDs in `get_game_stats`.

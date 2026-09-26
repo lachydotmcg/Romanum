@@ -3,6 +3,7 @@ export const SKILL_CATALOG = [
   { id: "romanum-game-design", name: "Game design", description: "Shape your next game.", prompt: "Help me design an original Roblox game using current market data." },
   { id: "romanum-player-onboarding", name: "Player onboarding", description: "Improve the first session.", prompt: "Help me plan a clearer first session for my game's audience." },
   { id: "romanum-thumbnail-design", name: "Thumbnail design", description: "Plan a thumbnail concept.", prompt: "Help me plan thumbnail concepts that show my game's actual gameplay." },
+  { id: "romanum-ui-workflow", name: "UI workflow", description: "Reuse, design and assemble UI.", prompt: "Help me find or plan a reusable Roblox interface, then review its concept before making separate assets." },
 ] as const;
 
 export type SkillId = (typeof SKILL_CATALOG)[number]["id"];
