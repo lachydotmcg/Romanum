@@ -54,7 +54,7 @@ export type ChartSpec = {
   /** Where the numbers came from, shown under the chart. */
   source: string;
   /** The things being compared: games, or groups such as genres. For line charts, timestamps (epoch ms as keys). */
-  categories: { key: string; label: string }[];
+  categories: { key: string; label: string; iconUrl?: string | null; rootPlaceId?: number }[];
   /** One value per category. Scatter uses series 0/1/2 as x/y/size. */
   series: { key: string; label: string; format: ValueFormat; values: (number | null)[] }[];
   /** Hex colour per category key or series key, depending on what carries identity. */

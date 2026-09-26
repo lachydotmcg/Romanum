@@ -5,11 +5,12 @@ import { ArrowUp, Square } from "lucide-react";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { Transcript } from "./transcript";
 import { applyEvent, finishTurn, newTurn, type Turn } from "./turns";
+import { PREFILL_EVENT, type AssistantPrefill } from "./prefill";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
-export function Assistant({ connected }: { connected: boolean }) {
-  const [input, setInput] = useState("");
+export function Assistant({ connected, initialPrompt = "" }: { connected: boolean; initialPrompt?: string }) {
+  const [input, setInput] = useState(initialPrompt);
   const [turns, setTurns] = useState<Turn[]>([]);
   // The conversation in API form, including tool results and DeepSeek's reasoning, sent back on each question.
   const [history, setHistory] = useState<ApiMessage[]>([]);
@@ -25,6 +26,16 @@ export function Assistant({ connected }: { connected: boolean }) {
   }, [turns]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    const prefill = (event: Event) => {
+      const detail = (event as CustomEvent<AssistantPrefill>).detail;
+      if (!connected || !detail || typeof detail.prompt !== "string") return;
+      setInput(detail.prompt.slice(0, 4000));
+    };
+    window.addEventListener(PREFILL_EVENT, prefill);
+    return () => window.removeEventListener(PREFILL_EVENT, prefill);
+  }, [connected]);
 
   async function ask(event: FormEvent) {
     event.preventDefault();
@@ -97,7 +108,7 @@ export function Assistant({ connected }: { connected: boolean }) {
             id="ai-prompt"
             type="text"
             disabled
-            placeholder="Ask about your analytics"
+            placeholder="Ask Romanum…"
             aria-describedby="ai-status"
             className="min-w-0 flex-1 bg-transparent text-sm text-fg placeholder:text-fg-subtle focus:outline-none disabled:cursor-not-allowed"
           />
@@ -134,7 +145,7 @@ export function Assistant({ connected }: { connected: boolean }) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about any Roblox game"
+          placeholder="Ask Romanum…"
           maxLength={4000}
           autoComplete="off"
           className="min-w-0 flex-1 bg-transparent text-sm text-fg placeholder:text-fg-subtle focus:outline-none"
@@ -160,11 +171,7 @@ export function Assistant({ connected }: { connected: boolean }) {
         )}
       </form>
 
-      {turns.length === 0 ? (
-        <p className="mt-2 text-xs text-fg-muted">
-          Uses public Roblox data only. Revenue estimates aren&apos;t available yet.
-        </p>
-      ) : (
+      {turns.length > 0 && (
         <div
           ref={scrollRef}
           onScroll={(e) => {

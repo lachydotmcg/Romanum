@@ -60,11 +60,10 @@ function parseMessages(body: unknown): ApiMessage[] | null {
 }
 
 function describeError(error: unknown): string {
-  if (error instanceof OpenAI.AuthenticationError) return "DeepSeek rejected the API key. Check DEEPSEEK_API_KEY in .env.local.";
-  if (error instanceof OpenAI.RateLimitError) return "DeepSeek's rate limit was reached. Try again in a moment.";
-  if (error instanceof OpenAI.APIError && error.status === 402) return "The DeepSeek account has run out of credit.";
-  if (error instanceof OpenAI.APIError) return `DeepSeek returned an error (${error.status ?? "no status"}): ${error.message}`;
-  return error instanceof Error ? error.message : "The request failed.";
+  // Provider setup and billing diagnostics belong in server logs and README.md.
+  if (error instanceof OpenAI.AuthenticationError || (error instanceof OpenAI.APIError && error.status === 402)) return "Assistant unavailable. Try again later.";
+  if (error instanceof OpenAI.RateLimitError) return "Assistant busy. Try again shortly.";
+  return "Couldn't get a response. Try again.";
 }
 
 export async function POST(request: Request) {
@@ -201,7 +200,13 @@ export async function POST(request: Request) {
         send({ type: "error", message: `Stopped after ${MAX_STEPS} steps without a final answer.` });
         send({ type: "done", messages: turn });
       } catch (error) {
-        if (!abort.signal.aborted) send({ type: "error", message: describeError(error) });
+        if (!abort.signal.aborted) {
+          console.error("Assistant request failed", {
+            name: error instanceof Error ? error.name : "UnknownError",
+            status: error instanceof OpenAI.APIError ? error.status : undefined,
+          });
+          send({ type: "error", message: describeError(error) });
+        }
       } finally {
         if (!closed) {
           closed = true;

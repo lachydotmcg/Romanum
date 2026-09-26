@@ -120,7 +120,7 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
   const total = (r: GameRecord) => (kind === "stacked_bar" ? metrics.reduce((sum, m) => sum + (r[m] ?? 0), 0) : (r[sortMetric] ?? 0));
   if (sort !== "none") records.sort((a, b) => (sort === "desc" ? total(b) - total(a) : total(a) - total(b)));
 
-  let categories = records.map((r) => ({ key: String(r.universeId), label: r.name }));
+  let categories: ChartSpec["categories"] = records.map((r) => ({ key: String(r.universeId), label: r.name, iconUrl: r.iconUrl ?? null, rootPlaceId: r.rootPlaceId }));
   let series = metrics.map((metric) => ({
     key: metric,
     label: METRICS[metric].label,

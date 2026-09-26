@@ -1,100 +1,53 @@
 import { ChartCard } from "@/components/charts/chart-card";
-import { type ChartSpec, colorHex, PALETTE_ORDER } from "@/lib/charts/spec";
-import { type ChartGame, getRobloxChart, type RobloxChartId } from "@/lib/roblox";
+import { type ChartSpec, colorHex } from "@/lib/charts/spec";
+import { getMarketData } from "@/lib/market-data";
+import { analyzeMarket } from "@/lib/market-analysis";
+import type { ChartGame } from "@/lib/roblox";
 import { RankedList } from "./ranked-list";
-
-/** Roblox is asked for each chart at most this often; pages in between reuse the cached response. */
-const REFRESH_SECONDS = 120;
-
-async function load(chart: RobloxChartId): Promise<ChartGame[] | null> {
-  try {
-    return await getRobloxChart(chart, REFRESH_SECONDS);
-  } catch {
-    return null;
-  }
-}
+import { GenreBreakdown } from "./genre-breakdown";
+import { PatternExplorer } from "./pattern-explorer";
+import { RetryMarket } from "./retry";
 
 function topPlayingChart(games: ChartGame[]): ChartSpec {
-  const top = games.slice(0, 10);
+  const top = games.filter((game) => !game.sponsored).slice(0, 8);
   return {
-    kind: "bar",
-    title: "Top Playing Now",
-    subtitle: "Players right now in the top 10 games",
-    source: "Roblox Charts",
-    categories: top.map((game) => ({ key: String(game.universeId), label: game.name })),
+    kind: "bar", title: "Top Playing Now", source: "Roblox Charts · current players",
+    categories: top.map((game) => ({ key: String(game.universeId), label: game.name, iconUrl: game.iconUrl ?? null, rootPlaceId: game.rootPlaceId })),
     series: [{ key: "playing", label: "Players now", format: "compact", values: top.map((game) => game.playing) }],
-    colors: { playing: colorHex("blue") },
-    colorBy: "series",
-    showValues: true,
+    colors: { playing: colorHex("blue") }, colorBy: "series", showValues: true,
   };
 }
 
-/** Players summed by genre across the whole chart: the five largest genres, the rest folded into "Other". */
-function genreChart(games: ChartGame[]): ChartSpec {
-  const totals = new Map<string, number>();
-  for (const game of games) {
-    const genre = game.genre ?? "Unlisted";
-    totals.set(genre, (totals.get(genre) ?? 0) + game.playing);
-  }
-  const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]);
-  const rest = ranked.slice(5).reduce((sum, [, players]) => sum + players, 0);
-  const rows = rest > 0 ? [...ranked.slice(0, 5), ["Other", rest] as const] : ranked;
-
-  return {
-    kind: "donut",
-    title: "Players by genre",
-    subtitle: `Across the ${games.length} games in Top Playing Now`,
-    source: "Roblox Charts",
-    categories: rows.map(([genre]) => ({ key: genre, label: genre })),
-    series: [{ key: "playing", label: "Players now", format: "compact", values: rows.map(([, players]) => players) }],
-    colors: Object.fromEntries(
-      rows.map(([genre], i) => [genre, genre === "Other" ? colorHex("gray") : colorHex(PALETTE_ORDER[i])]),
-    ),
-    colorBy: "category",
-  };
-}
-
-export async function MarketOverview() {
-  const [playing, trending, rising, earning] = await Promise.all(
-    (["top-playing-now", "top-trending", "up-and-coming", "top-earning"] as const).map(load),
-  );
-
+export async function MarketOverview({ connected }: { connected: boolean }) {
+  const { samples, analysis } = await getMarketData();
+  const playing = samples.find((sample) => sample.chart === "top-playing-now")?.games ?? null;
+  const genreSample = analyzeMarket([{ chart: "top-playing-now", games: playing }], analysis.assembledAt);
   return (
-    <section aria-labelledby="market-heading" className="mt-10">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="market-heading" className="text-base font-semibold tracking-tight text-fg">
-          Roblox right now
-        </h2>
-        <p className="text-xs text-fg-muted">Live from Roblox Charts · refreshes every 2 minutes</p>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {playing ? (
-          <>
-            <ChartCard className="lg:col-span-2" chart={topPlayingChart(playing)} />
-            <ChartCard chart={genreChart(playing)} />
-          </>
-        ) : (
-          <p className="rounded-xl border border-line p-4 text-sm text-fg-muted lg:col-span-3">
-            Couldn&apos;t load Top Playing Now from Roblox right now.
-          </p>
-        )}
-      </div>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <RankedList title="Top Trending" games={trending} />
-        <RankedList title="Up-and-Coming" games={rising} />
-        <RankedList title="Top Earning" note="Roblox's ranking. Revenue figures aren't public." games={earning} />
-      </div>
-    </section>
+    <>
+      <section aria-labelledby="market-heading" className="mt-9">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+          <h2 id="market-heading" className="text-base font-semibold tracking-tight">Roblox right now</h2>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          {playing?.length ? <><ChartCard className="lg:col-span-2" chart={topPlayingChart(playing)} showSource={false} /><GenreBreakdown analysis={genreSample} /></>
+            : <div className="rounded-xl border border-line p-5 text-sm text-fg-muted lg:col-span-3">
+                <p role="status">{playing === null ? "Couldn't load games." : "No games found."}</p>
+                {playing === null && <RetryMarket />}
+              </div>}
+        </div>
+      </section>
+      {analysis.availableCharts.length > 0 && <PatternExplorer analysis={analysis} connected={connected} />}
+      <section className="mt-9" aria-label="Roblox discovery charts">
+        <div className="grid gap-4 md:grid-cols-3">
+          <RankedList title="Top Trending" games={samples.find((sample) => sample.chart === "top-trending")?.games ?? null} />
+          <RankedList title="Up-and-Coming" games={samples.find((sample) => sample.chart === "up-and-coming")?.games ?? null} />
+          <RankedList title="Top Earning" games={samples.find((sample) => sample.chart === "top-earning")?.games ?? null} />
+        </div>
+      </section>
+    </>
   );
 }
 
 export function MarketOverviewLoading() {
-  return (
-    <section aria-label="Roblox right now" className="mt-10">
-      <p className="text-base font-semibold tracking-tight text-fg">Roblox right now</p>
-      <p className="mt-4 rounded-xl border border-line p-4 text-sm text-fg-muted">Loading Roblox charts…</p>
-    </section>
-  );
+  return <section aria-label="Roblox right now" className="mt-9"><p className="text-base font-semibold">Roblox right now</p><p role="status" className="mt-4 rounded-xl border border-line p-5 text-sm text-fg-muted">Loading…</p></section>;
 }

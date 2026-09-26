@@ -1,5 +1,7 @@
 // Public Roblox web APIs. No authentication: these return what anyone can see on roblox.com.
 
+import { getGameIcons } from "./roblox-icons.ts";
+
 const TIMEOUT_MS = 8000;
 
 /** `revalidate` (seconds) lets Next.js reuse the response; without it every call hits Roblox. */
@@ -37,6 +39,8 @@ export type GameSearchResult = {
   dislikes: number;
   /** Paid placement in Roblox search, not a relevance signal. */
   sponsored: boolean;
+  /** 150x150 game icon, or null when Roblox has none available. */
+  iconUrl?: string | null;
 };
 
 /** Search games by name. Uses the endpoint behind roblox.com's own search box (undocumented). */
@@ -51,7 +55,7 @@ export async function searchGames(query: string, limit = 10): Promise<GameSearch
     .filter((group) => group.contentGroupType === "Game")
     .flatMap((group) => group.contents ?? []);
 
-  return games.slice(0, limit).map((game) => ({
+  const results = games.slice(0, limit).map((game) => ({
     universeId: game.universeId,
     rootPlaceId: game.rootPlaceId,
     name: game.name,
@@ -60,6 +64,10 @@ export async function searchGames(query: string, limit = 10): Promise<GameSearch
     dislikes: game.totalDownVotes,
     sponsored: game.isSponsored,
   }));
+
+  // One request for the whole page of results, never one per row.
+  const icons = await getGameIcons(results.map((game) => game.universeId));
+  return results.map((game) => ({ ...game, iconUrl: icons.get(game.universeId) ?? null }));
 }
 
 type RobloxGame = {
@@ -95,13 +103,16 @@ export type GameStats = {
   genre: string | null;
   created: string;
   updated: string;
+  /** 150x150 game icon, or null when Roblox has none available. */
+  iconUrl?: string | null;
 };
 
 export async function getGameStats(universeIds: number[]): Promise<GameStats[]> {
   const ids = universeIds.join(",");
-  const [games, votes] = await Promise.all([
+  const [games, votes, icons] = await Promise.all([
     getJson<{ data: RobloxGame[] }>(`https://games.roblox.com/v1/games?universeIds=${ids}`),
     getJson<{ data: RobloxVotes[] }>(`https://games.roblox.com/v1/games/votes?universeIds=${ids}`),
+    getGameIcons(universeIds),
   ]);
   const votesById = new Map(votes.data.map((v) => [v.id, v]));
 
@@ -123,6 +134,7 @@ export async function getGameStats(universeIds: number[]): Promise<GameStats[]> 
       genre: [game.genre_l1, game.genre_l2].filter(Boolean).join(" / ") || null,
       created: game.created,
       updated: game.updated,
+      iconUrl: icons.get(game.id) ?? null,
     };
   });
 }
@@ -164,6 +176,8 @@ export type ChartGame = {
   dislikes: number;
   genre: string | null;
   sponsored: boolean;
+  /** 150x150 game icon, or null when Roblox has none available. */
+  iconUrl?: string | null;
 };
 
 // Any stable ID works; keeping it fixed keeps the URL stable so cached responses can be reused.
@@ -178,7 +192,8 @@ export async function getRobloxChart(chart: RobloxChartId, revalidate?: number):
   url.searchParams.set("country", "all");
 
   const data = await getJson<{ games?: ExploreGame[] }>(url.toString(), revalidate);
-  return (data.games ?? []).map((game, index) => ({
+  if (!Array.isArray(data.games)) throw new Error("Roblox chart response is missing games.");
+  const chartGames = (data.games ?? []).map((game, index) => ({
     rank: index + 1,
     universeId: game.universeId,
     rootPlaceId: game.rootPlaceId,
@@ -189,6 +204,10 @@ export async function getRobloxChart(chart: RobloxChartId, revalidate?: number):
     genre: game.genreL1 || null,
     sponsored: game.isSponsored,
   }));
+
+  // One request for the whole chart, never one per row.
+  const icons = await getGameIcons(chartGames.map((game) => game.universeId));
+  return chartGames.map((game) => ({ ...game, iconUrl: icons.get(game.universeId) ?? null }));
 }
 
 export async function universeIdForPlace(placeId: number): Promise<number> {

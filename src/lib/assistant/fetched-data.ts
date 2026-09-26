@@ -1,8 +1,9 @@
 import type { ChartColor, MetricKey } from "@/lib/charts/spec";
 import { METRIC_KEYS } from "@/lib/charts/spec";
 import type { ApiMessage } from "./types";
+import { isRobloxImageUrl } from "@/lib/roblox-icons";
 
-export type GameRecord = { universeId: number; name: string; fetchedAt?: string } & Partial<Record<MetricKey, number>>;
+export type GameRecord = { universeId: number; name: string; fetchedAt?: string; iconUrl?: string | null; rootPlaceId?: number } & Partial<Record<MetricKey, number>>;
 
 /**
  * Everything the tools have fetched in a conversation, keyed by universe ID.
@@ -59,6 +60,8 @@ export class FetchedData {
       const metric = game[key];
       if (typeof metric === "number" && Number.isFinite(metric)) record[key] = metric;
     }
+    if ("iconUrl" in game) record.iconUrl = isRobloxImageUrl(game.iconUrl) ? game.iconUrl : null;
+    if (typeof game.rootPlaceId === "number" && Number.isSafeInteger(game.rootPlaceId) && game.rootPlaceId > 0) record.rootPlaceId = game.rootPlaceId;
     // Search and chart results carry likes and dislikes but no ratio; derive it so it stays current.
     const likes = game.likes;
     const dislikes = game.dislikes;

@@ -199,7 +199,8 @@ function lineOption(spec: ChartSpec, width: number): EChartsCoreOption {
       type: spec.logScale && spec.series.every((s) => positive(s.values)) ? "log" : "value",
       scale: true,
       splitNumber: 4,
-      axisLabel: { color: INK.muted, formatter: (v: number) => formatValue(v, format) },
+      // Exact tick labels keep nearby counts from rounding to the same label.
+      axisLabel: { color: INK.muted, formatter: (v: number) => format === "compact" ? v.toLocaleString("en-US") : formatValue(v, format) },
       splitLine: { lineStyle: { color: INK.grid, width: 1 } },
       axisLine: { show: false },
       axisTick: { show: false },
@@ -212,7 +213,9 @@ function lineOption(spec: ChartSpec, width: number): EChartsCoreOption {
         data: times.map((t, i) => [t, s.values[i]]),
         // Missing snapshots stay as gaps rather than being bridged.
         connectNulls: false,
-        showSymbol: false,
+        smooth: false,
+        // Isolated observations either side of a gap must remain visible.
+        showSymbol: true,
         symbol: "circle",
         symbolSize: 8,
         lineStyle: { width: 2, color, cap: "round", join: "round" },

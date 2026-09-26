@@ -1,0 +1,129 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { createMcpEndpoint } from "../src/lib/mcp/http.ts";
+import { createPublicDataService } from "../src/lib/public-data.ts";
+import { createToolGate, BusyError } from "../src/lib/mcp/limits.ts";
+
+const URL = "http://localhost:3000/mcp";
+const fixture = { universeId: 123, name: "Test fixture", playing: 4 };
+const service = () => createPublicDataService({
+  searchGames: async () => [fixture],
+  getGameStats: async () => [fixture],
+  universeIdForPlace: async () => 123,
+  getRobloxChart: async () => [],
+});
+
+function request(options = {}) {
+  const { headers, body, method = "POST" } = options;
+  return new Request(URL, {
+    method,
+    headers: { host: "localhost:3000", "content-type": "application/json", accept: "application/json, text/event-stream", ...headers },
+    ...(method === "POST" ? { body: body ?? JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) } : {}),
+  });
+}
+
+async function connect(t, endpoint, mode) {
+  const client = new Client({ name: "romanum-test", version: "1" }, { versionNegotiation: { mode } });
+  t.after(() => client.close());
+  await client.connect(new StreamableHTTPClientTransport(new globalThis.URL(URL), {
+    fetch: (input, init) => {
+      const req = new Request(input, init);
+      req.headers.set("host", new globalThis.URL(req.url).host);
+      return endpoint.fetch(req);
+    },
+  }));
+  return client;
+}
+
+for (const mode of ["legacy", { pin: "2026-07-28" }]) {
+  test(`official client discovers tools/resources and reads structured data (${JSON.stringify(mode)})`, async (t) => {
+    const endpoint = createMcpEndpoint({ service: service() });
+    t.after(() => endpoint.close());
+    const client = await connect(t, endpoint, mode);
+    const { tools } = await client.listTools();
+    assert.equal(tools.length, 8);
+    assert.ok(tools.every((tool) => tool.annotations.readOnlyHint && !tool.annotations.destructiveHint));
+    assert.ok(!tools.some((tool) => tool.name === "create_chart"));
+    const result = await client.callTool({ name: "search_games", arguments: { query: "Test" } });
+    assert.equal(result.isError, undefined);
+    assert.deepEqual(result.structuredContent.games, [fixture]);
+    assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
+    assert.ok(result.structuredContent.source.startsWith("https://"));
+    const { resources } = await client.listResources();
+    assert.equal(resources.length, 3);
+    const metrics = await client.readResource({ uri: "romanum://metrics" });
+    assert.equal(JSON.parse(metrics.contents[0].text).metrics.playing.unit, "players");
+    const skill = await client.readResource({ uri: "romanum://skills/romanum-game-design" });
+    assert.match(skill.contents[0].text, /name: romanum-game-design/);
+    const guide = await client.callTool({ name: "load_skill", arguments: { skill: "romanum-game-design" } });
+    assert.ok(guide.structuredContent.instructions.length > 100);
+    const invalid = await client.callTool({ name: "get_game_stats", arguments: { universeIds: [-1] } });
+    assert.equal(invalid.isError, true);
+    const traversal = await client.callTool({ name: "load_skill", arguments: { skill: "../../.env.local" } });
+    assert.equal(traversal.isError, true);
+    await assert.rejects(client.readResource({ uri: "romanum://skills/../../.env.local" }));
+  });
+}
+
+test("upstream failures become safe tool errors without fabricated observations", async (t) => {
+  const endpoint = createMcpEndpoint({ service: createPublicDataService({ searchGames: async () => { throw new Error("secret upstream details"); } }) });
+  t.after(() => endpoint.close());
+  const client = await connect(t, endpoint, "legacy");
+  const result = await client.callTool({ name: "search_games", arguments: { query: "x" } });
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent, undefined);
+  assert.doesNotMatch(result.content[0].text, /secret/);
+});
+
+test("HTTP rejects hostile origins/hosts and permits configured browser preflight", async (t) => {
+  const endpoint = createMcpEndpoint({ allowedOrigins: ["https://agent.example"] });
+  t.after(() => endpoint.close());
+  for (const headers of [{ host: "evil.example" }, { origin: "https://evil.example" }, { origin: "null" }]) {
+    assert.equal((await endpoint.fetch(request({ headers }))).status, 403);
+  }
+  const preflight = await endpoint.fetch(request({ method: "OPTIONS", headers: { origin: "https://agent.example" } }));
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("access-control-allow-origin"), "https://agent.example");
+  assert.equal(preflight.headers.get("cache-control"), "no-store");
+  assert.equal((await endpoint.fetch(request({ method: "GET" }))).status, 405);
+  assert.throws(() => createMcpEndpoint({ publicUrl: "http://public.example/mcp" }));
+});
+
+test("public host allowlist works behind a proxy without trusting the request URL", async (t) => {
+  const endpoint = createMcpEndpoint({ publicUrl: "https://romanum.example/mcp" });
+  t.after(() => endpoint.close());
+  assert.equal((await endpoint.fetch(request())).status, 403);
+  const response = await endpoint.fetch(request({ method: "OPTIONS", headers: { host: "romanum.example", origin: "https://romanum.example" } }));
+  assert.equal(response.status, 204);
+});
+
+test("body limits apply even without Content-Length", async (t) => {
+  const endpoint = createMcpEndpoint();
+  t.after(() => endpoint.close());
+  assert.equal((await endpoint.fetch(request({ body: "x".repeat(16 * 1024 + 1) }))).status, 413);
+});
+
+test("global quotas ignore attacker-selected forwarding headers and reset", async (t) => {
+  let now = 0;
+  const endpoint = createMcpEndpoint({ requestLimit: 2, now: () => now });
+  t.after(() => endpoint.close());
+  await endpoint.fetch(request({ headers: { "x-forwarded-for": "1.1.1.1" } }));
+  await endpoint.fetch(request({ headers: { "x-forwarded-for": "2.2.2.2" } }));
+  const denied = await endpoint.fetch(request({ headers: { "x-forwarded-for": "3.3.3.3" } }));
+  assert.equal(denied.status, 429);
+  assert.equal(denied.headers.get("retry-after"), "60");
+  now = 60_000;
+  assert.notEqual((await endpoint.fetch(request())).status, 429);
+});
+
+test("tool concurrency is bounded and slots are released after failures", async () => {
+  const gate = createToolGate(1);
+  let finish;
+  const pending = gate(() => new Promise((resolve) => { finish = resolve; }));
+  await assert.rejects(gate(async () => 2), BusyError);
+  finish(1);
+  assert.equal(await pending, 1);
+  await assert.rejects(gate(async () => { throw new Error("upstream"); }));
+  assert.equal(await gate(async () => 3), 3);
+});
