@@ -109,7 +109,9 @@ export async function queueCreativeJob(database: Database, provider: ImageProvid
     if (data.stage !== "concept" && flow.approval?.conceptKey !== concept.key) throw new CreativeError("approval_required");
     const asset = data.stage === "asset" ? concept.assets.find((item) => item.key === data.assetKey) : null;
     if (data.stage === "asset" && !asset) throw new CreativeError("not_found");
-    const { rows } = await sql.query<{ count: number; spent: string }>("SELECT count(*)::int AS count, coalesce(sum(quoted_credits) FILTER (WHERE status NOT IN ('failed','cancelled')),0)::text AS spent FROM creative_jobs WHERE workflow_id=$1", [flow.id]);
+    // Reconciled failures may still have incurred a cost. They continue to use
+    // the workflow budget even when there was no recoverable image.
+    const { rows } = await sql.query<{ count: number; spent: string }>("SELECT count(*)::int AS count, coalesce(sum(coalesce(r.actual_credits, CASE WHEN j.status IN ('failed','cancelled') THEN 0 ELSE j.quoted_credits END)),0)::text AS spent FROM creative_jobs j LEFT JOIN creative_reconciliations r ON r.job_id=j.id WHERE j.workflow_id=$1", [flow.id]);
     const quote = TEST_CREDITS[data.stage];
     if (rows[0].count >= 24 || Number(rows[0].spent) + quote > flow.credit_budget) throw new CreativeError("budget_exceeded");
     const sameOutput = await sql.query("SELECT id FROM creative_jobs WHERE workflow_id=$1 AND concept_key=$2 AND stage=$3 AND asset_key=$4 AND status IN ('queued','running','succeeded','uncertain')", [flow.id, concept.key, data.stage, data.assetKey]);
