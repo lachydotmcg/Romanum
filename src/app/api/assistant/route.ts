@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { SYSTEM_PROMPT } from "@/lib/assistant/prompt";
 import { FetchedData } from "@/lib/assistant/fetched-data";
+import { suggestFollowUp } from "@/lib/assistant/follow-up";
 import { prepareCall, runTool, TOOLS } from "@/lib/assistant/tools";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 
@@ -152,6 +153,10 @@ export async function POST(request: Request) {
 
           if (!toolCalls.length) {
             send({ type: "done", messages: turn });
+            // The answer is complete above; the suggestion follows on the same stream when it's ready.
+            const question = conversation.at(-1)?.content;
+            const suggestion = await suggestFollowUp(client, MODEL, typeof question === "string" ? question : "", content, abort.signal);
+            if (suggestion) send({ type: "suggestion", text: suggestion });
             return;
           }
 

@@ -15,7 +15,12 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
   // The conversation in API form, including tool results and DeepSeek's reasoning, sent back on each question.
   const [history, setHistory] = useState<ApiMessage[]>([]);
   const [running, setRunning] = useState(false);
+  // The model's guess at the next question: shown in the empty prompt bar and accepted with Tab.
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Only the newest request may update the prompt bar; an older stream can still be delivering its suggestion.
+  const requestRef = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Follow new output unless the reader has scrolled up.
   const followRef = useRef(true);
@@ -42,6 +47,9 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
     const question = input.trim();
     if (!question || running) return;
 
+    // The previous answer is finished but its stream may still be waiting on a suggestion.
+    abortRef.current?.abort();
+    const request = ++requestRef.current;
     const userMessage: ApiMessage = { role: "user", content: question };
     const controller = new AbortController();
     const turnId = crypto.randomUUID();
@@ -50,6 +58,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
     abortRef.current = controller;
     followRef.current = true;
     setInput("");
+    setSuggestion(null);
     setRunning(true);
     setTurns((prev) => [...prev, newTurn(turnId, question)]);
 
@@ -78,7 +87,15 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
           buffer = buffer.slice(newline + 1);
           if (!line) continue;
           const parsed = JSON.parse(line) as AssistantEvent;
-          if (parsed.type === "done") setHistory((prev) => [...prev, userMessage, ...parsed.messages]);
+          if (parsed.type === "suggestion") {
+            if (request === requestRef.current) setSuggestion(parsed.text);
+            continue;
+          }
+          if (parsed.type === "done") {
+            setHistory((prev) => [...prev, userMessage, ...parsed.messages]);
+            // The answer is complete; the prompt bar is usable while the suggestion loads.
+            setRunning(false);
+          }
           update((turn) => applyEvent(turn, parsed, Date.now()));
         }
       }
@@ -90,10 +107,11 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
         : error instanceof Error
           ? error.message
           : "Something went wrong.";
-      update((turn) => finishTurn(turn, Date.now(), message));
+      // A finished answer whose suggestion stream was cut off stays as it was.
+      update((turn) => (turn.done ? turn : finishTurn(turn, Date.now(), message)));
     } finally {
-      setRunning(false);
-      abortRef.current = null;
+      if (request === requestRef.current) setRunning(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }
 
@@ -141,15 +159,44 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
           Ask the AI assistant
         </label>
         <input
+          ref={inputRef}
           id="ai-prompt"
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask Romanum…"
+          onKeyDown={(e) => {
+            // Tab only takes the suggestion while the bar is empty; otherwise it moves focus as usual.
+            if (e.key === "Tab" && !e.shiftKey && suggestion && !input) {
+              e.preventDefault();
+              setInput(suggestion);
+            } else if (e.key === "Escape" && suggestion && !input) {
+              setSuggestion(null);
+            }
+          }}
+          placeholder={suggestion ?? "Ask Romanum…"}
+          aria-describedby={suggestion && !input ? "ai-suggestion-hint" : undefined}
           maxLength={4000}
           autoComplete="off"
-          className="min-w-0 flex-1 bg-transparent text-sm text-fg placeholder:text-fg-subtle focus:outline-none"
+          className={`min-w-0 flex-1 bg-transparent text-sm text-ellipsis text-fg focus:outline-none ${
+            suggestion ? "placeholder:text-fg-muted" : "placeholder:text-fg-subtle"
+          }`}
         />
+        {suggestion && !input && !running && (
+          <button
+            type="button"
+            onClick={() => {
+              setInput(suggestion);
+              inputRef.current?.focus();
+            }}
+            aria-label={`Use suggestion: ${suggestion}`}
+            className={`shrink-0 rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] leading-4 text-fg-muted hover:bg-surface-hover hover:text-fg ${FOCUS}`}
+          >
+            Tab
+          </button>
+        )}
+        <span id="ai-suggestion-hint" className="sr-only">
+          Press Tab to use the suggested question.
+        </span>
         {running ? (
           <button
             type="button"

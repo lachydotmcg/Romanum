@@ -20,4 +20,6 @@ export type AssistantEvent =
   | { type: "tool_end"; id: string; ok: boolean; summary: string; result: unknown; ms: number }
   | { type: "chart"; id: string; chart: ChartSpec }
   | { type: "done"; messages: ApiMessage[] }
+  /** Sent after "done": the user's likely next question, for the prompt bar to offer. */
+  | { type: "suggestion"; text: string }
   | { type: "error"; message: string };
