@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genre analysis"
+  short_description: "Research Roblox patterns and competition"
+  default_prompt: "Use $romanum-genre-analysis to help with my Roblox project."

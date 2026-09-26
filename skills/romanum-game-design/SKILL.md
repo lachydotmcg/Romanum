@@ -16,6 +16,8 @@ In Romanum, use `get_market_analysis` for genre/pattern questions and `get_game_
 
 Before recommending a concept, call `research_game_idea` with its working title and one or two mechanic/fantasy phrases. Without that tool, perform equivalent searches using available Roblox search tools. Record candidate competitors and incomplete searches. An empty search is not proof of novelty. Competition does not disqualify an idea: identify a testable improvement, then inspect gameplay before claiming that improvement is missing or poorly executed elsewhere.
 
+For off-platform inspiration, inspect a playable browser/mobile game, older minigame or social challenge. Record dated demand signals such as reviews, plays or audience requests, with their source and limitations. Old popularity or a creator video's views do not prove present Roblox demand. Extract the player fantasy and decision, then adapt controls, session length, content and multiplayer structure for the intended audience. Research existing Roblox versions before recommending the adaptation; create original art, names and distinctive expression.
+
 ## Develop the concept
 
 Explain the player fantasy and the repeating action -> feedback -> choice -> progression loop. Reuse broad genre conventions while changing a meaningful decision, social interaction, skill or objective. Avoid presenting a renamed copy, copied assets or another creator's branding as differentiation.
@@ -36,6 +38,10 @@ Offer a small playable prototype and a few concrete observations: can a new play
 
 Match the response to the question. A concept pitch may need only evidence, the idea, the loop, a differentiator and a prototype test. A full design document should be written only when requested.
 
+Use `romanum-game-teardown` for inspecting reference games and revisiting hypotheses; use `romanum-game-economy` for progression and purchase tradeoffs when those guides are available. Do not assume installing this skill also installs the others.
+
 ## Sources and attribution
 
 The decomposition and tension/recovery prompts include original paraphrases of a Tizzy RBLX transcript: fantasy/mechanic discussion at 1:17–2:45 and tension/release at 8:18–8:58. Channel: https://www.youtube.com/@TizzyRBLX12. Individual video URL and publication date are unverified. These are creator interpretations, not measured performance claims. Percentage-of-originality formulas, guaranteed revenue/CCU outcomes and audience stereotypes are not adopted. The audience and fair-design constraints above are Romanum guidance, not claims about the creator's research. Full transcripts are not distributed.
+
+Off-platform research also draws on his top-developer consultation transcript: demand signals at 3:20–3:45, checking Roblox competitors at 6:06–6:23, adaptation at 8:08–8:34 and audience access requests at 12:40–13:41. These are research heuristics; reported game results and originality claims are not independently verified.

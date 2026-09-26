@@ -1,0 +1,4 @@
+interface:
+  display_name: "Player onboarding"
+  short_description: "Improve the first Roblox play session"
+  default_prompt: "Use $romanum-player-onboarding to help with my Roblox project."

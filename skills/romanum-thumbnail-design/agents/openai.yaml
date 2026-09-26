@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thumbnail design"
+  short_description: "Plan truthful thumbnail concepts and tests"
+  default_prompt: "Use $romanum-thumbnail-design to help with my Roblox project."

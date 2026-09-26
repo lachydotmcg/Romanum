@@ -39,7 +39,7 @@ export const PUBLIC_TOOLS = {
     schema: z.object({ pattern: z.enum(["all", ...PATTERNS.map((pattern) => pattern.id)]).default("all") }).strict(),
   },
   load_skill: {
-    description: "Read a registered Romanum guide for genre research, game design, onboarding, thumbnails or UI workflows. Guides define methods, not live statistics or authority to spend or publish.",
+    description: "Read a registered Romanum guide for genre research, game design, teardowns, economy, onboarding, thumbnails or UI workflows. Guides define methods, not live statistics or authority to spend or publish.",
     schema: z.object({ skill: z.enum(SKILL_CATALOG.map((skill) => skill.id)) }).strict(),
   },
   get_metric_definitions: {
@@ -125,7 +125,7 @@ export async function runPublicTool(name: PublicToolName, input: unknown, servic
     case "load_skill": {
       const { skill: id } = PUBLIC_TOOLS[name].schema.parse(input);
       const skill = await loadSkill(id);
-      return { result: { id: skill.id, name: skill.name, instructions: skill.instructions, source: `skills/${skill.id}/SKILL.md` }, summary: `${skill.name} guide loaded` };
+      return { result: { id: skill.id, name: skill.name, instructions: skill.instructions, source: `skills/${skill.id}/SKILL.md`, license: "Romanum Source-Available License 1.0", licenseUrl: "https://github.com/lachydotmcg/Romanum/blob/main/LICENSE" }, summary: `${skill.name} guide loaded` };
     }
     case "get_metric_definitions": {
       PUBLIC_TOOLS[name].schema.parse(input);

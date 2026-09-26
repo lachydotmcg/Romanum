@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI workflow"
+  short_description: "Reuse and assemble editable Roblox UI"
+  default_prompt: "Use $romanum-ui-workflow to help with my Roblox project."

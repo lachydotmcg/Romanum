@@ -56,7 +56,7 @@ for (const mode of ["legacy", { pin: "2026-07-28" }]) {
     assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
     assert.ok(result.structuredContent.source.startsWith("https://"));
     const { resources } = await client.listResources();
-    assert.equal(resources.length, 6);
+    assert.equal(resources.length, 8);
     const metrics = await client.readResource({ uri: "romanum://metrics" });
     assert.equal(JSON.parse(metrics.contents[0].text).metrics.playing.unit, "players");
     const skill = await client.readResource({ uri: "romanum://skills/romanum-game-design" });

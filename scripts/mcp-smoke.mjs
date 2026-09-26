@@ -15,10 +15,16 @@ try {
   const { tools } = await client.listTools();
   assert.equal(tools.length, 9);
   const { resources } = await client.listResources();
-  assert.equal(resources.length, 6);
+  assert.equal(resources.length, 8);
   await client.readResource({ uri: "romanum://skills/romanum-game-design" });
   await call("get_metric_definitions");
   await call("load_skill", { skill: "romanum-genre-analysis" });
+  for (const id of ["romanum-game-teardown", "romanum-game-economy"]) {
+    const guide = await call("load_skill", { skill: id });
+    assert.equal(guide.id, id);
+    assert.ok(guide.instructions.length > 500);
+    assert.equal(guide.licenseUrl, "https://github.com/lachydotmcg/Romanum/blob/main/LICENSE");
+  }
   const search = await call("search_games", { query: "Blox Fruits" });
   const research = await call("research_game_idea", { title: "Blox Fruits", terms: ["pirate adventure"] });
   assert.equal(research.status, "complete");

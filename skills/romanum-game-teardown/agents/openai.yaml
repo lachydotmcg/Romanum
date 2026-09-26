@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game teardown"
+  short_description: "Learn from observed Roblox gameplay"
+  default_prompt: "Use $romanum-game-teardown to help with my Roblox project."

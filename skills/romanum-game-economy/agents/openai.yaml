@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game economy"
+  short_description: "Balance progression and optional purchases"
+  default_prompt: "Use $romanum-game-economy to help with my Roblox project."

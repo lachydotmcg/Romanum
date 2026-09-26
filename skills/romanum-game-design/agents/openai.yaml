@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game design"
+  short_description: "Design an original Roblox core loop"
+  default_prompt: "Use $romanum-game-design to help with my Roblox project."
