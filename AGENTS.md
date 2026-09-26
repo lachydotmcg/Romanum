@@ -11,7 +11,7 @@ Before drafting, revising, or reviewing an email, read [emaillanguage.md](./emai
 - Colours follow ChatGPT's dark theme (owner requests, 2026-09-26):
   - The page and the sidebar are pure black. A #262626 border separates them.
   - One grey, `surface` (#1b1b1b), is used for every panel (cards, inputs, bubbles) and for hover or selected states on black.
-  - `surface-hover`/`line` (#262626) is the only step above it, for borders and hover or selected states on grey. Don't add translucent or in-between greys.
+  - `surface-hover`/`line` (#262626) is the only step above it, for borders and hover or selected states on grey. Don't add translucent or in-between greys. The one exception is the blur behind the pinned Ask Romanum bar, which fades out below it (owner request, 2026-09-27).
   - UI icons are white like the wordmark, except disabled controls, which stay dimmed.
 - Main navigation is Analytics and Your games. Your games belongs to the profile (`/profile`); the nav item is its shortcut because people rarely open a profile to find their games (owner decision, 2026-09-26). Keep it an honest empty state until games can be connected. Keep Skills hidden until requested; preserve its guides, SVG and internal assistant support for reuse.
 - Assistant answers are plain and recommendation-first by default: ideas as bold working titles with one short reason each, and no statistics unless the user asks for numbers. Numbers, caveats and full designs are offered as follow-ups. After each answer a separate small model call predicts the next question, which the prompt bar offers and Tab accepts.

@@ -33,9 +33,6 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </Suspense>
 
       <PlayerHistory />
-
-      {/* Room at the end of the page for the prompt bar once it docks at the bottom. */}
-      <div aria-hidden="true" className="h-20" />
     </>
   );
 }

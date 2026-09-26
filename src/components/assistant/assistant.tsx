@@ -22,12 +22,12 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
   const requestRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bandRef = useRef<HTMLDivElement>(null);
+  // Whether the bar is pinned to the top of the screen; the blur behind it only shows then.
+  const [pinned, setPinned] = useState(false);
   // Follow new output unless the reader has scrolled up.
   const followRef = useRef(true);
-  // The bar's place in the page. Once that spot scrolls out of view, the bar docks at the bottom, as in ChatGPT.
-  const slotRef = useRef<HTMLDivElement>(null);
-  const [docked, setDocked] = useState(false);
-  // Set when a question is sent, so its answer is scrolled into view even when asked from the docked bar.
+  // Set when a question is sent, so its answer is scrolled into view even when asked from far down the page.
   const revealRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -48,20 +48,27 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
   }, [connected]);
 
   useEffect(() => {
-    const slot = slotRef.current;
-    if (!slot) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      setDocked(!entry.isIntersecting && entry.boundingClientRect.top < 0);
-    });
-    observer.observe(slot);
+    const band = bandRef.current;
+    if (!band) return;
+    // A pinned band sits at the very top, so its top pixel falls outside a root shrunk by 1px.
+    const observer = new IntersectionObserver(
+      ([entry]) => setPinned(entry.intersectionRatio < 1 && entry.boundingClientRect.top < 1),
+      { rootMargin: "-1px 0px 0px 0px", threshold: 1 },
+    );
+    observer.observe(band);
     return () => observer.disconnect();
   }, [connected]);
 
   useEffect(() => {
     if (!revealRef.current) return;
     revealRef.current = false;
+    const panel = scrollRef.current?.getBoundingClientRect();
+    const band = bandRef.current?.getBoundingClientRect();
+    // Asked from further down the page: scroll back up to the answers. The extra 12px lets the bar settle back
+    // into its place above them, rather than staying pinned with its blur over the start of the answers.
+    if (!panel || !band || panel.top >= band.bottom) return;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrollRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
+    window.scrollBy({ top: panel.top - band.bottom - 12, behavior: reduceMotion ? "auto" : "smooth" });
   }, [turns.length]);
 
   async function ask(event: FormEvent) {
@@ -172,86 +179,88 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
     );
   }
 
+  // No wrapper element: a sticky element only sticks within its parent, and the bar stays pinned down the whole page.
   return (
-    <section aria-label="AI assistant">
-      {/* Holds the bar's place while it's docked, so the page doesn't jump. */}
-      <div ref={slotRef} className="h-12">
-        <div
-          className={
-            docked
-              ? "fixed right-0 bottom-0 left-16 z-30 bg-canvas px-4 pt-3 pb-4 motion-safe:animate-[dock-in_160ms_ease-out] sm:px-8"
-              : undefined
-          }
+    <>
+      {/* Pinned to the top of the screen once you scroll to it. The band's negative margin cancels its padding,
+          so the bar sits where it did. */}
+      <div
+        ref={bandRef}
+        data-pinned-prompt
+        className="sticky top-0 z-30 -my-3 py-3 [@media(prefers-reduced-transparency:reduce)]:bg-canvas"
+      >
+        {/* While pinned, the page behind the bar is blurred, fading out below it so the two blend. Solid black
+            instead when the system asks for less transparency. */}
+        {pinned && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 -bottom-8 -z-10 backdrop-blur-xl [mask-image:linear-gradient(to_bottom,black_calc(100%_-_2.75rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:hidden" />
+        )}
+        <form
+          onSubmit={ask}
+          aria-label="AI assistant"
+          className="flex h-12 items-center gap-3 rounded-xl border border-line bg-surface pr-2 pl-4 focus-within:border-line-strong"
         >
-          <form
-            onSubmit={ask}
-            className={`flex h-12 items-center gap-3 rounded-xl border border-line bg-surface pr-2 pl-4 focus-within:border-line-strong ${
-              docked ? "mx-auto max-w-3xl" : ""
+          <label htmlFor="ai-prompt" className="sr-only">
+            Ask the AI assistant
+          </label>
+          <input
+            ref={inputRef}
+            id="ai-prompt"
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              // Tab only takes the suggestion while the bar is empty; otherwise it moves focus as usual.
+              if (e.key === "Tab" && !e.shiftKey && suggestion && !input) {
+                e.preventDefault();
+                setInput(suggestion);
+              } else if (e.key === "Escape" && suggestion && !input) {
+                setSuggestion(null);
+              }
+            }}
+            placeholder={suggestion ?? "Ask Romanum…"}
+            aria-describedby={suggestion && !input ? "ai-suggestion-hint" : undefined}
+            maxLength={4000}
+            autoComplete="off"
+            className={`min-w-0 flex-1 bg-transparent text-sm text-ellipsis text-fg focus:outline-none ${
+              suggestion ? "placeholder:text-fg-muted" : "placeholder:text-fg-subtle"
             }`}
-          >
-            <label htmlFor="ai-prompt" className="sr-only">
-              Ask the AI assistant
-            </label>
-            <input
-              ref={inputRef}
-              id="ai-prompt"
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                // Tab only takes the suggestion while the bar is empty; otherwise it moves focus as usual.
-                if (e.key === "Tab" && !e.shiftKey && suggestion && !input) {
-                  e.preventDefault();
-                  setInput(suggestion);
-                } else if (e.key === "Escape" && suggestion && !input) {
-                  setSuggestion(null);
-                }
+          />
+          {suggestion && !input && !running && (
+            <button
+              type="button"
+              onClick={() => {
+                setInput(suggestion);
+                inputRef.current?.focus();
               }}
-              placeholder={suggestion ?? "Ask Romanum…"}
-              aria-describedby={suggestion && !input ? "ai-suggestion-hint" : undefined}
-              maxLength={4000}
-              autoComplete="off"
-              className={`min-w-0 flex-1 bg-transparent text-sm text-ellipsis text-fg focus:outline-none ${
-                suggestion ? "placeholder:text-fg-muted" : "placeholder:text-fg-subtle"
-              }`}
-            />
-            {suggestion && !input && !running && (
-              <button
-                type="button"
-                onClick={() => {
-                  setInput(suggestion);
-                  inputRef.current?.focus();
-                }}
-                aria-label={`Use suggestion: ${suggestion}`}
-                className={`shrink-0 rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] leading-4 text-fg-muted hover:bg-surface-hover hover:text-fg ${FOCUS}`}
-              >
-                Tab
-              </button>
-            )}
-            <span id="ai-suggestion-hint" className="sr-only">
-              Press Tab to use the suggested question.
-            </span>
-            {running ? (
-              <button
-                type="button"
-                onClick={() => abortRef.current?.abort()}
-                aria-label="Stop"
-                className={`grid size-8 shrink-0 place-items-center rounded-lg bg-surface-hover text-fg ${FOCUS}`}
-              >
-                <Square className="size-3.5 fill-current text-white" aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!input.trim()}
-                aria-label="Send"
-                className={`grid size-8 shrink-0 place-items-center rounded-lg bg-white text-black disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${FOCUS}`}
-              >
-                <ArrowUp className="size-4" strokeWidth={2} aria-hidden="true" />
-              </button>
-            )}
-          </form>
-        </div>
+              aria-label={`Use suggestion: ${suggestion}`}
+              className={`shrink-0 rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] leading-4 text-fg-muted hover:bg-surface-hover hover:text-fg ${FOCUS}`}
+            >
+              Tab
+            </button>
+          )}
+          <span id="ai-suggestion-hint" className="sr-only">
+            Press Tab to use the suggested question.
+          </span>
+          {running ? (
+            <button
+              type="button"
+              onClick={() => abortRef.current?.abort()}
+              aria-label="Stop"
+              className={`grid size-8 shrink-0 place-items-center rounded-lg bg-surface-hover text-fg ${FOCUS}`}
+            >
+              <Square className="size-3.5 fill-current text-white" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              aria-label="Send"
+              className={`grid size-8 shrink-0 place-items-center rounded-lg bg-white text-black disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${FOCUS}`}
+            >
+              <ArrowUp className="size-4" strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
+        </form>
       </div>
 
       {turns.length > 0 && (
@@ -262,7 +271,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
             followRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
           }}
           aria-busy={running}
-          className="mt-3 max-h-[min(70vh,48rem)] scroll-mt-4 overflow-y-auto rounded-xl border border-line p-4"
+          className="mt-3 max-h-[min(70vh,48rem)] overflow-y-auto rounded-xl border border-line p-4"
         >
           <Transcript turns={turns} />
         </div>
@@ -270,6 +279,6 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
       <p role="status" className="sr-only">
         {running ? "The assistant is responding." : ""}
       </p>
-    </section>
+    </>
   );
 }

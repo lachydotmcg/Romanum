@@ -40,14 +40,10 @@
   }
 }
 
-/* The prompt bar's entrance when it docks at the bottom of the screen. */
-@keyframes dock-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+/* While the Ask Romanum bar is pinned to the top, keyboard focus scrolls controls into view below it instead of
+   underneath it. 6.5rem covers the bar's band (0.75rem padding, a 3rem bar, 0.75rem padding) and the 2rem below
+   it where the blur fades out. The padding is off while the bar itself has focus: Chromium measures the pinned
+   bar against it and scrolls the page on focus and on every keystroke. */
+html:has([data-pinned-prompt]:not(:focus-within)) {
+  scroll-padding-top: 6.5rem;
 }
