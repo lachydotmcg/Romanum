@@ -9,6 +9,7 @@ The complete product outline and eight-stage roadmap live in [PROJECT.md](../PRO
 - Theme modelled on ChatGPT's dark mode: a pure black page and sidebar, separated by a `#262626` border. One grey (`#1b1b1b`) is used for panels and for hover/selected states on black, and `#262626` for borders and states on grey. Icons are white like the wordmark. The content area is up to 1600px wide; chat prose keeps a readable line length.
 - Concise chart retry actions, an Analytics error boundary and an application-styled missing-page state. The MCP URL field retains its height on narrow screens.
 - Navigation: Analytics, plus Your games as a shortcut to the profile (`/profile`), where games will live. The profile is the Guest with "No games connected"; the Guest row also opens it. Get MCP links to the connection page.
+- Once you scroll past the Ask Romanum bar, it docks at the bottom of the screen, centred, as in ChatGPT. Asking from there scrolls the answer into view.
 - Assistant answers are short by default and offer more detail. After each answer, a separate small DeepSeek call predicts the next question; the prompt bar shows it and Tab (or the Tab badge) fills it in.
 - A public, read-only Streamable HTTP MCP endpoint at `/mcp`, with eight tools and three resources over the shared data service. The owner explicitly authorized this slice on 2026-09-26. It is verified locally; no public deployment is configured. See [MCP setup](mcp.md).
 - Public game icons in ranked lists, comparison charts, stat tiles and chart tables.
