@@ -43,3 +43,7 @@ The MCP smoke test requires a running local application and contacts Roblox. Uni
 ## Repository
 
 `src/app` contains routes, `src/lib` shared services, `skills` the portable guides, and `tests` contract and storage checks. Internal planning and raw third-party transcripts are not distributed.
+
+## Licence
+
+Romanum's code and skills use the custom [Romanum Source-Available License](LICENSE). Commercializing the code, hosted copies, or skill packs requires separate permission. You may use the tools and skills to create and monetize your own games, images, UI assets and client work. Third-party rights still apply. See [third-party notices](THIRD_PARTY_NOTICES.md).

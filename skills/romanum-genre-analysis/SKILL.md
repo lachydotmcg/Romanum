@@ -1,5 +1,6 @@
 ---
 name: romanum-genre-analysis
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 description: Analyze Roblox genres and recurring game-title patterns using current, sourced data. Use for market comparisons, Steal a or +1 patterns, competition, and deciding which themes merit a prototype.
 ---
 
