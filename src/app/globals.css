@@ -13,6 +13,13 @@
   --color-fg-subtle: #6e6e6e;
 
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Tipping over: speeds up like gravity, lands at 60%, rebounds 18% of the way and settles. */
+  --ease-fall: linear(
+    0, 0.007 5%, 0.028 10%, 0.063 15%, 0.111 20%, 0.174 25%, 0.25 30%, 0.34 35%, 0.444 40%,
+    0.563 45%, 0.694 50%, 0.84 55%, 1 60%, 0.921 65%, 0.865 70%, 0.831 75%, 0.82 80%,
+    0.831 85%, 0.865 90%, 0.921 95%, 1
+  );
 }
 
 @theme inline {

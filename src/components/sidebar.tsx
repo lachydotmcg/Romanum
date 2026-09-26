@@ -18,6 +18,10 @@ const LABEL =
 // "manum" is wiped in from behind "Ro" in step with the rail's width.
 const TAIL = `[clip-path:inset(0_100%_0_0)] transition-[clip-path] duration-200 ease-emphasized group-hover/sidebar:[clip-path:inset(0)] ${EXPAND_DELAY} group-has-focus-visible/sidebar:[clip-path:inset(0)] motion-reduce:transition-none`;
 
+// The square "o" stands upright on the baseline while collapsed, falls into its tilt as the
+// rail widens, and stands back up on collapse.
+const SYMBOL = `rotate-0 translate-y-(--upright-y) transition-[rotate,translate] duration-200 ease-emphasized group-hover/sidebar:rotate-(--tilt) group-hover/sidebar:translate-y-0 group-hover/sidebar:duration-550 group-hover/sidebar:ease-fall ${EXPAND_DELAY} group-has-focus-visible/sidebar:rotate-(--tilt) group-has-focus-visible/sidebar:translate-y-0 group-has-focus-visible/sidebar:duration-550 group-has-focus-visible/sidebar:ease-fall motion-reduce:transition-none`;
+
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
 export function Sidebar() {
@@ -27,7 +31,7 @@ export function Sidebar() {
     <aside className="group/sidebar fixed inset-y-0 left-0 z-40 flex w-16 flex-col overflow-hidden border-r border-line bg-sidebar transition-[width] duration-200 ease-emphasized hover:w-60 hover:delay-100 has-focus-visible:w-60 motion-reduce:transition-none">
       <div className="flex h-16 shrink-0 items-center px-4">
         <Link href="/analytics" className={`rounded-sm text-white ${FOCUS}`}>
-          <Wordmark className="h-5" tailClassName={TAIL} />
+          <Wordmark className="h-5" tailClassName={TAIL} symbolClassName={SYMBOL} />
         </Link>
       </div>
 
