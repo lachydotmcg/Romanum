@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Dark only: deep blacks for the canvas, dark greys for surfaces. */
+@theme {
+  --color-canvas: #050505;
+  --color-sidebar: #0d0d0d;
+  --color-surface: #111111;
+  --color-surface-hover: #1a1a1a;
+  --color-line: #1f1f1f;
+  --color-line-strong: #2b2b2b;
+  --color-fg: #ededed;
+  --color-fg-muted: #a1a1a1;
+  --color-fg-subtle: #6e6e6e;
+
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background-color: var(--color-canvas);
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-fg);
+  }
+}
