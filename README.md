@@ -20,6 +20,12 @@ Open http://localhost:3000. To collect public observations locally, run `npm run
 
 The integrated assistant uses `DEEPSEEK_API_KEY` in `.env.local`. Public analytics and MCP do not require a paid model. The assistant needs authentication and spending controls before public deployment.
 
+### Try thumbnail workflows locally
+
+Run `npm run creation:lab`, then open http://127.0.0.1:3100. The dry-run lab starts with 20 test credits. Queue a concept, simulate success or failure, cancel a queued job, and accept a completed test concept to queue its final stage. Credit activity uses the actual reservation and settlement services.
+
+The lab generates no images and makes no API calls. Its fixed storage fixture is never displayed as artwork. Test data persists separately under `.local/creation-lab`; it does not connect to the site's database. The server only listens on loopback and is not a public creator endpoint. Stop it with Ctrl+C.
+
 ## Current boundaries
 
 Charts use actual observations and preserve collection gaps. Public data does not reveal private retention, revenue, demographic or thumbnail CTR metrics. Idea research finds candidate competitors; it does not certify originality or compare gameplay quality.
