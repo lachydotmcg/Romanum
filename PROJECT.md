@@ -8,6 +8,8 @@ This is the canonical product outline supplied by the product owner. **Stage 1 i
 
 **Game discovery authorization, 2026-09-26:** the owner approved starting game search and individual game pages, with icons, current public statistics and real recorded history using the shared data services. Keep these inside Analytics. Collector operations, richer comparisons and private connections remain separate follow-up work.
 
+**Owner direction, 2026-09-27:** a future chats page, credits, model routing and a UI marketplace are recorded in [section 26](#26-owner-direction-2026-09-27). These describe direction, not authorization.
+
 ## 1. Product vision
 
 Romanum is intended to become a central development platform for Roblox creators.
@@ -572,3 +574,33 @@ Do not make later roadmap features appear functional.
 Prioritise the Romanum identity, SVG wordmark, dark application shell, collapsible sidebar, smooth interactions, Analytics page, AI interface shell, Guest state, and Get MCP entry point.
 
 The result should feel like the beginning of Romanum rather than a fake finished SaaS dashboard.
+
+## 26. Owner direction, 2026-09-27
+
+Recorded as the owner stated it. This is direction for later stages, not authorization to build it now. In the owner's words: "I genuinely just want this to be a hub for everything."
+
+### Chats page
+
+Chats should get their own page instead of sitting at the top of Analytics, likely once Romanum can make games and other things. The reference is ChatGPT:
+- A new chat starts with the composer centred.
+- The composer moves to the bottom once the conversation starts.
+- Past chats are listed in the sidebar.
+
+### Credits
+
+- Credits are Romanum's currency. Users can pay a monthly subscription or buy credits outright.
+- Every user, including guests, gets a small number of free credits.
+- The principles in section 2 still apply: analytics and MCP access stay free.
+
+### Model routing
+
+- Use base models where they suit the task, potentially routing each request deterministically to a model chosen by its suspected difficulty.
+- Analytical requests should only ever need DeepSeek or GPT-6 Luna.
+- Coding can still route to DeepSeek and Luna to an extent, but Sol or Opus is the likely recommendation for coding later.
+- The details will be settled when this is built. Model names are as the owner gave them; check availability and pricing at that point.
+
+### UI marketplace
+
+- With data collection turned on, the AI can ask whether a UI it made would be useful to add to the marketplace, or prompt the user to decide.
+- The AI can pick premade UIs from the marketplace, including existing free UIs that weren't AI-generated.
+- What sets Romanum's UI tool apart: the AI doesn't have to generate every UI. It can find an existing one instead, which saves the user credits.
