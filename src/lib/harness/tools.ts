@@ -2,17 +2,17 @@ import { z } from "zod";
 import type { Database } from "../history/database.ts";
 import { PUBLIC_TOOLS, runPublicTool, type PublicToolName } from "../public-tools.ts";
 import type { PublicDataService } from "../public-data.ts";
-import { briefSchema, conceptsSchema, idSchema } from "../creative/schema.ts";
+import { idSchema } from "../creative/schema.ts";
 import { requireProject } from "../creative/storage.ts";
-import { createCreativeWorkflow, saveCreativeConcepts, readCreativeJob } from "../creative/workflow.ts";
+import { creativeTools, type CreativeToolsOptions } from "./creative-tools.ts";
 import { createUiEntry, updateUiEntry, searchSharedUi, reuseSharedUi, readPrivateUiEntry, exportPrivateUi } from "../ui-library/service.ts";
 import { uiLayoutSchema } from "../ui-library/layout.ts";
 import { HarnessError } from "./runner.ts";
 import type { HarnessTool, ToolContext, ToolEffect } from "./types.ts";
 
 // Caller identity comes from the trusted run, never model-supplied arguments.
-// No model tool can grant credits, rights, consent, visual approval or permissions.
-export function projectTools(database: Database, service?: PublicDataService): HarnessTool[] {
+// No model tool can grant credits, rights, consent or review permissions.
+export function projectTools(database: Database, service?: PublicDataService, creative?: CreativeToolsOptions): HarnessTool[] {
   const tools: HarnessTool[] = Object.entries(PUBLIC_TOOLS).map(([name, definition]) => ({
     name, description: definition.description, version: "public-1", scope: "public", effect: "read",
     inputSchema: z.toJSONSchema(definition.schema, { target: "draft-7", io: "input" }),
@@ -61,20 +61,5 @@ export function projectTools(database: Database, service?: PublicDataService): H
     await ui(c, input.entryId);
     return exportPrivateUi(database, c.ownerId, input.entryId, input.assetIds);
   });
-  add("create_creative_brief", "Save a thumbnail or UI creative brief for concept review. No generation or spending occurs.", "write", z.object({ kind: z.enum(["thumbnail", "ui"]), brief: briefSchema, referenceIds: z.array(idSchema).max(3).default([]), creditBudget: z.number().int().min(1).max(1000) }).strict(), async (input, c) => {
-    const result = await createCreativeWorkflow(database, { ...input, ownerId: c.ownerId, projectId: c.projectId, allowAgentReview: false });
-    return { id: result.id, kind: result.kind, brief: result.brief };
-  });
-  add("propose_concepts", "Save up to three written concepts and asset lists. These are not rendered images.", "write", z.object({ workflowId: idSchema, concepts: conceptsSchema }).strict(), async (input, c) => {
-    const { rows } = await database.query("SELECT id FROM creative_workflows WHERE id=$1 AND owner_id=$2 AND project_id=$3", [input.workflowId, c.ownerId, c.projectId]);
-    if (!rows.length) throw new HarnessError("not_found");
-    const result = await saveCreativeConcepts(database, c.ownerId, input.workflowId, input.concepts);
-    return { id: result.id, concepts: result.concepts };
-  });
-  add("read_image_job", "Read an existing image job's actual status.", "read", z.object({ jobId: idSchema }).strict(), async (input, c) => {
-    const job = await readCreativeJob(database, c.ownerId, input.jobId);
-    if (job.project_id !== c.projectId) throw new HarnessError("not_found");
-    return { id: job.id, status: job.status, assetId: job.output_asset_id, error: job.error_code };
-  });
-  return tools;
+  return [...tools, ...creativeTools(database, creative)];
 }
