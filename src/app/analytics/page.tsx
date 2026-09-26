@@ -33,15 +33,6 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </Suspense>
 
       <PlayerHistory />
-
-      <section aria-labelledby="games-heading" className="mt-10">
-        <h2 id="games-heading" className="text-base font-semibold tracking-tight text-fg">
-          Your games
-        </h2>
-        <div className="mt-4 grid min-h-32 place-items-center rounded-xl border border-line px-6 py-8 text-center">
-          <p className="text-sm text-fg-muted">No games connected</p>
-        </div>
-      </section>
     </>
   );
 }

@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartColumn, PanelLeftClose, PanelLeftOpen, Plug, User } from "lucide-react";
+import { ChartColumn, Gamepad2, PanelLeftClose, PanelLeftOpen, Plug, User } from "lucide-react";
 import { Wordmark } from "./wordmark";
 
-const NAV = [{ href: "/analytics", label: "Analytics", icon: ChartColumn }];
+// Your games lives in the profile; this is its shortcut, since few people open a profile to find their games.
+const NAV = [
+  { href: "/analytics", label: "Analytics", icon: ChartColumn },
+  { href: "/profile", label: "Your games", icon: Gamepad2 },
+];
 
 // One expansion state keeps touch, pointer, keyboard and the SVG reveal in sync.
 const LABEL = "whitespace-nowrap opacity-0 transition-opacity duration-100 group-data-[expanded=true]/sidebar:opacity-100 group-data-[expanded=true]/sidebar:delay-150 motion-reduce:transition-none";
@@ -102,12 +106,17 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 px-3 pb-3">
-        <div className="flex h-12 items-center gap-3 px-1.5">
+        <Link
+          href="/profile"
+          onClick={close}
+          aria-label="Profile"
+          className={`flex h-12 items-center gap-3 rounded-lg px-1.5 hover:bg-surface ${FOCUS}`}
+        >
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-hover text-fg-muted">
             <User className="size-4" strokeWidth={1.75} aria-hidden="true" />
           </span>
           <span className={`text-sm text-fg ${LABEL}`}>Guest</span>
-        </div>
+        </Link>
         {/* Setup details live on a separate guide page, sourced from the repository. */}
         <Link
           href="/connect"

@@ -8,7 +8,8 @@ Before drafting, revising, or reviewing an email, read [emaillanguage.md](./emai
 - Stage 1 is the current priority. Later stages are direction, not authorization to implement or scaffold features. Follow the user's explicit task scope.
 - Never fabricate analytics, rankings, historical graphs, AI findings or market trends. Use real observations or honest empty states.
 - Keep the foundation dark, simple, professional and flat, with SVG branding and no gradients. Preserve the smooth `Ro` to `Romanum` sidebar reveal.
-- Show only Analytics in the main navigation. Keep Skills hidden until requested; preserve its guides, SVG and internal assistant support for reuse.
+- Main navigation is Analytics and Your games. Your games belongs to the profile (`/profile`); the nav item is its shortcut because people rarely open a profile to find their games (owner decision, 2026-09-26). Keep it an honest empty state until games can be connected. Keep Skills hidden until requested; preserve its guides, SVG and internal assistant support for reuse.
+- Assistant answers are short and plain by default, offering more detail rather than including it. After each answer a separate small model call predicts the next question, which the prompt bar offers and Tab accepts.
 - The owner authorized the initial public, read-only MCP slice on 2026-09-26. Get MCP opens `/connect`; the server is `/mcp`. Keep its tools on the shared public data service. Do not imply a public deployment exists without verifying it.
 - Analytics and MCP access are intended to be free; the paid product is the integrated creation environment and compute. Do not add data paywalls.
 - Keep the roadmap and current implementation status distinct. Do not treat existing integrations as permission to expand later stages or invent repository conventions.

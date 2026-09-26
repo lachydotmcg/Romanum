@@ -7,7 +7,8 @@ The complete product outline and eight-stage roadmap live in [PROJECT.md](../PRO
 - SVG branding, the dark application shell and the animated `Ro` to `Romanum` sidebar.
 - Explicit sidebar expand/collapse control for touch, with keyboard expansion, Escape/outside dismissal, and a skip-to-content link. Navigation closes the rail.
 - Concise chart retry actions, an Analytics error boundary and an application-styled missing-page state. The MCP URL field retains its height on narrow screens.
-- Analytics-only navigation, Guest state and Get MCP linking to the connection page.
+- Navigation: Analytics, plus Your games as a shortcut to the profile (`/profile`), where games will live. The profile is the Guest with "No games connected"; the Guest row also opens it. Get MCP links to the connection page.
+- Assistant answers are short by default and offer more detail. After each answer, a separate small DeepSeek call predicts the next question; the prompt bar shows it and Tab (or the Tab badge) fills it in.
 - A public, read-only Streamable HTTP MCP endpoint at `/mcp`, with eight tools and three resources over the shared data service. The owner explicitly authorized this slice on 2026-09-26. It is verified locally; no public deployment is configured. See [MCP setup](mcp.md).
 - Public game icons in ranked lists, comparison charts, stat tiles and chart tables.
 - Search by game name, Roblox game link or numeric place ID within Analytics. Results and discovery lists open `/analytics/games/[universeId]`, with current public stats, icons and per-game recorded history. These use the same observations as MCP; opening a game does not add it to the collector cohort. See [game discovery](game-discovery.md).
