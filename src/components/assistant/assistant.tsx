@@ -179,25 +179,33 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
     );
   }
 
+  // Once pinned, the bar springs into a narrower, centred pill, like Apple's Dynamic Island, and its buttons
+  // round off to match.
+  const reshape = "duration-500 ease-spring motion-reduce:transition-none";
+  const barShape = pinned ? "max-w-xl rounded-3xl" : "max-w-full rounded-xl";
+  const buttonShape = pinned ? "rounded-2xl" : "rounded-lg";
+
   // No wrapper element: a sticky element only sticks within its parent, and the bar stays pinned down the whole page.
   return (
     <>
       {/* Pinned to the top of the screen once you scroll to it. The band's negative margin cancels its padding,
-          so the bar sits where it did. */}
+          so the bar sits where it did. Clicks beside the bar reach the page underneath. */}
       <div
         ref={bandRef}
         data-pinned-prompt
-        className="sticky top-0 z-30 -my-3 py-3 [@media(prefers-reduced-transparency:reduce)]:bg-canvas"
+        className="pointer-events-none sticky top-0 z-30 -my-3 py-3 [@media(prefers-reduced-transparency:reduce)]:bg-canvas"
       >
-        {/* While pinned, the page behind the bar is blurred, fading out below it so the two blend. Solid black
-            instead when the system asks for less transparency. */}
-        {pinned && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 -bottom-8 -z-10 backdrop-blur-xl [mask-image:linear-gradient(to_bottom,black_calc(100%_-_2.75rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:hidden" />
-        )}
+        {/* While pinned, the page behind and beside the bar is blurred, fading out below it so the two blend.
+            Solid black instead when the system asks for less transparency. */}
+        <div
+          className={`pointer-events-none absolute inset-x-0 top-0 -bottom-8 -z-10 backdrop-blur-xl transition-opacity [mask-image:linear-gradient(to_bottom,black_calc(100%_-_2.75rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:hidden ${reshape} ${
+            pinned ? "opacity-100" : "opacity-0"
+          }`}
+        />
         <form
           onSubmit={ask}
           aria-label="AI assistant"
-          className="flex h-12 items-center gap-3 rounded-xl border border-line bg-surface pr-2 pl-4 focus-within:border-line-strong"
+          className={`pointer-events-auto mx-auto flex h-12 items-center gap-3 border border-line bg-surface pr-2 pl-4 transition-[max-width,border-radius] focus-within:border-line-strong ${reshape} ${barShape}`}
         >
           <label htmlFor="ai-prompt" className="sr-only">
             Ask the AI assistant
@@ -246,7 +254,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
               type="button"
               onClick={() => abortRef.current?.abort()}
               aria-label="Stop"
-              className={`grid size-8 shrink-0 place-items-center rounded-lg bg-surface-hover text-fg ${FOCUS}`}
+              className={`grid size-8 shrink-0 place-items-center bg-surface-hover text-fg transition-[border-radius] ${reshape} ${buttonShape} ${FOCUS}`}
             >
               <Square className="size-3.5 fill-current text-white" aria-hidden="true" />
             </button>
@@ -255,7 +263,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
               type="submit"
               disabled={!input.trim()}
               aria-label="Send"
-              className={`grid size-8 shrink-0 place-items-center rounded-lg bg-white text-black disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${FOCUS}`}
+              className={`grid size-8 shrink-0 place-items-center bg-white text-black transition-[border-radius] disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${reshape} ${buttonShape} ${FOCUS}`}
             >
               <ArrowUp className="size-4" strokeWidth={2} aria-hidden="true" />
             </button>
