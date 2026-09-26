@@ -15,7 +15,7 @@ export interface HarnessTool {
   execute(input: Record<string, unknown>, context: ToolContext): Promise<unknown>;
 }
 export type ToolDescriptor = Pick<HarnessTool, "name" | "description" | "version" | "scope" | "effect" | "inputSchema" | "target">;
-export type ModelDecision = { kind: "final"; text: string } | { kind: "tool"; tool: string; input: Record<string, unknown>; reason: string };
+export type ModelDecision = { kind: "final"; text: string } | { kind: "tool"; tool: string; input: Record<string, unknown>; reason: string } | { kind: "wait"; jobId: string; reason: string };
 export interface HarnessModel {
   id: string;
   mode: "test" | "paid";
