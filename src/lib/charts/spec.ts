@@ -22,7 +22,7 @@ export type ChartColor = PaletteColor | "gray";
 export const PALETTE_ORDER = Object.keys(CHART_COLORS) as PaletteColor[];
 
 /** De-emphasis for "highlight one, gray the rest". */
-export const MUTED_MARK = "#4d4d4d";
+export const MUTED_MARK = "#555555";
 
 export function colorHex(color: ChartColor): string {
   return color === "gray" ? MUTED_MARK : CHART_COLORS[color];

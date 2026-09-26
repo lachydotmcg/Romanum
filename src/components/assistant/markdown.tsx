@@ -15,7 +15,7 @@ const COMPONENTS: Components = {
     </a>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-surface-hover px-1 py-0.5 font-mono text-[0.9em]">{children}</code>
+    <code className="rounded bg-surface px-1 py-0.5 font-mono text-[0.9em]">{children}</code>
   ),
   table: ({ children }) => (
     <div className="my-3 overflow-x-auto">

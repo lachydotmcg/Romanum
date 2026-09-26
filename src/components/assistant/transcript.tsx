@@ -23,7 +23,7 @@ function ToolRow({ step }: { step: Extract<Step, { kind: "tool" }> }) {
     <details className="group text-sm">
       <summary className={SUMMARY}>
         <Icon
-          className={`mt-0.5 size-4 shrink-0 text-fg-muted ${step.status === "running" ? "animate-spin" : ""}`}
+          className={`mt-0.5 size-4 shrink-0 text-white ${step.status === "running" ? "animate-spin" : ""}`}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
@@ -33,7 +33,7 @@ function ToolRow({ step }: { step: Extract<Step, { kind: "tool" }> }) {
         </span>
         {step.ms !== undefined && <span className="shrink-0 text-xs text-fg-subtle">{(step.ms / 1000).toFixed(1)}s</span>}
         <ChevronRight
-          className="mt-0.5 size-4 shrink-0 text-fg-subtle transition-transform group-open:rotate-90"
+          className="mt-0.5 size-4 shrink-0 text-white transition-transform group-open:rotate-90"
           aria-hidden="true"
         />
       </summary>
@@ -50,10 +50,10 @@ function ThinkingRow({ step }: { step: Extract<Step, { kind: "thinking" }> }) {
   return (
     <details className="group text-sm">
       <summary className={SUMMARY}>
-        <Brain className="mt-0.5 size-4 shrink-0 text-fg-muted" aria-hidden="true" />
+        <Brain className="mt-0.5 size-4 shrink-0 text-white" aria-hidden="true" />
         <span className="flex-1 text-fg-muted">{seconds === null ? "Thinking…" : `Thought for ${seconds}s`}</span>
         <ChevronRight
-          className="mt-0.5 size-4 shrink-0 text-fg-subtle transition-transform group-open:rotate-90"
+          className="mt-0.5 size-4 shrink-0 text-white transition-transform group-open:rotate-90"
           aria-hidden="true"
         />
       </summary>
@@ -86,10 +86,10 @@ function ProcessGroup({ steps, active }: { steps: Step[]; active: boolean }) {
   return (
     <details className="group/process text-sm">
       <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-1 text-fg-muted [&::-webkit-details-marker]:hidden">
-        <Icon className={`size-4 shrink-0 ${active ? "animate-spin" : ""}`} aria-hidden="true" />
+        <Icon className={`size-4 shrink-0 text-white ${active ? "animate-spin" : ""}`} aria-hidden="true" />
         <span className={active ? "text-fg" : ""}>{headline(steps, active)}</span>
         <ChevronRight
-          className="size-4 shrink-0 text-fg-subtle transition-transform group-open/process:rotate-90"
+          className="size-4 shrink-0 text-white transition-transform group-open/process:rotate-90"
           aria-hidden="true"
         />
       </summary>
@@ -118,7 +118,7 @@ function TurnView({ turn }: { turn: Turn }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <p className="max-w-[min(85%,40rem)] rounded-lg bg-surface-hover px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
+        <p className="max-w-[min(85%,40rem)] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
       </div>
       {(turn.steps.length > 0 || working) && <ProcessGroup steps={turn.steps} active={working} />}
       {turn.charts.map(({ id, chart }) => (
@@ -132,7 +132,7 @@ function TurnView({ turn }: { turn: Turn }) {
       )}
       {turn.error && (
         <p className="flex items-start gap-2 text-sm text-fg">
-          <CircleAlert className="mt-0.5 size-4 shrink-0 text-fg-muted" aria-hidden="true" />
+          <CircleAlert className="mt-0.5 size-4 shrink-0 text-white" aria-hidden="true" />
           {turn.error}
         </p>
       )}

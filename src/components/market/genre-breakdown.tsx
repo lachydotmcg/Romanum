@@ -7,7 +7,7 @@ export function GenreBreakdown({ analysis }: { analysis: MarketAnalysis }) {
   const rest = analysis.genres.slice(5);
   if (rest.length) rows.push({ name: "Other", players: rest.reduce((s, g) => s + g.players, 0), gameCount: rest.reduce((s, g) => s + g.gameCount, 0), share: rest.reduce((s, g) => s + g.share, 0) });
   return (
-    <section aria-label="Players by genre" className="rounded-xl border border-line bg-surface/40 p-5">
+    <section aria-label="Players by genre" className="rounded-xl border border-line bg-surface p-5">
       <h3 className="text-sm font-medium">Players by genre</h3>
       <p className="mt-6 text-3xl font-semibold tracking-tight tabular-nums">{formatValue(analysis.samplePlayers, "compact")}</p>
       <p className="mt-1 text-xs text-fg-muted">players · {analysis.sampleSize} games</p>

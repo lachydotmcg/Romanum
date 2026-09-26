@@ -16,7 +16,7 @@ export function RankedList({
   limit?: number;
 }) {
   return (
-    <section aria-label={title} className="min-w-0 rounded-xl border border-line bg-surface/40 p-4">
+    <section aria-label={title} className="min-w-0 rounded-xl border border-line bg-surface p-4">
       <h3 className="text-sm font-medium text-fg">{title}</h3>
       {!games?.length ? (
         <div className="mt-3">

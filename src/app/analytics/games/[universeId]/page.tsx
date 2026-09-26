@@ -43,7 +43,7 @@ export default async function GamePage({ params }: Props) {
   return (
     <>
       <Link href="/analytics" className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-muted">
-        <ArrowLeft className="size-4" aria-hidden="true" /> Analytics
+        <ArrowLeft className="size-4 text-white" aria-hidden="true" /> Analytics
       </Link>
       <header className="mt-5 flex flex-wrap items-center justify-between gap-5">
         <div className="flex min-w-0 flex-1 basis-full items-center gap-4 sm:basis-auto">
@@ -54,14 +54,14 @@ export default async function GamePage({ params }: Props) {
           </div>
         </div>
         <a href={`https://www.roblox.com/games/${game.rootPlaceId}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-line px-3 text-sm hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-fg-muted">
-          Roblox <ArrowUpRight className="size-4" aria-hidden="true" />
+          Roblox <ArrowUpRight className="size-4 text-white" aria-hidden="true" />
         </a>
       </header>
 
       <section aria-label="Current statistics" className="mt-8">
         <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {stats.map((stat) => (
-            <div key={stat.label} className="min-w-0 rounded-xl border border-line bg-surface/40 px-4 py-5">
+            <div key={stat.label} className="min-w-0 rounded-xl border border-line bg-surface px-4 py-5">
               <dt className="text-xs text-fg-muted">{stat.label}</dt>
               <dd className="mt-2 text-2xl font-semibold tabular-nums" title={formatValue(stat.value, stat.format === "percent" ? "percent" : "full")}>{formatValue(stat.value, stat.format)}</dd>
             </div>

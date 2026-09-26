@@ -25,7 +25,7 @@ export default async function SkillGuidePage({ params }: Props) {
   return (
     <article className="max-w-3xl">
       <Link href="/skills" className="inline-flex items-center gap-1.5 rounded text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-muted">
-        <ArrowLeft className="size-3.5" aria-hidden="true" /> Skills
+        <ArrowLeft className="size-3.5 text-white" aria-hidden="true" /> Skills
       </Link>
       <header className="mt-6 mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
         <div className="flex items-center gap-3">
@@ -33,7 +33,7 @@ export default async function SkillGuidePage({ params }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight">{skill.name}</h1>
         </div>
         <a href={`/api/skills/${skill.id}`} className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-fg-muted">
-          <Download className="size-3.5" aria-hidden="true" /> Download
+          <Download className="size-3.5 text-white" aria-hidden="true" /> Download
         </a>
       </header>
       <div className="text-sm leading-7 text-fg-muted">

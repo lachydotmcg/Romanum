@@ -57,7 +57,7 @@ export function ConnectionCard() {
   }, [url]);
 
   return (
-    <div className="rounded-xl border border-line bg-surface/40 p-5 sm:p-6">
+    <div className="rounded-xl border border-line bg-surface p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor="mcp-url" className="text-sm font-medium text-fg">
           Connection URL
@@ -83,9 +83,9 @@ export function ConnectionCard() {
           className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium transition-colors hover:bg-surface-hover disabled:text-fg-subtle ${FOCUS}`}
         >
           {copied ? (
-            <Check className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            <Check className="size-4 text-white" strokeWidth={1.75} aria-hidden="true" />
           ) : (
-            <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            <Copy className="size-4 text-white" strokeWidth={1.75} aria-hidden="true" />
           )}
           {copied ? "Copied" : "Copy"}
           <span className="sr-only"> connection URL</span>

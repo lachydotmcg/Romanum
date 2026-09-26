@@ -10,7 +10,7 @@ export default function ProfilePage() {
   return (
     <>
       <header className="flex items-center gap-3">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface-hover text-fg-muted">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-white">
           <User className="size-6" strokeWidth={1.75} aria-hidden="true" />
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">Guest</h1>

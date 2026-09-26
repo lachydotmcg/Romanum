@@ -16,11 +16,11 @@ export function PatternExplorer({ analysis, connected }: { analysis: MarketAnaly
   return (
     <section aria-labelledby="patterns-heading" className="mt-10">
       <h2 id="patterns-heading" className="text-base font-semibold tracking-tight">Patterns</h2>
-      <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface/40 md:grid md:grid-cols-[240px_minmax(0,1fr)]">
+      <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface md:grid md:grid-cols-[240px_minmax(0,1fr)]">
         <div className="flex overflow-x-auto border-b border-line p-2 md:block md:border-r md:border-b-0" role="group" aria-label="Game patterns">
           {analysis.patterns.map((pattern) => (
             <button key={pattern.id} type="button" onClick={() => setSelectedId(pattern.id)} aria-pressed={selected.id === pattern.id}
-              className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-lg px-3 py-3 text-left transition-colors md:w-full ${selected.id === pattern.id ? "bg-surface-hover text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"} focus-visible:outline-2 focus-visible:outline-fg-muted`}>
+              className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-lg px-3 py-3 text-left transition-colors md:w-full ${selected.id === pattern.id ? "bg-surface-hover text-fg" : "text-fg-muted hover:bg-surface-hover hover:text-fg"} focus-visible:outline-2 focus-visible:outline-fg-muted`}>
               <span><span className="block text-[13px] font-medium">{pattern.label}</span><span className="mt-1 block text-[11px] text-fg-subtle">{pattern.gameCount} {pattern.gameCount === 1 ? "game" : "games"}</span></span>
               <span className="text-xs tabular-nums">{formatValue(pattern.players, "compact")}</span>
             </button>
@@ -40,7 +40,7 @@ export function PatternExplorer({ analysis, connected }: { analysis: MarketAnaly
                 <li key={game.universeId} className="min-w-0"><Link href={`/analytics/games/${game.universeId}`} prefetch={false} className="group flex items-center gap-2.5 rounded-lg py-2 pr-1 focus-visible:outline-2 focus-visible:outline-fg-muted">
                   <GameIcon url={game.iconUrl} name={game.name} className="size-9" />
                   <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium group-hover:underline" title={game.name}>{game.name}</span><span className="mt-1 block text-[11px] text-fg-muted">{formatValue(game.playing, "compact")} playing</span></span>
-                  <ArrowRight className="size-3 shrink-0 text-fg-subtle" aria-hidden="true" />
+                  <ArrowRight className="size-3 shrink-0 text-white" aria-hidden="true" />
                 </Link></li>
               ))}
             </ul>

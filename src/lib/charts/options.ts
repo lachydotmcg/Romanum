@@ -2,12 +2,13 @@ import type { EChartsCoreOption } from "echarts/core";
 import { type ChartSpec, formatValue } from "./spec";
 
 // Chart ink for Romanum's dark canvas. Marks carry colour; text always uses these tokens.
+// Charts sit on #1b1b1b cards, so gaps and rings use that grey.
 export const INK = {
-  surface: "#000000",
+  surface: "#1b1b1b",
   primary: "#ededed",
   secondary: "#afafaf",
   muted: "#838383",
-  grid: "#1c1c1c",
+  grid: "#262626",
   axis: "#333333",
   tooltip: "#1b1b1b",
 } as const;
@@ -67,7 +68,7 @@ const LEGEND = {
   itemHeight: 10,
   itemGap: 16,
   textStyle: { color: INK.secondary },
-  inactiveColor: "#3a3a3a",
+  inactiveColor: "#4a4a4a",
 };
 
 function colorOf(spec: ChartSpec, categoryIndex: number, seriesIndex: number): string {

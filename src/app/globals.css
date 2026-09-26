@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
-/* Dark only, modelled on ChatGPT's dark theme: a pure black canvas, #1b1b1b surfaces, #262626 borders.
-   The sidebar stays one step lighter than the canvas so it reads as its own surface. */
+/* Dark only, modelled on ChatGPT's dark theme: pure black for the page and the sidebar (a #262626 border
+   separates them), and one grey, #1b1b1b, for every panel (cards, inputs, bubbles) and for hover and
+   selected states on black. #262626 is the single step above that grey, for borders and states on grey. */
 @theme {
   --color-canvas: #000000;
-  --color-sidebar: #0d0d0d;
+  --color-sidebar: #000000;
   --color-surface: #1b1b1b;
-  --color-surface-hover: #2a2a2a;
+  --color-surface-hover: #262626;
   --color-line: #262626;
-  --color-line-strong: #3a3a3a;
+  --color-line-strong: #333333;
   --color-fg: #ededed;
   --color-fg-muted: #afafaf;
   --color-fg-subtle: #838383;

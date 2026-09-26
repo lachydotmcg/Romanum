@@ -26,7 +26,7 @@ export default function ConnectPage() {
         className="mt-4 inline-flex items-center gap-1 rounded py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-muted"
       >
         Setup guide
-        <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        <ArrowUpRight className="size-3.5 text-white" aria-hidden="true" />
       </Link>
     </>
   );

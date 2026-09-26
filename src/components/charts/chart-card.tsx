@@ -20,7 +20,7 @@ function StatTiles({ chart }: { chart: ChartSpec }) {
           </p>
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {chart.series.map((series) => (
-              <div key={series.key} className="rounded-lg bg-surface px-3 py-2.5">
+              <div key={series.key} className="rounded-lg border border-line px-3 py-2.5">
                 <dt className="text-xs text-fg-muted">{series.label}</dt>
                 <dd className="mt-1 text-xl font-semibold text-fg">{formatValue(series.values[ci], series.format)}</dd>
               </div>
@@ -86,7 +86,7 @@ export function ChartCard({ chart, className = "", showSource = true }: { chart:
   const tiles = chart.kind === "stat_tiles";
 
   return (
-    <figure className={`min-w-0 rounded-xl border border-line bg-surface/40 p-5 ${className}`}>
+    <figure className={`min-w-0 rounded-xl border border-line bg-surface p-5 ${className}`}>
       <figcaption className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-fg">{chart.title}</p>

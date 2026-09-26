@@ -82,7 +82,7 @@ async function fetchJson<T>(url: string, signal: AbortSignal, fallback: string):
 function Retry({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={`mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-sm text-fg hover:bg-surface-hover ${FOCUS}`}>
-      <RotateCw className="size-3.5" aria-hidden="true" />
+      <RotateCw className="size-3.5 text-white" aria-hidden="true" />
       Retry
     </button>
   );
@@ -292,7 +292,7 @@ export function PlayerHistory({ game: fixedGame }: { game?: HistoryGame }) {
   return (
     <section aria-labelledby="history-heading" className="mt-10">
       <h2 id="history-heading" className="text-base font-semibold tracking-tight">Player history</h2>
-      <div className="mt-4 rounded-xl border border-line bg-surface/40 p-5">
+      <div className="mt-4 rounded-xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-end gap-4">
           {!fixedGame && <div className="flex min-w-0 w-full flex-col gap-1.5 sm:w-80">
             <label htmlFor="history-game" className="text-xs text-fg-muted">Game</label>

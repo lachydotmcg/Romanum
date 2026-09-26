@@ -8,6 +8,11 @@ Before drafting, revising, or reviewing an email, read [emaillanguage.md](./emai
 - Stage 1 is the current priority. Later stages are direction, not authorization to implement or scaffold features. Follow the user's explicit task scope.
 - Never fabricate analytics, rankings, historical graphs, AI findings or market trends. Use real observations or honest empty states.
 - Keep the foundation dark, simple, professional and flat, with SVG branding and no gradients. Preserve the smooth `Ro` to `Romanum` sidebar reveal.
+- Colours follow ChatGPT's dark theme (owner requests, 2026-09-26):
+  - The page and the sidebar are pure black. A #262626 border separates them.
+  - One grey, `surface` (#1b1b1b), is used for every panel (cards, inputs, bubbles) and for hover or selected states on black.
+  - `surface-hover`/`line` (#262626) is the only step above it, for borders and hover or selected states on grey. Don't add translucent or in-between greys.
+  - UI icons are white like the wordmark, except disabled controls, which stay dimmed.
 - Main navigation is Analytics and Your games. Your games belongs to the profile (`/profile`); the nav item is its shortcut because people rarely open a profile to find their games (owner decision, 2026-09-26). Keep it an honest empty state until games can be connected. Keep Skills hidden until requested; preserve its guides, SVG and internal assistant support for reuse.
 - Assistant answers are plain and recommendation-first by default: ideas as bold working titles with one short reason each, and no statistics unless the user asks for numbers. Numbers, caveats and full designs are offered as follow-ups. After each answer a separate small model call predicts the next question, which the prompt bar offers and Tab accepts.
 - The owner authorized the initial public, read-only MCP slice on 2026-09-26. Get MCP opens `/connect`; the server is `/mcp`. Keep its tools on the shared public data service. Do not imply a public deployment exists without verifying it.

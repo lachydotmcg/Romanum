@@ -140,7 +140,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
             type="button"
             disabled
             aria-label="Send"
-            className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-hover text-fg-subtle disabled:cursor-not-allowed"
+            className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-hover text-white/40 disabled:cursor-not-allowed"
           >
             <ArrowUp className="size-4" strokeWidth={2} aria-hidden="true" />
           </button>
@@ -204,14 +204,14 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
             aria-label="Stop"
             className={`grid size-8 shrink-0 place-items-center rounded-lg bg-surface-hover text-fg ${FOCUS}`}
           >
-            <Square className="size-3.5 fill-current" aria-hidden="true" />
+            <Square className="size-3.5 fill-current text-white" aria-hidden="true" />
           </button>
         ) : (
           <button
             type="submit"
             disabled={!input.trim()}
             aria-label="Send"
-            className={`grid size-8 shrink-0 place-items-center rounded-lg bg-fg text-canvas disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-fg-subtle ${FOCUS}`}
+            className={`grid size-8 shrink-0 place-items-center rounded-lg bg-white text-black disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${FOCUS}`}
           >
             <ArrowUp className="size-4" strokeWidth={2} aria-hidden="true" />
           </button>

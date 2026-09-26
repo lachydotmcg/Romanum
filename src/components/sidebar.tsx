@@ -73,7 +73,7 @@ export function Sidebar() {
           title={expanded ? "Close sidebar" : "Open sidebar"}
           aria-expanded={expanded}
           aria-controls="romanum-sidebar"
-          className={`absolute top-3 right-3 grid size-10 place-items-center rounded-lg bg-sidebar text-fg-muted transition-opacity duration-150 hover:bg-surface hover:text-fg ${FOCUS} ${
+          className={`absolute top-3 right-3 grid size-10 place-items-center rounded-lg bg-sidebar text-white transition-opacity duration-150 hover:bg-surface ${FOCUS} ${
             expanded ? "" : "opacity-0 group-hover/logo:opacity-100 focus-visible:opacity-100"
           }`}
         >
@@ -97,10 +97,10 @@ export function Sidebar() {
               // Icons alone on the collapsed rail, so they get a tooltip there.
               title={expanded ? undefined : label}
               className={`flex h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors ${FOCUS} ${
-                active ? "bg-surface-hover text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
+                active ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
               }`}
             >
-              <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+              <Icon className="size-5 shrink-0 text-white" strokeWidth={1.75} aria-hidden="true" />
               <span className={LABEL}>{label}</span>
             </Link>
           );
@@ -115,7 +115,7 @@ export function Sidebar() {
           title={expanded ? undefined : "Profile"}
           className={`flex h-12 items-center gap-3 rounded-lg px-1.5 hover:bg-surface ${FOCUS}`}
         >
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-hover text-fg-muted">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface text-white">
             <User className="size-4" strokeWidth={1.75} aria-hidden="true" />
           </span>
           <span className={`text-sm text-fg ${LABEL}`}>Guest</span>
@@ -128,10 +128,10 @@ export function Sidebar() {
           aria-label="Get MCP"
           title="Get MCP"
           className={`flex h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors ${FOCUS} ${
-            mcpActive ? "bg-surface-hover text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
+            mcpActive ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
           }`}
         >
-          <Plug className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+          <Plug className="size-5 shrink-0 text-white" strokeWidth={1.75} aria-hidden="true" />
           <span className={LABEL}>Get MCP</span>
         </Link>
       </div>

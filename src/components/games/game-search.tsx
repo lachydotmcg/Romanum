@@ -184,13 +184,13 @@ export function GameSearch() {
             onClick={() => query !== null && search(query)}
             className={`mt-2 inline-flex min-h-9 items-center gap-2 rounded-lg border border-line px-3 text-xs text-fg hover:bg-surface-hover ${FOCUS}`}
           >
-            <RotateCw className="size-3.5" aria-hidden="true" />
+            <RotateCw className="size-3.5 text-white" aria-hidden="true" />
             Retry
           </button>
         )}
 
         {games && games.length > 0 && (
-          <ul className="mt-2 divide-y divide-line/70 overflow-hidden rounded-xl border border-line bg-surface/40">
+          <ul className="mt-2 divide-y divide-line/70 overflow-hidden rounded-xl border border-line bg-surface">
             {games.map((game) => (
               <li key={game.universeId}>
                 <Link

@@ -14,7 +14,7 @@ export function GameIcon({ url, name, className = "size-10" }: { url?: string | 
       {usable ? (
         <Image src={url} alt={`${name} icon`} fill sizes="64px" unoptimized className="object-cover" onError={() => setFailedUrl(url)} />
       ) : (
-        <Gamepad2 className="size-5 text-fg-subtle" aria-label={`${name} icon unavailable`} />
+        <Gamepad2 className="size-5 text-white" aria-label={`${name} icon unavailable`} />
       )}
     </span>
   );
