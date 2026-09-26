@@ -189,24 +189,25 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
   return (
     <>
       {/* Pinned to the top of the screen once you scroll to it. The band's negative margin cancels its padding,
-          so the bar sits where it did. Clicks beside the bar reach the page underneath. */}
+          so the bar sits where it did. Clicks beside the bar reach the page underneath, and the blur around the bar
+          is clipped to the page column. Solid black instead when the system asks for less transparency. */}
       <div
         ref={bandRef}
         data-pinned-prompt
-        className="pointer-events-none sticky top-0 z-30 -my-3 py-3 [@media(prefers-reduced-transparency:reduce)]:bg-canvas"
+        className="pointer-events-none sticky top-0 z-30 -my-3 overflow-x-clip py-3 [@media(prefers-reduced-transparency:reduce)]:bg-canvas"
       >
-        {/* While pinned, the page behind and beside the bar is blurred, fading out below it so the two blend.
-            Solid black instead when the system asks for less transparency. */}
-        <div
-          className={`pointer-events-none absolute inset-x-0 top-0 -bottom-8 -z-10 backdrop-blur-xl transition-opacity [mask-image:linear-gradient(to_bottom,black_calc(100%_-_2.75rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:hidden ${reshape} ${
-            pinned ? "opacity-100" : "opacity-0"
-          }`}
-        />
         <form
           onSubmit={ask}
           aria-label="AI assistant"
-          className={`pointer-events-auto mx-auto flex h-12 items-center gap-3 border border-line bg-surface pr-2 pl-4 transition-[max-width,border-radius] focus-within:border-line-strong ${reshape} ${barShape}`}
+          className={`pointer-events-auto relative mx-auto flex h-12 items-center gap-3 border border-line bg-surface pr-2 pl-4 transition-[max-width,border-radius] focus-within:border-line-strong ${reshape} ${barShape}`}
         >
+          {/* While pinned, the page around the bar is blurred, fading out 4rem beyond its ends and below it so the
+              two blend. Sized from the bar, so it narrows along with it; it starts just above the screen's top edge. */}
+          <div
+            className={`pointer-events-none absolute -inset-x-16 -top-4 -bottom-11 -z-10 backdrop-blur-xl transition-opacity [mask-image:linear-gradient(to_right,transparent,black_4rem,black_calc(100%_-_4rem),transparent),linear-gradient(to_bottom,black_calc(100%_-_2.75rem),transparent)] [mask-composite:intersect] [@media(prefers-reduced-transparency:reduce)]:hidden ${reshape} ${
+              pinned ? "opacity-100" : "opacity-0"
+            }`}
+          />
           <label htmlFor="ai-prompt" className="sr-only">
             Ask the AI assistant
           </label>
