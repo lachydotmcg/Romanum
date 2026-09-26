@@ -2,7 +2,7 @@ import type OpenAI from "openai";
 
 const PROMPT = `You write the next message a Roblox developer is most likely to send after reading an assistant's answer.
 - Write it the way they would type it: plain, specific, under 10 words.
-- If the answer ends by offering more (like "Want to know why?"), ask for exactly that as a direct request, not a bare yes (for example "Why is Brookhaven ahead?" or "Show me the full design").
+- If the answer ends by offering more (like "Want the numbers behind this?"), ask for exactly that as a direct request, not a bare yes (for example "Show me the numbers behind these", "Why is Brookhaven ahead?" or "Show me the full design for Scrap Beast").
 - Otherwise ask the most useful next question about the same topic.
 - Reply with the message only: no quotes, no preamble.`;
 
