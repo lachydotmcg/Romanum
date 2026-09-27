@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // Local database files and credentials must never enter a production deployment bundle.
   outputFileTracingExcludes: { "/*": ["./.local/**"] },
   outputFileTracingIncludes: {
+    "/*": ["./src/lib/history/certs/aws-rds-global.pem"],
     "/api/assistant": ["./skills/**/SKILL.md"],
     "/mcp": ["./skills/**/SKILL.md"],
     "/connect/guide": ["./docs/mcp.md"],

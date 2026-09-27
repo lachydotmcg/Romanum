@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+# Public AWS trust anchors only, never database credentials or private keys.
+!/src/lib/history/certs/aws-rds-global.pem
 
 # debug
 npm-debug.log*
