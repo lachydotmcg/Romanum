@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   },
   // Keep the dev-only Next.js badge clear of the sidebar's profile area.
   devIndicators: { position: "bottom-right" },
+  // AGENTS.md is deliberately empty: stop `next dev` writing its agent rules into it or creating CLAUDE.md.
+  agentRules: false,
 
   // Analytics is the initial destination. Keep Skills hidden until it is reintroduced.
   async redirects() {
