@@ -43,8 +43,8 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
     // chart, containing it would shrink it to the height of the error message.
     <section aria-labelledby="insight-heading" className={`rounded-xl border border-line bg-surface p-5 ${fitRow ? "lg:overflow-y-auto lg:[contain:size]" : ""}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 id="insight-heading" className="flex items-center gap-2 text-sm font-medium">
-          <Wordmark className="h-3.5 text-white" />
+        <h3 id="insight-heading" className="flex items-baseline gap-2 text-sm font-medium text-white">
+          <Wordmark className="h-3.5" />
           <span>insight</span>
         </h3>
         {insight && <span className="text-xs text-fg-subtle">{current ? "Today" : shortDate(insight.day)}</span>}
