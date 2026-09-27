@@ -24,6 +24,8 @@ export type Step =
 export type Turn = {
   id: string;
   question: string;
+  /** Reference images sent with the question, in chats. */
+  attachments?: { id: string; name: string; url: string }[];
   steps: Step[];
   charts: { id: string; chart: ChartSpec }[];
   answer: string[];

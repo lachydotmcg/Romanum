@@ -1,0 +1,196 @@
+import { randomUUID } from "node:crypto";
+import type { ApiMessage, AssistantEvent } from "../assistant/types.ts";
+import type { Database } from "../history/database.ts";
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, MAX_QUESTION_CHARS, type ImageType } from "./limits.ts";
+
+// Saved chats: each question with its reference images, each answer as the events that drew it, and the
+// conversation in the model's format for later questions. Every read and write is scoped to an owner.
+
+/** Model-format messages kept per chat; the oldest drop off first. */
+const MAX_STORED_HISTORY = 200;
+/** Model-format messages sent with each question, as in /api/assistant. */
+const MAX_MODEL_HISTORY = 80;
+
+/** A streamed event and when it arrived, in milliseconds after the answer started. */
+export type TimedEvent = { t: number; e: AssistantEvent };
+export type ChatSummary = { id: string; title: string; updatedAt: string };
+export type StoredAttachment = { id: string; name: string };
+export type StoredMessage = { id: string; role: "user" | "assistant"; content: string; events: TimedEvent[]; attachments: StoredAttachment[] };
+export type Chat = { id: string; title: string; messages: StoredMessage[] };
+
+export class ChatError extends Error {
+  readonly code: "invalid_input" | "not_found";
+  constructor(code: ChatError["code"], message: string) {
+    super(message);
+    this.name = "ChatError";
+    this.code = code;
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const isChatId = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
+
+const ascii = (bytes: Uint8Array, from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to));
+
+/**
+ * Identifies PNG, JPEG and WebP images by their first bytes; anything else, SVG included, is refused. This is
+ * not a decoder or a moderation check: public uploads need both before release.
+ */
+export function imageType(bytes: Uint8Array): ImageType | null {
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length >= 8 && png.every((byte, index) => bytes[index] === byte)) return "image/png";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+/** A display name for an attachment: the file's own name, without a path or control characters. */
+export function attachmentName(raw: string): string {
+  const name = (raw.split(/[\\/]/).pop() ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 120);
+  return name || "image";
+}
+
+/** A chat's title: its first question on one line, cut at about 60 characters. */
+export function chatTitle(question: string): string {
+  const line = question.replace(/\s+/g, " ").trim();
+  return line.length <= 60 ? line : `${line.slice(0, 59).trimEnd()}…`;
+}
+
+/** The question as the model receives it. The model can't see images, so it's told only their names. */
+export function questionForModel(question: string, attachmentNames: string[]): ApiMessage {
+  const note = attachmentNames.length ? `\n\n[Attached reference images: ${attachmentNames.join(", ")}]` : "";
+  return { role: "user", content: question + note };
+}
+
+/** The latest messages that fit, starting at a question so every tool call keeps its result. */
+export function recentHistory(history: ApiMessage[], limit: number): ApiMessage[] {
+  let start = Math.max(0, history.length - limit);
+  while (start < history.length && history[start].role !== "user") start++;
+  return history.slice(start);
+}
+
+/** What the model receives for a new question: the chat so far, then the question. */
+export const modelConversation = (history: ApiMessage[], question: ApiMessage) => recentHistory([...history, question], MAX_MODEL_HISTORY);
+
+/**
+ * Adds a streamed event to an answer's record. Consecutive thinking or text chunks merge into one event, which
+ * replays to the same answer. Suggestions belong to the prompt bar, and the finished turn's model messages are
+ * kept in the chat's history instead.
+ */
+export function recordEvent(events: TimedEvent[], event: AssistantEvent, t: number) {
+  if (event.type === "suggestion") return;
+  if (event.type === "thinking" || event.type === "text") {
+    const previous = events.at(-1)?.e;
+    if (previous && (previous.type === "thinking" || previous.type === "text") && previous.type === event.type) {
+      previous.delta += event.delta;
+      return;
+    }
+  }
+  events.push({ t, e: event.type === "done" ? { type: "done", messages: [] } : { ...event } });
+}
+
+export async function listChats(database: Database, ownerId: string): Promise<ChatSummary[]> {
+  const { rows } = await database.query<{ id: string; title: string; updated_at: Date | string }>(
+    "SELECT id, title, updated_at FROM chats WHERE owner_id=$1 ORDER BY updated_at DESC, id LIMIT 50",
+    [ownerId],
+  );
+  return rows.map((row) => ({ id: row.id, title: row.title, updatedAt: new Date(row.updated_at).toISOString() }));
+}
+
+export async function readChat(database: Database, ownerId: string, chatId: string): Promise<Chat | null> {
+  if (!isChatId(chatId)) return null;
+  const { rows: chats } = await database.query<{ id: string; title: string }>("SELECT id, title FROM chats WHERE id=$1 AND owner_id=$2", [chatId, ownerId]);
+  if (!chats[0]) return null;
+  const { rows: messages } = await database.query<Omit<StoredMessage, "attachments">>(
+    "SELECT id, role, content, events FROM chat_messages WHERE chat_id=$1 ORDER BY seq",
+    [chatId],
+  );
+  const { rows: files } = await database.query<{ id: string; message_id: string; name: string }>(
+    "SELECT a.id, a.message_id, a.name FROM chat_attachments a JOIN chat_messages m ON m.id=a.message_id WHERE m.chat_id=$1 AND a.owner_id=$2 ORDER BY a.position",
+    [chatId, ownerId],
+  );
+  return {
+    id: chats[0].id,
+    title: chats[0].title,
+    messages: messages.map((message) => ({
+      ...message,
+      attachments: files.filter((file) => file.message_id === message.id).map(({ id, name }) => ({ id, name })),
+    })),
+  };
+}
+
+/**
+ * Saves a question and its reference images to a chat, starting a chat when there isn't one. Returns the chat's
+ * history for the model and the stored attachments.
+ */
+export async function saveQuestion(
+  database: Database,
+  input: { ownerId: string; chatId: string | null; question: string; attachments: { name: string; bytes: Uint8Array }[] },
+) {
+  const question = input.question.trim();
+  if (!question || question.length > MAX_QUESTION_CHARS) throw new ChatError("invalid_input", "Write a message of up to 4,000 characters.");
+  if (input.attachments.length > MAX_ATTACHMENTS) throw new ChatError("invalid_input", "Attach up to 3 images.");
+  const files = input.attachments.map((file) => {
+    const mimeType = imageType(file.bytes);
+    if (!mimeType || file.bytes.length > MAX_ATTACHMENT_BYTES) throw new ChatError("invalid_input", "Images must be PNG, JPEG or WebP, up to 5 MB.");
+    return { name: attachmentName(file.name), mimeType, bytes: file.bytes };
+  });
+  if (input.chatId !== null && !isChatId(input.chatId)) throw new ChatError("not_found", "Chat not found.");
+
+  return database.transaction(async (sql) => {
+    let chatId = input.chatId;
+    let history: ApiMessage[] = [];
+    if (chatId) {
+      const { rows } = await sql.query<{ history: ApiMessage[] }>("SELECT history FROM chats WHERE id=$1 AND owner_id=$2 FOR UPDATE", [chatId, input.ownerId]);
+      if (!rows[0]) throw new ChatError("not_found", "Chat not found.");
+      history = rows[0].history;
+      await sql.query("UPDATE chats SET updated_at=now() WHERE id=$1", [chatId]);
+    } else {
+      chatId = randomUUID();
+      await sql.query("INSERT INTO chats(id, owner_id, title) VALUES ($1,$2,$3)", [chatId, input.ownerId, chatTitle(question)]);
+    }
+    const messageId = randomUUID();
+    await sql.query("INSERT INTO chat_messages(id, chat_id, role, content) VALUES ($1,$2,'user',$3)", [messageId, chatId, question]);
+    const attachments: StoredAttachment[] = [];
+    for (const [position, file] of files.entries()) {
+      const id = randomUUID();
+      await sql.query(
+        "INSERT INTO chat_attachments(id, message_id, owner_id, position, name, mime_type, bytes) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        [id, messageId, input.ownerId, position, file.name, file.mimeType, Buffer.from(file.bytes)],
+      );
+      attachments.push({ id, name: file.name });
+    }
+    return { chatId, question, history, attachments };
+  });
+}
+
+/** Saves an answer and adds it, with its question, to the chat's history for later questions. */
+export async function saveAnswer(
+  database: Database,
+  input: { ownerId: string; chatId: string; question: ApiMessage; turn: ApiMessage[] | null; events: TimedEvent[] },
+) {
+  await database.transaction(async (sql) => {
+    const { rows } = await sql.query<{ history: ApiMessage[] }>("SELECT history FROM chats WHERE id=$1 AND owner_id=$2 FOR UPDATE", [input.chatId, input.ownerId]);
+    // The chat was deleted while the answer streamed.
+    if (!rows[0]) return;
+    // An unfinished answer can stop mid tool call, which the model can't be shown again, so only its question stays.
+    const history = recentHistory([...rows[0].history, input.question, ...(input.turn ?? [])], MAX_STORED_HISTORY);
+    await sql.query("INSERT INTO chat_messages(id, chat_id, role, events) VALUES ($1,$2,'assistant',$3)", [randomUUID(), input.chatId, JSON.stringify(input.events)]);
+    await sql.query("UPDATE chats SET history=$2, updated_at=now() WHERE id=$1", [input.chatId, JSON.stringify(history)]);
+  });
+}
+
+export async function deleteChat(database: Database, ownerId: string, chatId: string): Promise<boolean> {
+  if (!isChatId(chatId)) return false;
+  const { rows } = await database.query("DELETE FROM chats WHERE id=$1 AND owner_id=$2 RETURNING id", [chatId, ownerId]);
+  return rows.length > 0;
+}
+
+export async function readAttachment(database: Database, ownerId: string, id: string) {
+  if (!isChatId(id)) return null;
+  const { rows } = await database.query<{ name: string; mime_type: ImageType; bytes: Uint8Array }>(
+    "SELECT name, mime_type, bytes FROM chat_attachments WHERE id=$1 AND owner_id=$2",
+    [id, ownerId],
+  );
+  return rows[0] ? { name: rows[0].name, mimeType: rows[0].mime_type, bytes: rows[0].bytes } : null;
+}

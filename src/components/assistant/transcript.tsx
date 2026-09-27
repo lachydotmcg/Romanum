@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Brain, Check, ChevronRight, CircleAlert, LoaderCircle, X } from "lucide-react";
 import { ChartCard } from "@/components/charts/chart-card";
 import { AssistantMarkdown } from "./markdown";
@@ -117,6 +118,21 @@ function TurnView({ turn }: { turn: Turn }) {
   const working = !turn.done && !turn.pending;
   return (
     <div className="space-y-3">
+      {turn.attachments && turn.attachments.length > 0 && (
+        <div className="flex justify-end gap-2">
+          {turn.attachments.map((file) => (
+            <Image
+              key={file.id}
+              src={file.url}
+              alt={file.name}
+              width={96}
+              height={96}
+              unoptimized
+              className="size-24 rounded-lg border border-line object-cover"
+            />
+          ))}
+        </div>
+      )}
       <div className="flex justify-end">
         <p className="max-w-[min(85%,40rem)] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
       </div>

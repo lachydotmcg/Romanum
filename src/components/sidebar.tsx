@@ -3,14 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartColumn, Gamepad2, PanelLeftClose, PanelLeftOpen, Plug, User } from "lucide-react";
+import { ChartColumn, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plug, User } from "lucide-react";
+import type { ChatSummary } from "@/lib/chats/store";
+import { compactCredits, creditsInDollars } from "@/lib/credits/value";
+import { CHATS_CHANGED } from "./chats/events";
+import { Coin } from "./coin";
 import { Wordmark } from "./wordmark";
 
 // Your games lives in the profile; this is its shortcut, since few people open a profile to find their games.
 const NAV = [
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
+  { href: "/chats", label: "Chats", icon: MessagesSquare },
   { href: "/profile", label: "Your games", icon: Gamepad2 },
 ];
+/** Recent chats listed in the open sidebar; the rest are on the Chats page. */
+const RECENT_LIMIT = 10;
 
 // One expansion state keeps touch, pointer, keyboard and the SVG reveal in sync.
 const LABEL = "whitespace-nowrap opacity-0 transition-opacity duration-100 group-data-[expanded=true]/sidebar:opacity-100 group-data-[expanded=true]/sidebar:delay-150 motion-reduce:transition-none";
@@ -19,12 +26,69 @@ const SYMBOL = "rotate-0 translate-y-(--upright-y) transition-[rotate,translate]
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
+/** The guest's spendable credits: undefined while loading, null when the credit service is unavailable. */
+function CreditBalance({ credits, compact = false, className = "" }: { credits: number | null | undefined; compact?: boolean; className?: string }) {
+  const title =
+    typeof credits === "number"
+      ? `${credits.toLocaleString("en-US")} credits (${creditsInDollars(credits)})`
+      : credits === null
+        ? "Credits unavailable"
+        : undefined;
+  return (
+    <span
+      title={title}
+      // Holds its space while loading, so the row doesn't shift when the balance arrives.
+      className={`flex items-center text-fg-muted tabular-nums ${compact ? "gap-0.5 text-[10px] leading-3" : "gap-1.5"} ${
+        credits === undefined ? "invisible" : ""
+      } ${className}`}
+    >
+      <Coin className={`shrink-0 text-white ${compact ? "size-2.5" : "size-4"}`} />
+      {typeof credits === "number" ? (compact ? compactCredits(credits) : credits.toLocaleString("en-US")) : "—"}
+    </span>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
+  const [credits, setCredits] = useState<number | null | undefined>(undefined);
+  const [recent, setRecent] = useState<ChatSummary[]>([]);
   const rail = useRef<HTMLElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const close = () => setExpanded(false);
+
+  useEffect(() => {
+    let active = true;
+    // Also creates the guest on its first visit, with its welcome credits.
+    fetch("/api/credits", { method: "POST" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { available?: unknown } | null) => {
+        if (active) setCredits(typeof data?.available === "number" ? data.available : null);
+      })
+      .catch(() => {
+        if (active) setCredits(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const load = () =>
+      fetch("/api/chats")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { chats?: unknown } | null) => {
+          if (active && Array.isArray(data?.chats)) setRecent(data.chats as ChatSummary[]);
+        })
+        .catch(() => {});
+    load();
+    window.addEventListener(CHATS_CHANGED, load);
+    return () => {
+      active = false;
+      window.removeEventListener(CHATS_CHANGED, load);
+    };
+  }, []);
 
   useEffect(() => {
     if (!expanded) return;
@@ -107,18 +171,53 @@ export function Sidebar() {
         })}
       </nav>
 
+      {/* Only in the open sidebar: the collapsed rail has no room for titles. */}
+      {recent.length > 0 && (
+        <nav aria-label="Recent chats" className="mt-5 hidden min-h-0 flex-col px-3 group-data-[expanded=true]/sidebar:flex">
+          <p className="px-2.5 pb-1 text-xs whitespace-nowrap text-fg-subtle">Recent</p>
+          <ul className="flex flex-col gap-0.5">
+            {recent.slice(0, RECENT_LIMIT).map((chat) => {
+              const active = pathname === `/chats/${chat.id}`;
+              return (
+                <li key={chat.id}>
+                  <Link
+                    href={`/chats/${chat.id}`}
+                    onClick={close}
+                    aria-current={active ? "page" : undefined}
+                    className={`block truncate rounded-lg px-2.5 py-2 text-sm transition-colors ${FOCUS} ${
+                      active ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
+                    }`}
+                  >
+                    {chat.title}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      )}
+
       <div className="mt-auto flex flex-col gap-1 px-3 pb-3">
         <Link
           href="/profile"
           onClick={close}
-          aria-label="Profile"
+          aria-label={typeof credits === "number" ? `Profile, ${credits.toLocaleString("en-US")} credits` : "Profile"}
           title={expanded ? undefined : "Profile"}
-          className={`flex h-12 items-center gap-3 rounded-lg px-1.5 hover:bg-surface ${FOCUS}`}
+          className={`flex items-start gap-3 rounded-lg px-1.5 py-1.5 hover:bg-surface ${FOCUS}`}
         >
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface text-white">
-            <User className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          <span className="flex w-7 shrink-0 flex-col items-center gap-1">
+            <span className="grid size-7 place-items-center rounded-full bg-surface text-white">
+              <User className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            {/* Collapsed, the balance sits under the avatar; expanded, it moves to the right of the name. */}
+            <CreditBalance
+              credits={credits}
+              compact
+              className="transition-opacity duration-100 group-data-[expanded=true]/sidebar:opacity-0 motion-reduce:transition-none"
+            />
           </span>
-          <span className={`text-sm text-fg ${LABEL}`}>Guest</span>
+          <span className={`flex h-7 items-center text-sm text-fg ${LABEL}`}>Guest</span>
+          <CreditBalance credits={credits} className={`ml-auto h-7 text-sm ${LABEL}`} />
         </Link>
         {/* Setup details live on a separate guide page, sourced from the repository. */}
         <Link
