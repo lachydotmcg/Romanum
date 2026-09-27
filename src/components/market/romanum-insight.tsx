@@ -14,9 +14,10 @@ const shortDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateStri
 
 /**
  * Today's AI-written briefing: recommended titles from today's Roblox charts, and an indie radar of recent news
- * with links to its sources. Shows the latest one available until today's is ready.
+ * with links to its sources. Shows the latest one available until today's is ready. `fitRow` matches its desktop
+ * height to Top Playing Now beside it; without that chart, it takes its own height.
  */
-export function RomanumInsight({ initial, today, connected }: { initial: Insight | null; today: string; connected: boolean }) {
+export function RomanumInsight({ initial, today, connected, fitRow }: { initial: Insight | null; today: string; connected: boolean; fitRow: boolean }) {
   const [insight, setInsight] = useState(initial);
   const current = insight?.day === today;
 
@@ -37,8 +38,9 @@ export function RomanumInsight({ initial, today, connected }: { initial: Insight
 
   const radar = insight?.content.radar ?? [];
   return (
-    // On desktop, Top Playing Now sets the row's height: this card's content doesn't count toward it.
-    <section aria-labelledby="insight-heading" className="rounded-xl border border-line bg-surface p-5 lg:overflow-y-auto lg:[contain:size]">
+    // On desktop, Top Playing Now sets the row's height: this card's content doesn't count toward it. Without the
+    // chart, containing it would shrink it to the height of the error message.
+    <section aria-labelledby="insight-heading" className={`rounded-xl border border-line bg-surface p-5 ${fitRow ? "lg:overflow-y-auto lg:[contain:size]" : ""}`}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 id="insight-heading" className="text-sm font-medium">
           Romanum insight
@@ -84,7 +86,7 @@ export function RomanumInsight({ initial, today, connected }: { initial: Insight
                       {item.kind === "roblox" ? "Roblox" : "Outside Roblox"} · {item.source}
                       {item.published && ` · ${shortDate(item.published)}`}
                     </p>
-                    {/* On desktop, one line each: the full headline and why it matters show on hover. */}
+                    {/* On desktop, one line each: the full headline and why it matters show on hover, and screen readers still read why. */}
                     <a
                       href={item.url}
                       target="_blank"
@@ -95,7 +97,7 @@ export function RomanumInsight({ initial, today, connected }: { initial: Insight
                       <span className="min-w-0 lg:truncate">{item.headline}</span>
                       <ArrowUpRight className="mt-0.5 size-3.5 shrink-0 text-white lg:mt-0" aria-hidden="true" />
                     </a>
-                    <p className="mt-0.5 text-xs leading-5 text-fg-muted lg:hidden">{item.why}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-fg-muted lg:sr-only">{item.why}</p>
                   </li>
                 ))}
               </ul>

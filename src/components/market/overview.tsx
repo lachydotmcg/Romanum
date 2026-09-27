@@ -36,7 +36,7 @@ export async function MarketOverview({ connected }: { connected: boolean }) {
                 <p role="status">{playing === null ? "Couldn't load games." : "No games found."}</p>
                 {playing === null && <RetryMarket />}
               </div>}
-          {insight && <RomanumInsight initial={insight.insight} today={insight.today} connected={connected} />}
+          {insight && <RomanumInsight initial={insight.insight} today={insight.today} connected={connected} fitRow={Boolean(playing?.length)} />}
         </div>
         {playing?.length ? <div className="mt-4"><GenreBreakdown analysis={genreSample} wide /></div> : null}
       </section>

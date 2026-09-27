@@ -191,21 +191,19 @@ export async function refreshInsight(database: Database, now = new Date()) {
   const signal = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
   try {
     const market = await publicData.market();
+    // The radar's web searches are most of the cost, so they run only after the recommendations succeed: a failed
+    // generation is retried, and each retry would pay for them again.
+    const recommendations = await recommend(assistantClient(deepSeekKey), market, spend, signal);
     const openAIKey = process.env.OPENAI_API_KEY;
-    const [recommendations, radar] = await Promise.allSettled([
-      recommend(assistantClient(deepSeekKey), market, spend, signal),
-      openAIKey ? indieRadar(new OpenAI({ apiKey: openAIKey }), day, spend, signal) : Promise.resolve([]),
-    ]);
-    if (recommendations.status === "rejected") throw recommendations.reason;
-    if (radar.status === "rejected") console.error("The indie radar failed; today's insight has recommendations only.");
+    const radar = openAIKey
+      ? await indieRadar(new OpenAI({ apiKey: openAIKey }), day, spend, signal).catch(() => {
+          console.error("The indie radar failed; today's insight has recommendations only.");
+          return [];
+        })
+      : [];
     await saveInsight(database, {
       day,
-      content: {
-        recommendations: recommendations.value,
-        radar: radar.status === "fulfilled" ? radar.value : [],
-        dataAt: market.analysis.assembledAt,
-        generatedAt: new Date().toISOString(),
-      },
+      content: { recommendations, radar, dataAt: market.analysis.assembledAt, generatedAt: new Date().toISOString() },
       cost: spend.cost,
       calls: spend.calls,
     });
