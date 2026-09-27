@@ -40,7 +40,13 @@ I want Romanum to help you work through the whole game:
 
 There's a lot to build before that whole workflow exists. Right now, Romanum has public game analytics, recorded player history, free earnings estimates, AI research and planning, and a read-only MCP server. The full creation workspace is what I'm building towards.
 
-I'd love to build a community around this too. I have a lot of ideas for Romanum, but I want to hear what people need while they're making their own games. Tell me where you get stuck, what you'd want help with, or what you've managed to make.
+## Why Romanum?
+
+The name comes from the [Forum Romanum, the Roman Forum](https://colosseo.it/en/area/the-roman-forum/). It was a centre of public life in ancient Rome, where people came together to trade, debate and exchange ideas. I liked the idea of a place where people with different skills and experiences could come together and learn from each other.
+
+Eventually, I want Romanum to be that kind of place for developers too. Somewhere you can share what you know, meet people to build with, and find contractors when you need a hand with your game. Having AI friends to help you out is great, but I'd love for you to find the right people here too.
+
+I have a lot of ideas for Romanum, but I want to hear what people need while they're making their own games. Tell me where you get stuck, what you'd want help with, or what you've managed to make.
 
 ## Try it or get involved
 
