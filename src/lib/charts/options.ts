@@ -168,10 +168,15 @@ function lineOption(spec: ChartSpec, width: number): EChartsCoreOption {
   const endLabels = spec.series.length <= 4 && width >= 360;
   const format = spec.series[0].format;
   const lastValue = (values: (number | null)[]) => [...values].reverse().find((v) => v !== null) ?? null;
+  // Daily series are UTC days (every point at a UTC midnight): shown as dates in UTC, so no time zone shifts the day.
+  const daily = times.length > 0 && times.every((t) => t % 86_400_000 === 0);
   const when = (t: number) =>
-    new Date(t).toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    daily
+      ? new Date(t).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })
+      : new Date(t).toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return {
+    useUTC: daily,
     tooltip: {
       ...TOOLTIP,
       trigger: "axis",

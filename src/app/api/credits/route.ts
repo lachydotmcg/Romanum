@@ -1,5 +1,6 @@
 import { welcomeGuest } from "@/lib/credits/guest";
-import { ensureGuest, isCrossSite } from "@/lib/guest";
+import { ensureOwner } from "@/lib/accounts/session";
+import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
 
 export const runtime = "nodejs";
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   try {
     const database = await historyDatabase();
     if (!database) throw new Error("No database is configured.");
-    const { balance, reserved, available } = await welcomeGuest(database, await ensureGuest());
+    const { balance, reserved, available } = await welcomeGuest(database, await ensureOwner());
     return Response.json({ balance, reserved, available }, { headers: NO_STORE });
   } catch {
     return Response.json({ error: "Credits unavailable." }, { status: 503, headers: NO_STORE });

@@ -1,13 +1,13 @@
 import { readAttachment } from "@/lib/chats/store";
-import { readGuest } from "@/lib/guest";
+import { readOwner } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** A reference image from one of the guest's chats. Only its owner can read it. */
+/** A reference image from one of the owner's chats. Only its owner can read it. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const owner = await readGuest();
+  const owner = await readOwner();
   const { id } = await params;
   let file: Awaited<ReturnType<typeof readAttachment>> = null;
   try {
@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     headers: {
       "content-type": file.mimeType,
       "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-      // Private to this guest, and a stored attachment never changes.
+      // Private to its owner, and a stored attachment never changes.
       "cache-control": "private, max-age=31536000, immutable",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",

@@ -3,10 +3,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { PrivateAnalytics } from "@/components/account/private-analytics";
 import { GameIcon } from "@/components/game-icon";
 import { PlayerHistory } from "@/components/history/player-history";
 import { loadPublicGame, parseUniverseId } from "@/lib/game-discovery";
 import { formatValue } from "@/lib/charts/spec";
+import { readAccount } from "@/lib/accounts/session";
+import { historyDatabase } from "@/lib/history/database";
+import { linkedGameForUniverse, readGameMetrics } from "@/lib/linked-games/store";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ universeId: string }> };
@@ -29,10 +33,19 @@ function dateLabel(value: string) {
   return Number.isNaN(date.valueOf()) ? "–" : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** The signed-in account's private analytics for this game, when it has linked it. */
+async function ownAnalytics(universeId: number) {
+  const account = await readAccount();
+  if (!account) return null;
+  const database = await historyDatabase().catch(() => null);
+  const linked = database && (await linkedGameForUniverse(database, account.id, universeId));
+  return database && linked ? { game: linked, metrics: await readGameMetrics(database, account.id, linked.id) } : null;
+}
+
 export default async function GamePage({ params }: Props) {
   const { universeId } = await params;
   validId(universeId);
-  const { game, fetchedAt } = await getGame(universeId);
+  const [{ game, fetchedAt }, own] = await Promise.all([getGame(universeId), ownAnalytics(Number(universeId))]);
   if (!game) notFound();
   const stats = [
     { label: "Players now", value: game.playing, format: "compact" },
@@ -69,6 +82,8 @@ export default async function GamePage({ params }: Props) {
         </dl>
         <p className="mt-3 text-xs text-fg-subtle">As of <time dateTime={fetchedAt}>{new Date(fetchedAt).toISOString().slice(11, 16)} UTC</time></p>
       </section>
+
+      {own && <PrivateAnalytics game={own.game} metrics={own.metrics} />}
 
       <PlayerHistory key={game.universeId} game={{ universeId: game.universeId, rootPlaceId: game.rootPlaceId, name: game.name, iconUrl: game.iconUrl ?? null }} />
 

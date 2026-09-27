@@ -4,7 +4,8 @@ import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { welcomeGuest } from "@/lib/credits/guest";
 import { chargeAnswer } from "@/lib/credits/metering";
 import type { CallUsage } from "@/lib/credits/pricing";
-import { ensureGuest, isCrossSite } from "@/lib/guest";
+import { ensureOwner } from "@/lib/accounts/session";
+import { isCrossSite } from "@/lib/guest";
 import { historyDatabase, type Database } from "@/lib/history/database";
 
 const MAX_MESSAGES = 80;
@@ -70,14 +71,14 @@ export async function POST(request: Request) {
   if (!history) return Response.json({ error: "Invalid conversation." }, { status: 400 });
   const conversation = history;
 
-  // Answers spend credits, so the guest needs some before the model is called.
+  // Answers spend credits, so the owner needs some before the model is called.
   let db: Database;
   let owner: string;
   try {
     const database = await historyDatabase();
     if (!database) throw new Error("No database is configured.");
     db = database;
-    owner = await ensureGuest();
+    owner = await ensureOwner();
     if ((await welcomeGuest(db, owner)).available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
   } catch {
     return Response.json({ error: "Credits unavailable. Try again later." }, { status: 503 });

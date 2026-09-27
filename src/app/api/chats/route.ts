@@ -16,7 +16,8 @@ import {
   saveQuestion,
   type TimedEvent,
 } from "@/lib/chats/store";
-import { ensureGuest, isCrossSite, readGuest } from "@/lib/guest";
+import { ensureOwner, readOwner } from "@/lib/accounts/session";
+import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
 
 export const runtime = "nodejs";
@@ -36,9 +37,9 @@ async function database() {
   }
 }
 
-/** The guest's chats, most recent first. */
+/** The signed-in account's chats, or the guest's, most recent first. */
 export async function GET() {
-  const owner = await readGuest();
+  const owner = await readOwner();
   if (!owner) return Response.json({ chats: [] }, { headers: NO_STORE });
   const db = await database();
   if (!db) return failure(503, "Chats unavailable.");
@@ -75,8 +76,8 @@ export async function POST(request: Request) {
 
   const db = await database();
   if (!db) return failure(503, "Chats unavailable.");
-  const owner = await ensureGuest();
-  // Answers spend credits, so the guest needs some before anything is saved or the model is called.
+  const owner = await ensureOwner();
+  // Answers spend credits, so the owner needs some before anything is saved or the model is called.
   try {
     if ((await welcomeGuest(db, owner)).available < 1) return failure(402, "You're out of credits.");
   } catch {

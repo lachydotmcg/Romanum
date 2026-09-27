@@ -25,9 +25,17 @@ The integrated assistant uses `DEEPSEEK_API_KEY` in `.env.local`. Public analyti
 
 Chats (`/chats`) are saved conversations with the same assistant. A message can carry up to three PNG, JPEG or WebP reference images, up to 5 MB each. The model can't see images; it gets their names, and image generation isn't connected yet, so thumbnail requests get a written concept. Chats and attachments are stored in the local database (`npm run history:db`; run `npm run history:migrate` after pulling new migrations).
 
-Until sign-in exists, each browser is an anonymous guest identified by a random cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Guest identity, uploads and grants need sign-in, abuse limits, image decoding and moderation before public release.
+A browser that isn't signed in is an anonymous guest identified by a random cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Signing in keeps a guest's credits and chats, but anyone can still start a new guest, so grants and uploads need abuse limits, image decoding and moderation before public release.
 
 Ask Romanum and Chats answers spend credits: the tokens each model call reports, priced from `src/lib/credits/pricing.ts` (copied from the providers' official pricing pages, with the date checked), times a 1.65× markup. Each answer shows its cost. Credits are whole numbers, so each guest's fractions carry over until they make a whole credit, which the ledger takes. Asking needs at least one available credit. Charges are recorded in `usage_charges`; public data, charts, game pages and MCP stay free.
+
+### Sign-in and linked games
+
+Sign in with Roblox uses OAuth 2.0 with PKCE and asks only for `openid profile`. Register an app under Creator Dashboard → OAuth 2.0 Apps with the redirect URL `http://localhost:3000/auth/roblox/callback`, then set `ROBLOX_CLIENT_ID` and `ROBLOX_CLIENT_SECRET` in `.env.local` (`ROBLOX_REDIRECT_URI` overrides the callback). Until Roblox reviews the app, it allows 10 users. A new account adopts the browser's guest credits and chats. Romanum keeps no Roblox tokens, and stores only a hash of each session's cookie.
+
+Signed-in developers link a game on Your games with its universe ID and an Open Cloud API key that has `universe.analytics:read` for it. Romanum checks the key with Roblox, encrypts it with AES-256-GCM (`ROMANUM_SECRETS_KEY`, 32 bytes in base64, generated under `.local/` in development) and syncs eight daily game-level metrics from the Analytics Query API, which is in beta. Syncs run on linking, on profile visits and in `npm run history:watch`, at most every six hours. Each game has **Collect analytics** (on) and **Help improve Romanum** (off by default, covering only days after it's turned on). Both are enforced where metrics are written and read, and every change is recorded. Disconnect deletes the key; Delete data removes the game and its metrics. Private metrics appear only to their owner, on Your games and the game's page, never in public tools, MCP or the assistant.
+
+Not built yet: a privacy policy and data-use page, account deletion, anything that uses shared metrics, and linking games through OAuth instead of pasted keys. Sign-in and the Analytics API were tested against mocks only, since this was built where Roblox couldn't be reached.
 
 ## Current boundaries
 

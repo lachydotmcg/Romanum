@@ -1,28 +1,95 @@
 import type { Metadata } from "next";
-import { User } from "lucide-react";
+import { after } from "next/server";
+import { Avatar } from "@/components/account/avatar";
+import { LinkedGames } from "@/components/account/linked-games";
+import { oauthClient } from "@/lib/accounts/roblox-oauth";
+import { readAccount } from "@/lib/accounts/session";
+import { historyDatabase } from "@/lib/history/database";
+import { syncDueGames } from "@/lib/linked-games/sync";
+import { linkedGameViews, type LinkedGameView } from "@/lib/linked-games/view";
 
 export const metadata: Metadata = {
   title: "Profile",
 };
+export const dynamic = "force-dynamic";
 
-// Accounts and game connections don't exist yet, so the profile is the guest with no games.
-export default function ProfilePage() {
+const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
+
+/** What happened to a sign-in, from the ?signin= Roblox's redirect back leaves. */
+const NOTICES: Record<string, string> = {
+  unavailable: "Sign in with Roblox isn't set up.",
+  failed: "Couldn't sign in with Roblox. Try again.",
+  cancelled: "Sign-in cancelled.",
+  expired: "Sign-in timed out. Try again.",
+};
+
+function SignInButton() {
+  // A plain link: signing in leaves the app for Roblox.
+  return (
+    <a
+      href="/auth/roblox?next=/profile"
+      className={`inline-flex min-h-11 shrink-0 items-center rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white ${FOCUS}`}
+    >
+      Sign in with Roblox
+    </a>
+  );
+}
+
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ signin?: string }> }) {
+  const { signin } = await searchParams;
+  const notice = signin ? NOTICES[signin] : undefined;
+  const account = await readAccount();
+  const signInAvailable = oauthClient() !== null;
+
+  let games: LinkedGameView[] | null = null;
+  if (account) {
+    const database = await historyDatabase().catch(() => null);
+    if (database) {
+      games = await linkedGameViews(database, account.id);
+      // Games due a sync start one once the page is sent.
+      after(() => syncDueGames(database, { accountId: account.id }).catch(() => {}));
+    }
+  }
+
   return (
     <>
-      <header className="flex items-center gap-3">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-white">
-          <User className="size-6" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        <h1 className="text-2xl font-semibold tracking-tight">Guest</h1>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar url={account?.pictureUrl} className="size-12" iconClassName="size-6" />
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{account?.displayName ?? "Guest"}</h1>
+            {account && <p className="truncate text-sm text-fg-muted">@{account.username}</p>}
+          </div>
+        </div>
+        {account ? (
+          <form action="/auth/sign-out" method="post">
+            <button type="submit" className={`min-h-11 rounded-lg border border-line px-4 text-sm text-fg hover:bg-surface-hover ${FOCUS}`}>
+              Sign out
+            </button>
+          </form>
+        ) : (
+          signInAvailable && <SignInButton />
+        )}
       </header>
+      {notice && (
+        <p role="status" className="mt-4 text-sm text-fg-muted">
+          {notice}
+        </p>
+      )}
 
       <section id="games" aria-labelledby="games-heading" className="mt-9 scroll-mt-8">
         <h2 id="games-heading" className="text-base font-semibold tracking-tight">
           Your games
         </h2>
-        <div className="mt-4 grid min-h-32 place-items-center rounded-xl border border-line px-6 py-8 text-center">
-          <p className="text-sm text-fg-muted">No games connected</p>
-        </div>
+        {games ? (
+          <LinkedGames initial={games} />
+        ) : (
+          <div className="mt-4 grid min-h-32 place-items-center rounded-xl border border-line px-6 py-8 text-center">
+            <p className="text-sm text-fg-muted">
+              {account ? "Your games are unavailable." : signInAvailable ? "Sign in with Roblox to link your games." : "No games connected"}
+            </p>
+          </div>
+        )}
       </section>
     </>
   );

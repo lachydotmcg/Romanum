@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { ChatView } from "@/components/chats/chat-view";
 import { listChats, type ChatSummary } from "@/lib/chats/store";
-import { readGuest } from "@/lib/guest";
+import { readOwner } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
 
 export const metadata: Metadata = {
@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default async function ChatsPage() {
-  // Per request: the key check and the guest's chats can't be baked in at build time.
+  // Per request: the key check and this browser's chats can't be baked in at build time.
   await connection();
-  const owner = await readGuest();
+  const owner = await readOwner();
   let recent: ChatSummary[] = [];
   try {
     const database = await historyDatabase();

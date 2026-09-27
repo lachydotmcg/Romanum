@@ -1,5 +1,6 @@
 import { deleteChat } from "@/lib/chats/store";
-import { isCrossSite, readGuest } from "@/lib/guest";
+import { readOwner } from "@/lib/accounts/session";
+import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
 
 export const runtime = "nodejs";
@@ -9,7 +10,7 @@ const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (isCrossSite(request)) return Response.json({ error: "Request rejected." }, { status: 403, headers: NO_STORE });
-  const owner = await readGuest();
+  const owner = await readOwner();
   const { id } = await params;
   try {
     const db = await historyDatabase();

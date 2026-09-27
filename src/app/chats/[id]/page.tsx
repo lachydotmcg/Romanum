@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ChatView } from "@/components/chats/chat-view";
 import { readChat } from "@/lib/chats/store";
-import { readGuest } from "@/lib/guest";
+import { readOwner } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
 
 type Props = { params: Promise<{ id: string }> };
 
 // Request memoisation shares one read between the title and the page. A database failure reaches the error page.
 const getChat = cache(async (id: string) => {
-  const owner = await readGuest();
+  const owner = await readOwner();
   const database = await historyDatabase();
   if (!database) throw new Error("Chats unavailable.");
   return owner ? readChat(database, owner, id) : null;

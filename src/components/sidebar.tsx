@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartColumn, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plug, User } from "lucide-react";
+import { ChartColumn, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plug } from "lucide-react";
 import type { ChatSummary } from "@/lib/chats/store";
 import { compactCredits, creditsInDollars } from "@/lib/credits/value";
+import { Avatar } from "./account/avatar";
 import { CHATS_CHANGED, CREDITS_CHANGED } from "./events";
 import { Coin } from "./coin";
 import { Wordmark } from "./wordmark";
@@ -26,7 +27,9 @@ const SYMBOL = "rotate-0 translate-y-(--upright-y) transition-[rotate,translate]
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
-/** The guest's spendable credits: undefined while loading, null when the credit service is unavailable. */
+type SignedIn = { displayName: string; pictureUrl: string | null };
+
+/** The spendable credits: undefined while loading, null when the credit service is unavailable. */
 function CreditBalance({ credits, compact = false, className = "" }: { credits: number | null | undefined; compact?: boolean; className?: string }) {
   const title =
     typeof credits === "number"
@@ -53,6 +56,7 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const [credits, setCredits] = useState<number | null | undefined>(undefined);
   const [recent, setRecent] = useState<ChatSummary[]>([]);
+  const [account, setAccount] = useState<SignedIn | null>(null);
   const rail = useRef<HTMLElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const close = () => setExpanded(false);
@@ -74,6 +78,20 @@ export function Sidebar() {
     return () => {
       active = false;
       window.removeEventListener(CREDITS_CHANGED, load);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    // Signing in and out reload the page, so once per page is enough.
+    fetch("/api/account")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { account?: SignedIn | null } | null) => {
+        if (active && data?.account) setAccount(data.account);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -210,9 +228,7 @@ export function Sidebar() {
           className={`flex items-start gap-3 rounded-lg px-1.5 py-1.5 hover:bg-surface ${FOCUS}`}
         >
           <span className="flex w-7 shrink-0 flex-col items-center gap-1">
-            <span className="grid size-7 place-items-center rounded-full bg-surface text-white">
-              <User className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </span>
+            <Avatar url={account?.pictureUrl} />
             {/* Collapsed, the balance sits under the avatar; expanded, it moves to the right of the name. */}
             <CreditBalance
               credits={credits}
@@ -220,7 +236,9 @@ export function Sidebar() {
               className="transition-opacity duration-100 group-data-[expanded=true]/sidebar:opacity-0 motion-reduce:transition-none"
             />
           </span>
-          <span className={`flex h-7 items-center text-sm text-fg ${LABEL}`}>Guest</span>
+          <span className={`flex h-7 min-w-0 items-center text-sm text-fg ${LABEL}`}>
+            <span className="truncate">{account?.displayName ?? "Guest"}</span>
+          </span>
           <CreditBalance credits={credits} className={`ml-auto h-7 text-sm ${LABEL}`} />
         </Link>
         {/* Setup details live on a separate guide page, sourced from the repository. */}
