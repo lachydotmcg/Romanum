@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { prefillAssistant } from "@/components/assistant/prefill";
 import type { Insight } from "@/lib/insights/store";
+import { Wordmark } from "@/components/wordmark";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 /** While today's insight is being written, check back this often, for up to about five minutes. */
@@ -42,8 +43,9 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
     // chart, containing it would shrink it to the height of the error message.
     <section aria-labelledby="insight-heading" className={`rounded-xl border border-line bg-surface p-5 ${fitRow ? "lg:overflow-y-auto lg:[contain:size]" : ""}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 id="insight-heading" className="text-sm font-medium">
-          Romanum insight
+        <h3 id="insight-heading" className="flex items-center gap-2 text-sm font-medium">
+          <Wordmark className="h-3.5 text-white" />
+          <span>insight</span>
         </h3>
         {insight && <span className="text-xs text-fg-subtle">{current ? "Today" : shortDate(insight.day)}</span>}
       </div>
