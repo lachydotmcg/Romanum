@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
@@ -16,13 +16,16 @@ import {
   SignInError,
 } from "../src/lib/accounts/roblox-oauth.ts";
 import { endSession, sessionAccount, signInAccount, startSession } from "../src/lib/accounts/store.ts";
+import { ACCOUNT_SIGNUP_CREDITS, welcomeAccount } from "../src/lib/credits/account.ts";
+import { welcomeGuest } from "../src/lib/credits/guest.ts";
+import { getBalance, reserveCredits, settleReservation } from "../src/lib/credits/ledger.ts";
 
 async function database(t) {
   const engine = await PGlite.create();
   t.after(() => engine.close());
   const sql = (client) => ({ query: (text, values) => client.query(text, values), exec: async (text) => { await client.exec(text); } });
   const db = { ...sql(engine), transaction: (operation) => engine.transaction((client) => operation(sql(client))), close: () => engine.close() };
-  await db.exec(await readFile(path.join(process.cwd(), "db", "migrations", "012_accounts.sql"), "utf8"));
+  for (const file of ["002_credits.sql", "012_accounts.sql"]) await db.exec(await readFile(path.join(process.cwd(), "db", "migrations", file), "utf8"));
   return db;
 }
 
@@ -126,6 +129,60 @@ test("sign-in refuses tokens for another app, user, issuer or attempt, and expir
 });
 
 const profile = (overrides = {}) => ({ userId: 2067243959, username: "linksgoat", displayName: "Links Goat", pictureUrl: null, ...overrides });
+
+test("sign-up adds 150 to the guest's remaining credits and never replenishes spending on repeat sign-ins", async t => {
+  const db = await database(t), guest = `guest:${randomUUID()}`, other = `guest:${randomUUID()}`;
+  assert.equal(ACCOUNT_SIGNUP_CREDITS, 150);
+  await welcomeGuest(db, guest); await welcomeGuest(db, other);
+  const operationId = randomUUID();
+  await reserveCredits(db, { ownerId: guest, operationId, amount: 12 });
+  await settleReservation(db, { ownerId: guest, operationId, actualCost: 12 });
+  const { account } = await signInAccount(db, profile(), guest);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 188);
+  for (const guestOwnerId of [guest, other, null]) {
+    await signInAccount(db, profile({ username: 'renamed' }), guestOwnerId);
+    assert.equal((await welcomeAccount(db, account.id)).available, 188);
+  }
+  assert.equal((await getBalance(db, { ownerId: other })).available, 50);
+  const grants = await db.query("SELECT amount FROM credits_operations WHERE operation_id=$1", [`signup:roblox:${profile().userId}`]);
+  assert.deepEqual(grants.rows.map(row => Number(row.amount)), [150]);
+});
+
+test("direct sign-up receives 200 total; concurrent sign-ins share one account and bonus", async t => {
+  const db = await database(t);
+  const results = await Promise.all(Array.from({ length: 8 }, () => signInAccount(db, profile(), null)));
+  assert.equal(new Set(results.map(r => r.account.id)).size, 1);
+  const { account } = results[0];
+  assert.equal((await getBalance(db, { ownerId: account.ownerId })).available, 200);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM credits_ledger WHERE owner_id=$1 AND amount=150", [account.ownerId])).rows[0].n, 1);
+  const second = await signInAccount(db, profile({ userId: 42, username: 'other' }), null);
+  assert.equal((await getBalance(db, { ownerId: second.account.ownerId })).available, 200);
+});
+
+test("existing accounts receive a missing sign-up bonus once on balance refresh, preserving active holds", async t => {
+  const db = await database(t), id = randomUUID(), ownerId = `account:${id}`;
+  await db.query("INSERT INTO accounts(id,roblox_user_id,owner_id,username,display_name) VALUES($1,42,$2,'old','Old')", [id, ownerId]);
+  await welcomeGuest(db, ownerId);
+  await reserveCredits(db, { ownerId, operationId: randomUUID(), amount: 7 });
+  await Promise.all(Array.from({ length: 8 }, () => welcomeAccount(db, id)));
+  assert.deepEqual(await getBalance(db, { ownerId }), { ownerId, balance: 200, reserved: 7, available: 193 });
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM credits_operations WHERE operation_id='signup:roblox:42'")).rows[0].n, 1);
+  await assert.rejects(welcomeAccount(db, randomUUID()), /Account not found/);
+});
+
+test("a failed sign-up grant rolls back the account and guest changes before a safe retry", async t => {
+  const db = await database(t), guest = `guest:${randomUUID()}`;
+  await welcomeGuest(db, guest);
+  const failing = { ...db, transaction: operation => db.transaction(sql => operation({ ...sql, query: (query, values) => {
+    if (query.startsWith('INSERT INTO credits_operations') && values[0].startsWith('signup:')) throw new Error('Injected grant failure');
+    return sql.query(query, values);
+  } })) };
+  await assert.rejects(signInAccount(failing, profile(), guest), /Injected grant failure/);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, 0);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 50);
+  await signInAccount(db, profile(), guest);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 200);
+});
 
 test("a new account adopts the signing-in guest's credits and chats; later sign-ins leave other guests alone", async (t) => {
   const db = await database(t);

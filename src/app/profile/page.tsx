@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
 import { Avatar } from "@/components/account/avatar";
+import { RobloxLogo } from "@/components/account/roblox-logo";
 import { LinkedGames } from "@/components/account/linked-games";
 import { oauthClient } from "@/lib/accounts/roblox-oauth";
 import { readAccount } from "@/lib/accounts/session";
@@ -28,8 +29,9 @@ function SignInButton() {
   return (
     <a
       href="/auth/roblox?next=/profile"
-      className={`inline-flex min-h-11 shrink-0 items-center rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white ${FOCUS}`}
+      className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white ${FOCUS}`}
     >
+      <RobloxLogo className="size-5 shrink-0" />
       Sign in with Roblox
     </a>
   );

@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import type { Database } from "../history/database.ts";
+import type { Database, Sql } from "../history/database.ts";
+import { welcomeAccount } from "../credits/account.ts";
 import type { RobloxProfile } from "./roblox-oauth.ts";
 
 // Accounts and their signed-in sessions. A session token is 32 random bytes that only the browser holds; the
@@ -31,6 +32,7 @@ const toAccount = (row: AccountRow): Account => ({
 });
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+const withinTransaction = (sql: Sql): Database => ({ ...sql, transaction: (operation) => operation(sql), close: async () => {} });
 
 /**
  * Signs a Roblox user in to their account, creating it at their first sign-in. A new account adopts the signing-in
@@ -48,7 +50,10 @@ export async function signInAccount(
       `UPDATE accounts a SET username=$2, display_name=$3, picture_url=$4, signed_in_at=now() WHERE roblox_user_id=$1 RETURNING ${COLUMNS}`,
       [profile.userId, ...names],
     );
-    if (existing[0]) return { account: toAccount(existing[0]), adoptedGuest: false };
+    if (existing[0]) {
+      await welcomeAccount(withinTransaction(sql), existing[0].id);
+      return { account: toAccount(existing[0]), adoptedGuest: false };
+    }
 
     // A guest belongs to at most one account.
     const adoptable =
@@ -64,6 +69,7 @@ export async function signInAccount(
        RETURNING ${COLUMNS}`,
       [id, profile.userId, ownerId, ...names],
     );
+    await welcomeAccount(withinTransaction(sql), rows[0].id);
     return { account: toAccount(rows[0]), adoptedGuest: adoptable && rows[0].id === id };
   });
 }
