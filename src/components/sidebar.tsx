@@ -7,8 +7,10 @@ import { ChartColumn, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, P
 import type { ChatSummary } from "@/lib/chats/store";
 import { compactCredits, creditsInDollars } from "@/lib/credits/value";
 import { Avatar } from "./account/avatar";
+import { ProfileMenu, type ProfileAccount } from "./account/profile-menu";
 import { CHATS_CHANGED, CREDITS_CHANGED } from "./events";
 import { Coin } from "./coin";
+import { GitHubIcon } from "./github-icon";
 import { Wordmark } from "./wordmark";
 
 // Your games lives in the profile; this is its shortcut, since few people open a profile to find their games.
@@ -26,8 +28,6 @@ const TAIL = "[clip-path:inset(0_100%_0_0)] transition-[clip-path] duration-200 
 const SYMBOL = "rotate-0 translate-y-(--upright-y) transition-[rotate,translate] duration-200 ease-emphasized group-data-[expanded=true]/sidebar:rotate-(--tilt) group-data-[expanded=true]/sidebar:translate-y-0 group-data-[expanded=true]/sidebar:duration-550 group-data-[expanded=true]/sidebar:ease-fall motion-reduce:transition-none";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
-
-type SignedIn = { displayName: string; pictureUrl: string | null };
 
 /** The spendable credits: undefined while loading, null when the credit service is unavailable. */
 function CreditBalance({ credits, compact = false, className = "" }: { credits: number | null | undefined; compact?: boolean; className?: string }) {
@@ -56,7 +56,8 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const [credits, setCredits] = useState<number | null | undefined>(undefined);
   const [recent, setRecent] = useState<ChatSummary[]>([]);
-  const [account, setAccount] = useState<SignedIn | null>(null);
+  const [account, setAccount] = useState<ProfileAccount | null>(null);
+  const [signInAvailable, setSignInAvailable] = useState(false);
   const rail = useRef<HTMLElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const close = () => setExpanded(false);
@@ -88,8 +89,10 @@ export function Sidebar() {
     // Signing in and out reload the page, so once per page is enough.
     fetch("/api/account")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { account?: SignedIn | null } | null) => {
-        if (active && data?.account) setAccount(data.account);
+      .then((data: { account?: ProfileAccount | null; signInAvailable?: boolean } | null) => {
+        if (!active) return;
+        if (data?.account) setAccount(data.account);
+        setSignInAvailable(data?.signInAvailable === true);
       })
       .catch(() => {});
     return () => {
@@ -121,6 +124,8 @@ export function Sidebar() {
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // Let the account menu or settings dialog handle its own dismissal first.
+      if (event.defaultPrevented || rail.current?.querySelector(":popover-open, dialog[open]")) return;
       if (rail.current?.contains(document.activeElement)) toggle.current?.focus();
       close();
     };
@@ -222,11 +227,11 @@ export function Sidebar() {
       )}
 
       <div className="mt-auto flex flex-col gap-1 px-3 pb-3">
-        <Link
-          href="/profile"
-          onClick={close}
-          aria-label={typeof credits === "number" ? `Profile, ${credits.toLocaleString("en-US")} credits` : "Profile"}
-          title={expanded ? undefined : "Profile"}
+        <ProfileMenu
+          account={account}
+          credits={credits}
+          signInAvailable={signInAvailable}
+          onNavigate={close}
           className={`flex items-start gap-3 rounded-lg px-1.5 py-1.5 hover:bg-surface ${FOCUS}`}
         >
           <span className="flex w-7 shrink-0 flex-col items-center gap-1">
@@ -242,21 +247,33 @@ export function Sidebar() {
             <span className="truncate">{account?.displayName ?? "Guest"}</span>
           </span>
           <CreditBalance credits={credits} className={`ml-auto h-7 text-sm ${LABEL}`} />
-        </Link>
+        </ProfileMenu>
         {/* Setup details live on a separate guide page, sourced from the repository. */}
-        <Link
-          href="/connect"
-          onClick={close}
-          aria-current={mcpActive ? "page" : undefined}
-          aria-label="Get MCP"
-          title="Get MCP"
-          className={`flex h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors ${FOCUS} ${
-            mcpActive ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
-          }`}
-        >
-          <Plug className="size-5 shrink-0 text-white" strokeWidth={1.75} aria-hidden="true" />
-          <span className={LABEL}>Get MCP</span>
-        </Link>
+        <div className="flex items-center gap-1">
+          <Link
+            href="/connect"
+            onClick={close}
+            aria-current={mcpActive ? "page" : undefined}
+            aria-label="Get MCP"
+            title="Get MCP"
+            className={`flex h-10 min-w-0 flex-1 items-center gap-3 rounded-lg px-2.5 text-sm font-medium transition-colors ${FOCUS} ${
+              mcpActive ? "bg-surface text-fg" : "text-fg-muted hover:bg-surface hover:text-fg"
+            }`}
+          >
+            <Plug className="size-5 shrink-0 text-white" strokeWidth={1.75} aria-hidden="true" />
+            <span className={LABEL}>Get MCP</span>
+          </Link>
+          <a
+            href="https://github.com/romanumdev/Romanum"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Romanum on GitHub (opens in a new tab)"
+            title="GitHub"
+            className={`hidden size-10 shrink-0 place-items-center rounded-lg text-white hover:bg-surface group-data-[expanded=true]/sidebar:grid ${FOCUS}`}
+          >
+            <GitHubIcon className="size-5" />
+          </a>
+        </div>
       </div>
     </aside>
   );
