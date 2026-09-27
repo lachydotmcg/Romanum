@@ -50,7 +50,7 @@ export async function GenresSection() {
           <th className="px-5 py-3 text-right font-medium">Est. earnings</th>
         </tr></thead>
         <tbody className="divide-y divide-line">{analysis.genres.map((genre) => <tr key={genre.name} className="hover:bg-surface-hover">
-          <td className="px-5 py-4"><Link prefetch={false} href={`/analytics?view=games&genre=${encodeURIComponent(genre.name)}`} className="hover:underline">{genre.name}</Link></td>
+          <td className="px-5 py-4"><Link prefetch={false} scroll={false} href={`/analytics?view=games&genre=${encodeURIComponent(genre.name)}`} className="hover:underline">{genre.name}</Link></td>
           <td className="px-5 py-4 text-right text-fg-muted">{genre.gameCount}</td><td className="px-5 py-4 text-right">{formatValue(genre.players, "compact")}</td>
           <td className="px-5 py-4 text-right text-fg-muted">{formatValue(genre.share, "percent")}</td>
           <td className="px-5 py-4 text-right"><GameEarnings game={{ playing: genre.players, genre: genre.name }} /></td>
