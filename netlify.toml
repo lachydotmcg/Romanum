@@ -1,0 +1,6 @@
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[functions."history-collect-background"]
+  included_files = ["src/lib/history/certs/aws-rds-global.pem"]
