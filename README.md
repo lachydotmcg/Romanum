@@ -12,6 +12,7 @@ A Roblox development platform with public game search, current statistics, recor
 Use Node.js 22.18 or newer (24 recommended).
 
 ```sh
+git submodule update --init
 npm install
 npm run dev
 ```
@@ -60,7 +61,7 @@ The MCP smoke test requires a running local application and contacts Roblox. Uni
 
 ## Repository
 
-`src/app` contains routes, `src/lib` shared services, `skills` the portable guides, and `tests` contract and storage checks. Internal planning and raw third-party transcripts are not distributed.
+`src/app` contains routes, `src/lib` shared services, `skills` the portable guides and `tests` contract and storage checks. `skills` links [romanumdev/romanum-skills](https://github.com/romanumdev/romanum-skills) as a git submodule: clone with `--recurse-submodules`, or run `git submodule update --init` in an existing clone. Commit skill changes in that repository, then commit the updated link here. Internal planning and raw third-party transcripts are not distributed.
 
 ## Licence
 
