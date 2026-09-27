@@ -7,8 +7,11 @@ import { GameIcon } from "@/components/game-icon";
 import { prefillAssistant } from "@/components/assistant/prefill";
 import { formatValue } from "@/lib/charts/spec";
 import type { MarketAnalysis } from "@/lib/market-analysis";
+import { EarningsRange, GameEarnings, useRevenue } from "@/components/analytics/revenue";
+import { sumEarnings } from "@/lib/analytics/earnings";
 
 export function PatternExplorer({ analysis, connected }: { analysis: MarketAnalysis; connected: boolean }) {
+  const { revenue, days } = useRevenue();
   // Title matching and sample limitations are documented in docs/data-notes.md.
   const [selectedId, setSelectedId] = useState(analysis.patterns[0]?.id);
   const selected = analysis.patterns.find((pattern) => pattern.id === selectedId) ?? analysis.patterns[0];
@@ -29,7 +32,7 @@ export function PatternExplorer({ analysis, connected }: { analysis: MarketAnaly
         <div className="min-w-0 p-5">
           <h3 className="text-lg font-semibold tracking-tight">{selected.label}</h3>
           <dl className="my-5 grid grid-cols-2 gap-4 border-y border-line py-4 sm:grid-cols-4">
-            <div><dt className="text-[11px] text-fg-muted">Players now</dt><dd className="mt-1.5 text-xl font-semibold tabular-nums">{formatValue(selected.players, "compact")}</dd></div>
+            <div><dt className="text-[11px] text-fg-muted">{revenue ? `Est. ${days}-day earnings` : "Players now"}</dt><dd className={`mt-1.5 font-semibold tabular-nums ${revenue ? "text-sm" : "text-xl"}`}>{revenue ? <EarningsRange range={sumEarnings(selected.games, days)} /> : formatValue(selected.players, "compact")}</dd></div>
             <div><dt className="text-[11px] text-fg-muted">Median per game</dt><dd className="mt-1.5 text-xl font-semibold tabular-nums">{selected.gameCount ? formatValue(selected.medianPlayers, "compact") : "–"}</dd></div>
             <div><dt className="text-[11px] text-fg-muted">Leader share</dt><dd className="mt-1.5 text-xl font-semibold tabular-nums">{formatValue(selected.leaderShare, "percent")}</dd></div>
             <div><dt className="text-[11px] text-fg-muted">Up-and-Coming</dt><dd className="mt-1.5 text-xl font-semibold tabular-nums">{selected.risingCount}<span className="ml-1 text-xs font-normal text-fg-subtle">{selected.risingCount === 1 ? "game" : "games"}</span></dd></div>
@@ -39,7 +42,7 @@ export function PatternExplorer({ analysis, connected }: { analysis: MarketAnaly
               {selected.games.slice(0, 6).map((game) => (
                 <li key={game.universeId} className="min-w-0"><Link href={`/analytics/games/${game.universeId}`} prefetch={false} className="group flex items-center gap-2.5 rounded-lg py-2 pr-1 focus-visible:outline-2 focus-visible:outline-fg-muted">
                   <GameIcon url={game.iconUrl} name={game.name} className="size-9" />
-                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium group-hover:underline" title={game.name}>{game.name}</span><span className="mt-1 block text-[11px] text-fg-muted">{formatValue(game.playing, "compact")} playing</span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium group-hover:underline" title={game.name}>{game.name}</span><span className="mt-1 block text-[11px] text-fg-muted">{revenue ? <GameEarnings game={game} /> : `${formatValue(game.playing, "compact")} playing`}</span></span>
                   <ArrowRight className="size-3 shrink-0 text-white" aria-hidden="true" />
                 </Link></li>
               ))}

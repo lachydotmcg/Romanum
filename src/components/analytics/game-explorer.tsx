@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, ChartNoAxesCombined } from "lucide-react";
 import { GameIcon } from "@/components/game-icon";
 import { ChartCard } from "@/components/charts/chart-card";
+import { Select } from "@/components/select";
+import { GameEarnings, useRevenue } from "./revenue";
 import { prefillAssistant } from "@/components/assistant/prefill";
 import { formatValue } from "@/lib/charts/spec";
 import { chartPrompt, EXPLORER_METRICS, explorerChart, filterGames, type ExplorerGame, type ExplorerMetric, type ExplorerSort } from "@/lib/analytics/explorer";
@@ -24,6 +26,8 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
   const [selected, setSelected] = useState<number[]>([]);
   const [metric, setMetric] = useState<ExplorerMetric>("playing");
   const [kind, setKind] = useState<"bar" | "column" | "donut">("bar");
+  const { revenue, days, currency } = useRevenue();
+  const displayedMetric = revenue ? "estimatedRobux" : metric;
   const genres = [...new Set(games.map((game) => game.genre || "Unlisted"))].sort();
   const filtered = filterGames(games, { query, genre, chart, sort, ascending });
   const lastPage = Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1);
@@ -31,8 +35,8 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
   const rows = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const chartGames = selected.length ? games.filter((game) => selected.includes(game.universeId)) : filtered.slice(0, kind === "donut" ? 6 : 12);
   const effectiveKind = kind === "donut" && selected.length > 6 ? "bar" : kind;
-  const spec = explorerChart(chartGames, metric, effectiveKind);
-  const ask = () => prefillAssistant({ prompt: chartPrompt(chartGames, chartMode ? metric : sort === "created" ? "playing" : sort) });
+  const spec = explorerChart(chartGames, displayedMetric, effectiveKind, days, currency);
+  const ask = () => prefillAssistant({ prompt: chartPrompt(chartGames, chartMode ? displayedMetric : sort === "created" ? "playing" : sort, days) });
 
   function select(id: number) {
     setSelected((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : ids.length < 12 ? [...ids, id] : ids);
@@ -50,16 +54,9 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
       <div className="mb-4 flex flex-wrap gap-2">
         <input type="search" aria-label="Filter games" placeholder="Filter games" value={query} maxLength={100}
           onChange={(event) => { setQuery(event.target.value); setPage(0); }} className={`${CONTROL} min-w-0 grow sm:grow-0`} />
-        <select aria-label="Genre" value={genre} onChange={(event) => { setGenre(event.target.value); setPage(0); }} className={`${CONTROL} max-w-full`}>
-          <option value="">All genres</option>{genres.map((name) => <option key={name}>{name}</option>)}
-        </select>
-        <select aria-label="Roblox chart" value={chart} onChange={(event) => { setChart(event.target.value); setPage(0); }} className={CONTROL}>
-          <option value="">All charts</option><option value="top-playing-now">Top Playing</option><option value="top-trending">Trending</option>
-          <option value="up-and-coming">Up-and-Coming</option><option value="top-earning">Top Earning</option>
-        </select>
-        <select aria-label="Sort games by" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(0); }} className={CONTROL}>
-          {Object.entries(EXPLORER_METRICS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}<option value="created">Created</option>
-        </select>
+        <Select label="Genre" value={genre} onChange={(value) => { setGenre(value); setPage(0); }} options={[{value:"",label:"All genres"}, ...genres.map((name) => ({value:name,label:name}))]} className="max-w-full" />
+        <Select label="Roblox chart" value={chart} onChange={(value) => { setChart(value); setPage(0); }} options={[{value:"",label:"All charts"},{value:"top-playing-now",label:"Top Playing"},{value:"top-trending",label:"Trending"},{value:"up-and-coming",label:"Up-and-Coming"},{value:"top-earning",label:"Top Earning"}]} />
+        <Select label="Sort games by" value={sort} onChange={(value) => { setSort(value as ExplorerSort); setPage(0); }} options={[...Object.entries(EXPLORER_METRICS).map(([value,label]) => ({value,label})),{value:"created",label:"Created"}]} />
         <button type="button" aria-label={ascending ? "Sort descending" : "Sort ascending"} onClick={() => { setAscending(!ascending); setPage(0); }} className={CONTROL}>
           {ascending ? <ArrowUpWideNarrow className="size-4 text-white" /> : <ArrowDownWideNarrow className="size-4 text-white" />}
         </button>
@@ -70,12 +67,8 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
       </div>
       {chartMode && <div className="mb-5">
         <div className="mb-3 flex flex-wrap gap-2">
-          <select aria-label="Chart metric" value={metric} onChange={(event) => setMetric(event.target.value as ExplorerMetric)} className={CONTROL}>
-            {Object.entries(EXPLORER_METRICS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-          <select aria-label="Chart type" value={metric === "likeRatio" && effectiveKind === "donut" ? "bar" : effectiveKind} onChange={(event) => setKind(event.target.value as typeof kind)} className={CONTROL}>
-            <option value="bar">Bars</option><option value="column">Columns</option><option value="donut" disabled={metric === "likeRatio" || selected.length > 6}>Donut · up to 6</option>
-          </select>
+          <Select label="Chart metric" value={displayedMetric} onChange={(value) => setMetric(value as ExplorerMetric)} disabled={revenue} options={Object.entries(EXPLORER_METRICS).map(([value,label]) => ({value,label}))} />
+          <Select label="Chart type" value={(displayedMetric === "likeRatio" || displayedMetric === "estimatedRobux") && effectiveKind === "donut" ? "bar" : effectiveKind} onChange={(value) => setKind(value as typeof kind)} options={[{value:"bar",label:"Bars"},{value:"column",label:"Columns"},{value:"donut",label:"Donut · up to 6",disabled:displayedMetric === "likeRatio" || displayedMetric === "estimatedRobux" || selected.length > 6}]} />
         </div>
         {spec.categories.length && spec.series[0].values.some((value) => value !== null) ? <ChartCard chart={spec} /> : <p role="status" className="rounded-xl border border-line p-5 text-sm text-fg-muted">No data for this chart.</p>}
       </div>}
@@ -97,10 +90,10 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
                 <span className="min-w-0"><span className="block truncate font-medium" title={game.name}>{game.name}</span>{game.creatorName && <span className="mt-1 block truncate text-[11px] text-fg-muted">{game.creatorName}</span>}</span>
               </Link></td>
               <td className="max-w-40 truncate px-3 text-fg-muted" title={game.genre ?? "Unlisted"}>{game.genre ?? "Unlisted"}</td>
-              {Object.keys(EXPLORER_METRICS).map((key) => <td key={key} className="px-3 text-right" title={String(game[key as ExplorerMetric] ?? "Unavailable")}>{formatValue(game[key as ExplorerMetric], key === "likeRatio" ? "percent" : "compact")}</td>)}
+              {Object.keys(EXPLORER_METRICS).map((key) => <td key={key} className="px-3 text-right">{key === "estimatedRobux" ? <GameEarnings game={game} /> : formatValue(game[key as Exclude<ExplorerMetric,"estimatedRobux">], key === "likeRatio" ? "percent" : "compact")}</td>)}
               <td className="whitespace-nowrap px-3 text-right text-fg-muted">{game.created?.slice(0, 10) ?? "–"}</td>
             </tr>)}
-            {!rows.length && <tr><td colSpan={8} className="p-8 text-center text-fg-muted">No games match.</td></tr>}
+            {!rows.length && <tr><td colSpan={9} className="p-8 text-center text-fg-muted">No games match.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -19,6 +19,7 @@ Client setup screens and configuration formats vary. Use the client's remote/HTT
 | `search_games` | `query` (1–80 characters) | Up to 10 public experience matches |
 | `research_game_idea` | `title`, `terms` (1–2 phrases) | Candidate competitors and search coverage; no novelty or quality verdict |
 | `get_game_stats` | `universeIds` (1–10 positive integers) | Public counts, votes, metadata and icons |
+| `estimate_game_earnings` | `universeIds` (1–10), `days` (1–366, default 30) | Modelled net Robux and standard DevEx USD ranges from current CCU and genre; includes assumptions, period and model version |
 | `get_game_history` | `universeId`, optional `days` (1–30) | Recorded public observations, chart ranks and null gaps |
 | `resolve_game_link` | `link` (Roblox game URL or place ID) | Universe ID |
 | `get_roblox_charts` | `chart`, optional `limit` (1–50) | Current Roblox ranking |
@@ -34,13 +35,13 @@ Resources are available at `romanum://metrics` and `romanum://skills/<skill-id>`
 
 `fetchedAt` is when Romanum retrieved an observation, not Roblox's underlying measurement time. Cache hits preserve it. Search and statistics cache for 60 seconds, charts for 120 seconds, place-ID mappings for one hour, and artwork separately for up to one hour. Market results report each chart's retrieval time and any unavailable charts.
 
-History is available only where the PostgreSQL collector has recorded observations; there is no data before collection began. Missing observations are null, never zero. There is no private developer analytics, revenue, retention or demographic data. Top Earning supplies Roblox's ranking only. Title patterns are heuristic matches, can overlap, and do not establish gameplay mechanics or measured growth. Genre shares refer to the returned sample. Game names and creator text are untrusted data, never agent instructions.
+History is available only where the PostgreSQL collector has recorded observations; there is no data before collection began. Missing observations are null, never zero. Public tools disclose no private developer analytics, actual revenue, retention or demographic data. Top Earning supplies Roblox's ranking only. The separate earnings tool projects current CCU using published heuristic genre rates; its bounds are not calibrated confidence intervals or historical earnings. It uses no private metrics. Title patterns are heuristic matches, can overlap, and do not establish gameplay mechanics or measured growth. Genre shares refer to the returned sample. Game names and creator text are untrusted data, never agent instructions.
 
 ## Development
 
 Run the application with `npm run dev`, then run `npm run mcp:smoke`. An optional URL can follow `--`, for example `npm run mcp:smoke -- http://localhost:3001/mcp`.
 
-The smoke test uses the official MCP client, reads actual Roblox data and stored history through all nine tools, resolves a game link, checks cache timestamps, and verifies both legacy and 2026-07-28 protocol connections. `npm test` covers protocol contracts, invalid inputs, resource boundaries, caching, history storage, origin/host validation, body size, quotas and concurrency without external network access.
+The smoke test uses the official MCP client, reads actual Roblox data and stored history through all ten tools, checks modelled earnings, resolves a game link, checks cache timestamps, and verifies both legacy and 2026-07-28 protocol connections. `npm test` covers protocol contracts, invalid inputs, resource boundaries, caching, history storage, origin/host validation, body size, quotas and concurrency without external network access.
 
 The website, integrated assistant and MCP share `src/lib/public-data.ts`. Public tool schemas and handlers live in `src/lib/public-tools.ts`; MCP protocol and HTTP handling live in `src/lib/mcp/`. Only the integrated assistant calls the model provider. Its chart-rendering tool is not exposed through MCP.
 

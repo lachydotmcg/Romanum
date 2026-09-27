@@ -31,7 +31,7 @@ export function colorHex(color: ChartColor): string {
 export const CHART_KINDS = ["bar", "column", "stacked_bar", "line", "donut", "scatter", "radar", "treemap", "stat_tiles"] as const;
 export type ChartKind = (typeof CHART_KINDS)[number];
 
-export type ValueFormat = "compact" | "full" | "percent";
+export type ValueFormat = "compact" | "full" | "percent" | "robux" | "usd";
 
 export const METRICS = {
   playing: { label: "Players now", format: "compact" },
@@ -41,12 +41,14 @@ export const METRICS = {
   dislikes: { label: "Dislikes", format: "compact" },
   likeRatio: { label: "Like ratio", format: "percent" },
   maxPlayersPerServer: { label: "Max players per server", format: "compact" },
+  estimatedRobuxLow: { label: "Est. Robux · low", format: "robux" },
+  estimatedRobuxHigh: { label: "Est. Robux · high", format: "robux" },
 } as const satisfies Record<string, { label: string; format: ValueFormat }>;
 
 export type MetricKey = keyof typeof METRICS;
 export const METRIC_KEYS = Object.keys(METRICS) as MetricKey[];
 
-/** A chart ready to render. Every value comes from fetched data; none are typed in by a model. */
+/** Observations or explicitly labelled deterministic estimates, never numbers invented by AI. */
 export type ChartSpec = {
   kind: ChartKind;
   title: string;
@@ -71,5 +73,7 @@ const fullFormat = new Intl.NumberFormat("en");
 export function formatValue(value: number | null | undefined, format: ValueFormat): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "–";
   if (format === "percent") return `${(value * 100).toFixed(1)}%`;
+  if (format === "robux") return `${compactFormat.format(value)} R$`;
+  if (format === "usd") return `$${compactFormat.format(value)}`;
   return format === "full" ? fullFormat.format(value) : compactFormat.format(value);
 }

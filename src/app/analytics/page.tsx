@@ -10,6 +10,7 @@ import { ANALYTICS_VIEWS, AnalyticsNavigation, type AnalyticsView } from "@/comp
 import { ChartInvitation } from "@/components/analytics/chart-invitation";
 import { GamesSection, GenresSection, TrendsSection } from "@/components/analytics/sections";
 import { EarningsCalculator } from "@/components/analytics/earnings-calculator";
+import { RevenueControls } from "@/components/analytics/revenue";
 
 export const metadata: Metadata = {
   title: "Analytics",
@@ -31,6 +32,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       <Assistant key={starter ?? "default"} connected={connected} initialPrompt={initialPrompt} />
       <ChartInvitation connected={connected} />
       <AnalyticsNavigation view={view} />
+      {view !== "earnings" && <div className="mt-4"><RevenueControls /></div>}
 
       {(view === "overview" || view === "games") && <GameSearch />}
 

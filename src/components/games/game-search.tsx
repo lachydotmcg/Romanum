@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link";
 import { RotateCw } from "lucide-react";
 import { GameIcon } from "@/components/game-icon";
+import { GameEarnings, useRevenue } from "@/components/analytics/revenue";
 
 /** /api/games/search returns more fields than the list renders (rootPlaceId and fetchedAt included). */
 type SearchGame = {
   universeId: number;
   name: string;
   playing: number;
+  genre?: string | null;
   iconUrl?: string | null;
   sponsored: boolean;
 };
@@ -41,6 +43,7 @@ function toGames(value: unknown): SearchGame[] {
       universeId: record.universeId,
       name: record.name,
       playing: record.playing,
+      genre: typeof record.genre === "string" ? record.genre : null,
       iconUrl: typeof record.iconUrl === "string" ? record.iconUrl : null,
       sponsored: record.sponsored === true,
     });
@@ -58,6 +61,7 @@ function statusText(state: SearchState | null): string {
 }
 
 export function GameSearch() {
+  const { revenue, days } = useRevenue();
   /** What the user has typed since the last submit; null means the box still shows the query. */
   const [draft, setDraft] = useState<string | null>(null);
   /** The query the visible state belongs to; null until the first submit. */
@@ -210,8 +214,8 @@ export function GameSearch() {
                     )}
                   </span>
                   <span className="shrink-0 text-right text-xs font-medium tabular-nums">
-                    {compact.format(game.playing)}
-                    <span className="mt-1 block text-[10px] font-normal text-fg-subtle">playing</span>
+                    {revenue ? <GameEarnings game={game} /> : compact.format(game.playing)}
+                    <span className="mt-1 block text-[10px] font-normal text-fg-subtle">{revenue ? `Est. ${days}-day earnings` : "playing"}</span>
                   </span>
                 </Link>
               </li>

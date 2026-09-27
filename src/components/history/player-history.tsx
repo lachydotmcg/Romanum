@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { RotateCw } from "lucide-react";
 import { EChart } from "@/components/charts/echart";
 import { GameIcon } from "@/components/game-icon";
+import { Select } from "@/components/select";
 import { buildOption, chartHeight } from "@/lib/charts/options";
 import { colorHex, formatValue, type ChartSpec } from "@/lib/charts/spec";
 
@@ -43,7 +44,6 @@ const PERIODS = [
 // 50 rows per page keeps a 30-day window out of the DOM; the API can return thousands of samples.
 const PAGE_SIZE = 50;
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-muted";
-const CONTROL = `min-h-11 rounded-lg border border-line bg-surface px-3 text-sm text-fg hover:bg-surface-hover ${FOCUS}`;
 
 // Stable identities while data is absent, so memoised work and effects don't rerun on every render.
 const NO_GAMES: HistoryGame[] = [];
@@ -296,37 +296,29 @@ export function PlayerHistory({ game: fixedGame }: { game?: HistoryGame }) {
         <div className="flex flex-wrap items-end gap-4">
           {!fixedGame && <div className="flex min-w-0 w-full flex-col gap-1.5 sm:w-80">
             <label htmlFor="history-game" className="text-xs text-fg-muted">Game</label>
-            <select
+            <Select label="History game"
               id="history-game"
-              value={selectedUniverseId ?? ""}
-              onChange={(event) => {
+              value={String(selectedUniverseId ?? "")}
+              onChange={(value) => {
                 setPage(1);
-                setUniverseId(Number(event.target.value));
+                setUniverseId(Number(value));
               }}
               disabled={!availableGames.length}
-              className={`${CONTROL} w-full min-w-0 disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              {!availableGames.length && <option value="">{gamesLoading ? "Loading…" : "None"}</option>}
-              {availableGames.map((game) => (
-                <option key={game.universeId} value={game.universeId}>{game.name}</option>
-              ))}
-            </select>
+              className="w-full"
+              options={availableGames.length ? availableGames.map((game) => ({ value: String(game.universeId), label: game.name })) : [{ value: "", label: gamesLoading ? "Loading…" : "None" }]}
+            />
           </div>}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="history-period" className="text-xs text-fg-muted">Period</label>
-            <select
+            <Select label="History period"
               id="history-period"
-              value={days}
-              onChange={(event) => {
+              value={String(days)}
+              onChange={(value) => {
                 setPage(1);
-                setDays(Number(event.target.value));
+                setDays(Number(value));
               }}
-              className={CONTROL}
-            >
-              {PERIODS.map((period) => (
-                <option key={period.days} value={period.days}>{period.label}</option>
-              ))}
-            </select>
+              options={PERIODS.map((period) => ({ value: String(period.days), label: period.label }))}
+            />
           </div>
         </div>
         <div className="mt-5" aria-busy={busy}>

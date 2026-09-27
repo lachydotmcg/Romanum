@@ -115,6 +115,8 @@ function barOption(spec: ChartSpec, width: number): EChartsCoreOption {
   const radius = horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0];
 
   return {
+    // Per-point colours don't update ECharts' legend palette on their own.
+    color: spec.colorBy === "series" ? spec.series.map((series) => spec.colors[series.key]) : undefined,
     tooltip: {
       ...TOOLTIP,
       trigger: "axis",

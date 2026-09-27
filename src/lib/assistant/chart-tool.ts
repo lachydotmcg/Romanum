@@ -84,6 +84,10 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
     return { ok: true, chart, chartColors: { [key]: "blue" }, summary: `Recorded ${METRICS[metric].label.toLowerCase()} · ${history.name}` };
   }
   const hasRatio = metrics.includes("likeRatio");
+  const hasEstimate = metrics.some((metric) => metric === "estimatedRobuxLow" || metric === "estimatedRobuxHigh");
+  if (hasEstimate && (!["bar", "column", "stat_tiles"].includes(kind) || metrics.length !== 2 || !metrics.includes("estimatedRobuxLow") || !metrics.includes("estimatedRobuxHigh"))) {
+    return fail("Show both estimatedRobuxLow and estimatedRobuxHigh together in a bar, column or stat_tiles chart, without other metrics. These bounds cannot be stacked or used as shares.");
+  }
   if (["bar", "column"].includes(kind) && hasRatio && metrics.length > 1) {
     return fail("Don't mix likeRatio (a percentage) with counts in one chart. Make a separate chart for it.");
   }
@@ -104,8 +108,9 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
     records.push(record);
   }
   if (missing.length) {
-    return fail(`No fetched data for ${missing.join(", ")}. Fetch it first (get_game_stats has every metric).`);
+    return fail(`No fetched data for ${missing.join(", ")}. Fetch it first with ${hasEstimate ? "estimate_game_earnings" : "get_game_stats"}.`);
   }
+  if (hasEstimate && (records.some((record) => !record.estimateDays) || new Set(records.map((record) => record.estimateDays)).size !== 1)) return fail("Fetch earnings estimates for every game over the same period first.");
 
   // Colours: validate names, then work out what carries identity.
   const requested = new Map<string, ChartColor>();
@@ -137,7 +142,7 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
   let series = metrics.map((metric) => ({
     key: metric,
     label: METRICS[metric].label,
-    format: (metric === "likeRatio" ? "percent" : format === "full" ? "full" : "compact") as ValueFormat,
+    format: (hasEstimate ? "robux" : metric === "likeRatio" ? "percent" : format === "full" ? "full" : "compact") as ValueFormat,
     values: records.map((r) => r[metric] ?? null) as (number | null)[],
   }));
 
@@ -197,9 +202,9 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
   const newest = records.map((r) => r.fetchedAt).filter(Boolean).sort().at(-1);
   const chart: ChartSpec = {
     kind,
-    title,
+    title: hasEstimate ? `Estimated earnings · ${records[0].estimateDays} ${records[0].estimateDays === 1 ? "day" : "days"}` : title,
     subtitle,
-    source: `Roblox public data${formatTime(newest)}`,
+    source: `${hasEstimate ? "Current CCU + genre model" : "Roblox public data"}${formatTime(newest)}`,
     categories,
     series,
     colors,

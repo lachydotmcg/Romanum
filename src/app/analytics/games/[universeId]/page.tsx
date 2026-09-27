@@ -11,6 +11,7 @@ import { formatValue } from "@/lib/charts/spec";
 import { readAccount } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
 import { linkedGameForUniverse, readGameMetrics } from "@/lib/linked-games/store";
+import { GameEarningsPanel } from "@/components/analytics/revenue";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ universeId: string }> };
@@ -83,6 +84,7 @@ export default async function GamePage({ params }: Props) {
         <p className="mt-3 text-xs text-fg-subtle">As of <time dateTime={fetchedAt}>{new Date(fetchedAt).toISOString().slice(11, 16)} UTC</time></p>
       </section>
 
+      <GameEarningsPanel game={game} />
       {own && <PrivateAnalytics game={own.game} metrics={own.metrics} />}
 
       <PlayerHistory key={game.universeId} game={{ universeId: game.universeId, rootPlaceId: game.rootPlaceId, name: game.name, iconUrl: game.iconUrl ?? null }} />

@@ -1,8 +1,13 @@
+"use client";
+
 import { colorHex, PALETTE_ORDER, formatValue } from "@/lib/charts/spec";
 import type { MarketAnalysis } from "@/lib/market-analysis";
+import { EarningsRange, useRevenue } from "@/components/analytics/revenue";
+import { sumEarnings } from "@/lib/analytics/earnings";
 
 /** Players by genre in Top Playing Now. `wide` lays it out as a full-width row, with the genres in columns. */
 export function GenreBreakdown({ analysis, wide = false }: { analysis: MarketAnalysis; wide?: boolean }) {
+  const { revenue, days } = useRevenue();
   // Roblox genre labels within Top Playing Now, not platform-wide totals; see docs/data-notes.md.
   const rows = analysis.genres.slice(0, 5);
   const rest = analysis.genres.slice(5);
@@ -18,7 +23,7 @@ export function GenreBreakdown({ analysis, wide = false }: { analysis: MarketAna
     <li key={row.name} className={`flex items-center gap-2.5 text-xs ${wide ? "py-2.5" : "py-3.5"}`}>
       <span className="size-2 shrink-0 rounded-sm" style={{ background: color(row.name, i) }} aria-hidden="true" />
       <span className="min-w-0 flex-1"><span className="block truncate text-fg">{row.name}</span><span className="mt-0.5 block text-fg-subtle">{row.gameCount} {row.gameCount === 1 ? "game" : "games"}</span></span>
-      <span className="text-fg-muted tabular-nums">{formatValue(row.players, "compact")}</span>
+      <span className="text-fg-muted tabular-nums">{revenue ? <EarningsRange range={sumEarnings(analysis.games.filter((game) => row.name === "Other" ? rest.some((genre) => genre.name === (game.genre || "Unlisted")) : (game.genre || "Unlisted") === row.name), days)} /> : formatValue(row.players, "compact")}</span>
       <span className="w-11 text-right font-medium tabular-nums">{(row.share * 100).toFixed(1)}%</span>
     </li>
   ));
@@ -31,6 +36,7 @@ export function GenreBreakdown({ analysis, wide = false }: { analysis: MarketAna
           <p className="text-xs text-fg-muted"><span className="text-base font-semibold text-fg tabular-nums">{total}</span> players · {analysis.sampleSize} games</p>
         </div>
         {bar}
+        {revenue && <p className="mt-3 text-xs text-fg-muted">Est. {days}-day earnings · shares by players</p>}
         <ul className="mt-2 grid gap-x-10 sm:grid-cols-2 lg:grid-cols-3">{items}</ul>
       </section>
     );
@@ -41,6 +47,7 @@ export function GenreBreakdown({ analysis, wide = false }: { analysis: MarketAna
       <p className="mt-6 text-3xl font-semibold tracking-tight tabular-nums">{total}</p>
       <p className="mt-1 text-xs text-fg-muted">players · {analysis.sampleSize} games</p>
       {bar}
+      {revenue && <p className="mt-3 text-xs text-fg-muted">Est. {days}-day earnings · shares by players</p>}
       <ul className="mt-5 divide-y divide-line">{items}</ul>
     </section>
   );

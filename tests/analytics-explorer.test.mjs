@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mergeGameDetails, filterGames, explorerChart, chartPrompt } from "../src/lib/analytics/explorer.ts";
-import { estimateEarnings } from "../src/lib/analytics/earnings.ts";
+import { estimateEarnings, currentEarnings, sumEarnings } from "../src/lib/analytics/earnings.ts";
 
 const sample = (id, extra = {}) => ({ universeId: id, rootPlaceId: id * 10, name: `Game ${id}`, rank: id, playing: id * 10, likes: 9, dislikes: 1, genre: "Simulation", sponsored: false, charts: ["top-playing-now"], ...extra });
 const options = { query: "", genre: "", chart: "", sort: "playing", ascending: false };
@@ -50,23 +50,46 @@ test("manual charts preserve unknown values, bound rows and never use ratings as
   assert.ok(!chartPrompt(rows, "playing").includes("Game 1"), "prompt passes IDs, not untrusted game titles");
 });
 
-const scenario = { averageCcu: 100, days: 30, lowRobuxPerPlayerHour: 1, highRobuxPerPlayerHour: 2 };
-test("earnings uses average player-hours and net Robux, then standard DevEx once", () => {
+const scenario = { ccu: 100, days: 30, genre: "Action", basis: "average" };
+test("earnings automatically models net Robux from CCU, period and genre", () => {
   const result = estimateEarnings(scenario);
   assert.equal(result.playerHours, 72_000);
-  assert.deepEqual(result.robux, { low: 72_000, high: 144_000 });
-  assert.deepEqual(result.usd, { low: 273.6, high: 547.2 });
-  assert.equal(estimateEarnings({ ...scenario, averageCcu: 0 }).robux.high, 0);
-  assert.equal(estimateEarnings({ ...scenario, days: 1 }).robux.low, 2400);
+  assert.deepEqual(result.robux, { low: 144_000, high: 288_000 });
+  assert.deepEqual(result.usd, { low: 547.2, high: 1094.4 });
+  assert.equal(result.basis, "average");
+  assert.equal(result.kind, "estimate");
+  assert.equal(estimateEarnings({ ...scenario, ccu: 0 }).robux.high, 0);
+  assert.equal(estimateEarnings({ ...scenario, days: 1 }).robux.low, 4800);
 });
 
-test("only the explicitly eligible share receives the US18+ DevEx rate", () => {
-  assert.equal(estimateEarnings({ ...scenario, eligibleUs18Percent: 100 }).devExRate, 0.0054);
-  assert.ok(Math.abs(estimateEarnings({ ...scenario, eligibleUs18Percent: 25 }).devExRate - 0.0042) < 1e-12);
+test("primary genre is normalized and unknown genres use the full assumption envelope", () => {
+  assert.deepEqual(estimateEarnings({ ...scenario, genre: " action / Battlegrounds " }).robux, estimateEarnings(scenario).robux);
+  for (const genre of [null, undefined, "Unknown"]) {
+    const result = estimateEarnings({ ...scenario, genre });
+    assert.equal(result.genre, "General");
+    assert.equal(result.devExRate, 0.0038);
+    assert.ok(result.robux.low < estimateEarnings(scenario).robux.low);
+    assert.ok(result.robux.high > estimateEarnings(scenario).robux.high);
+  }
+  assert.equal(currentEarnings({ playing: 100, genre: "Simulation" }).basis, "current");
+  assert.equal(currentEarnings({ playing: NaN }), null);
+  assert.deepEqual(sumEarnings([{ playing: 100, genre: "Action" }, { playing: 100, genre: "Simulation" }], 1), { low: 12240, high: 24000 });
 });
 
-test("earnings rejects missing, reversed, nonfinite and out-of-range assumptions", () => {
-  for (const override of [{ averageCcu: -1 }, { averageCcu: Infinity }, { averageCcu: "100" }, { days: 0 }, { days: 1.5 }, { lowRobuxPerPlayerHour: 3 }, { highRobuxPerPlayerHour: undefined }, { eligibleUs18Percent: 101 }]) {
+test("earnings rejects missing, nonfinite and out-of-range inputs and rate overrides", () => {
+  for (const override of [{ ccu: undefined }, { ccu: -1 }, { ccu: Infinity }, { ccu: "100" }, { days: 0 }, { days: 1.5 }, { days: 367 }, { lowRobuxPerPlayerHour: 3 }, { eligibleUs18Percent: 100 }]) {
     assert.throws(() => estimateEarnings({ ...scenario, ...override }));
   }
+});
+
+test("estimated earnings can sort games and chart both bounds in Robux or USD", () => {
+  const rows = mergeGameDetails([sample(1, { playing: 100, genre: "Simulation" }), sample(2, { playing: 110, genre: "Education" })], []);
+  assert.equal(filterGames(rows, { ...options, sort: "estimatedRobux" })[0].universeId, 1);
+  const chart = explorerChart(rows, "estimatedRobux", "donut", 7, "usd");
+  assert.equal(chart.kind, "bar");
+  assert.match(chart.title, /Estimated.*7 days/);
+  assert.equal(chart.series.length, 2);
+  assert.equal(chart.series[0].format, "usd");
+  assert.equal(chart.series[0].values[0], estimateEarnings({ ccu: 100, genre: "Simulation", days: 7 }).usd.low);
+  assert.match(chartPrompt(rows, "estimatedRobux", 7), /7-day Robux.*both low and high/);
 });

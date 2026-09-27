@@ -6,6 +6,7 @@ import { GameExplorer } from "./game-explorer";
 import { PatternExplorer } from "@/components/market/pattern-explorer";
 import { RankedList } from "@/components/market/ranked-list";
 import { RetryMarket } from "@/components/market/retry";
+import { GameEarnings } from "./revenue";
 
 function Unavailable() {
   return <div className="mt-7 rounded-xl border border-line p-5 text-sm text-fg-muted"><p role="status">Couldn&apos;t load games.</p><RetryMarket /></div>;
@@ -26,7 +27,7 @@ export async function TrendsSection({ connected }: { connected: boolean }) {
       <div className="grid gap-4 md:grid-cols-3">
         <RankedList title="Trending" games={samples.find((sample) => sample.chart === "top-trending")?.games ?? null} />
         <RankedList title="Up-and-Coming" games={samples.find((sample) => sample.chart === "up-and-coming")?.games ?? null} />
-        <RankedList title="Top Earning" games={samples.find((sample) => sample.chart === "top-earning")?.games ?? null} />
+        <RankedList title="Top Earning" earnings games={samples.find((sample) => sample.chart === "top-earning")?.games ?? null} />
       </div>
     </section>
     <PatternExplorer analysis={analysis} connected={connected} />
@@ -46,11 +47,13 @@ export async function GenresSection() {
         <thead className="border-b border-line text-xs text-fg-muted"><tr>
           <th className="px-5 py-3 font-medium">Genre</th><th className="px-5 py-3 text-right font-medium">Games</th>
           <th className="px-5 py-3 text-right font-medium">Players now</th><th className="px-5 py-3 text-right font-medium">Share</th>
+          <th className="px-5 py-3 text-right font-medium">Est. earnings</th>
         </tr></thead>
         <tbody className="divide-y divide-line">{analysis.genres.map((genre) => <tr key={genre.name} className="hover:bg-surface-hover">
           <td className="px-5 py-4"><Link prefetch={false} href={`/analytics?view=games&genre=${encodeURIComponent(genre.name)}`} className="hover:underline">{genre.name}</Link></td>
           <td className="px-5 py-4 text-right text-fg-muted">{genre.gameCount}</td><td className="px-5 py-4 text-right">{formatValue(genre.players, "compact")}</td>
           <td className="px-5 py-4 text-right text-fg-muted">{formatValue(genre.share, "percent")}</td>
+          <td className="px-5 py-4 text-right"><GameEarnings game={{ playing: genre.players, genre: genre.name }} /></td>
         </tr>)}</tbody>
       </table>
       {!analysis.genres.length && <p role="status" className="p-5 text-sm text-fg-muted">No genres found.</p>}

@@ -11,7 +11,7 @@ A Roblox development platform with public game search, current statistics, recor
 
 Analytics includes Overview, Games, Trends, Genres, Charts and Earnings. The game directory filters Roblox's current chart sample by genre, chart, title or creator, with sortable public metrics. Charts can be built manually for free; the integrated AI can create comparisons and single-game historical lines from retrieved observations, preserving collection gaps. AI actions prepare a prompt for review before sending.
 
-The free earnings calculator models average CCU × hours × user-supplied net Earned Robux per player-hour. Genre scenarios have separate editable assumptions, with no unverified default benchmarks. Robux is the default; USD uses standard DevEx, with an optional explicitly eligible US 18+ earnings share. Method, eligibility and dated primary sources are linked from the calculator. These are scenarios, not measured game revenue, profit or statistical confidence intervals.
+Free earnings estimates use CCU × hours × published genre assumptions. Game views project current CCU; the calculator takes average CCU, period and genre. Robux is the default, with standard pre-tax USD DevEx available. The model and coefficients are published at `/analytics/earnings-method`; these are uncalibrated heuristic ranges, not measured revenue or confidence intervals. The assistant and MCP share the same calculator through `estimate_game_earnings`, independently of PostgreSQL and paid model calls.
 
 ## Local development
 

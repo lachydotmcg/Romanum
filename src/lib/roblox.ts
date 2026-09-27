@@ -35,6 +35,7 @@ export type GameSearchResult = {
   rootPlaceId: number;
   name: string;
   playing: number;
+  genre?: string | null;
   likes: number;
   dislikes: number;
   /** Paid placement in Roblox search, not a relevance signal. */
@@ -65,9 +66,15 @@ export async function searchGames(query: string, limit = 10): Promise<GameSearch
     sponsored: game.isSponsored,
   }));
 
-  // One request for the whole page of results, never one per row.
-  const icons = await getGameIcons(results.map((game) => game.universeId));
-  return results.map((game) => ({ ...game, iconUrl: icons.get(game.universeId) ?? null }));
+  if (!results.length) return [];
+  // Batch enrichment; a metadata outage must not hide working search results.
+  const ids = results.map((game) => game.universeId);
+  const [icons, metadata] = await Promise.all([
+    getGameIcons(ids),
+    getJson<{ data: RobloxGame[] }>(`https://games.roblox.com/v1/games?universeIds=${ids.join(",")}`).catch(() => ({ data: [] })),
+  ]);
+  const genres = new Map((metadata.data ?? []).map((game) => [game.id, game.genre_l1 || null]));
+  return results.map((game) => ({ ...game, genre: genres.get(game.universeId) ?? null, iconUrl: icons.get(game.universeId) ?? null }));
 }
 
 type RobloxGame = {

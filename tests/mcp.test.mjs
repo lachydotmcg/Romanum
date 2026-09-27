@@ -42,12 +42,17 @@ for (const mode of ["legacy", { pin: "2026-07-28" }]) {
     t.after(() => endpoint.close());
     const client = await connect(t, endpoint, mode);
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 9);
+    assert.equal(tools.length, 10);
     assert.ok(tools.every((tool) => tool.annotations.readOnlyHint && !tool.annotations.destructiveHint));
     assert.ok(!tools.some((tool) => tool.name === "create_chart"));
     const result = await client.callTool({ name: "search_games", arguments: { query: "Test" } });
     assert.equal(result.isError, undefined);
     assert.deepEqual(result.structuredContent.games, [fixture]);
+    const estimate = await client.callTool({ name: "estimate_game_earnings", arguments: { universeIds: [123], days: 7 } });
+    assert.equal(estimate.isError, undefined);
+    assert.equal(estimate.structuredContent.estimateDays, 7);
+    assert.equal(estimate.structuredContent.games[0].estimatedEarnings.kind, "estimate");
+    assert.equal(estimate.structuredContent.games[0].estimatedEarnings.genre, "General");
     const research = await client.callTool({ name: "research_game_idea", arguments: { title: "Test concept", terms: ["Test mechanic"] } });
     assert.equal(research.isError, undefined);
     assert.equal(research.structuredContent.status, "complete");

@@ -1,4 +1,4 @@
-import { ChartCard } from "@/components/charts/chart-card";
+import { MarketChart } from "./market-chart";
 import { type ChartSpec, colorHex } from "@/lib/charts/spec";
 import { getMarketData } from "@/lib/market-data";
 import { analyzeMarket } from "@/lib/market-analysis";
@@ -31,7 +31,7 @@ export async function MarketOverview({ connected }: { connected: boolean }) {
           <h2 id="market-heading" className="text-base font-semibold tracking-tight">Roblox right now</h2>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          {playing?.length ? <ChartCard className={insight ? "lg:col-span-2" : "lg:col-span-3"} chart={topPlayingChart(playing)} showSource={false} />
+          {playing?.length ? <MarketChart className={insight ? "lg:col-span-2" : "lg:col-span-3"} chart={topPlayingChart(playing)} games={playing} />
             : <div className={`rounded-xl border border-line p-5 text-sm text-fg-muted ${insight ? "lg:col-span-2" : "lg:col-span-3"}`}>
                 <p role="status">{playing === null ? "Couldn't load games." : "No games found."}</p>
                 {playing === null && <RetryMarket />}
@@ -45,7 +45,7 @@ export async function MarketOverview({ connected }: { connected: boolean }) {
         <div className="grid gap-4 md:grid-cols-3">
           <RankedList title="Top Trending" games={samples.find((sample) => sample.chart === "top-trending")?.games ?? null} />
           <RankedList title="Up-and-Coming" games={samples.find((sample) => sample.chart === "up-and-coming")?.games ?? null} />
-          <RankedList title="Top Earning" games={samples.find((sample) => sample.chart === "top-earning")?.games ?? null} />
+          <RankedList title="Top Earning" earnings games={samples.find((sample) => sample.chart === "top-earning")?.games ?? null} />
         </div>
       </section>
     </>

@@ -7,9 +7,14 @@ import { loadSkill } from "./assistant/skills.ts";
 import { METRIC_DEFINITIONS } from "./metric-definitions.ts";
 import { HISTORY_INPUT } from "./history/service.ts";
 import { IDEA_RESEARCH_INPUT, researchGameIdea } from "./idea-research.ts";
+import { currentEarnings, EARNINGS_MODEL_VERSION, GENRE_RATES } from "./analytics/earnings.ts";
 
 const positiveId = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 export const PUBLIC_TOOLS = {
+  estimate_game_earnings: {
+    description: "Calculate low/high NET Earned Robux and pre-tax standard DevEx USD estimates from current public CCU and Romanum's published genre assumptions over 1–366 days. This is a constant-CCU projection, not actual revenue, historical earnings or a confidence interval. No database, private data or paid model call is needed. Use this before charting estimatedRobuxLow and estimatedRobuxHigh together.",
+    schema: z.object({ universeIds: z.array(positiveId).min(1).max(10), days: z.number().int().min(1).max(366).default(30) }).strict(),
+  },
   research_game_idea: {
     description: "Before recommending a game concept, search its proposed title and one or two mechanic/fantasy phrases for existing Roblox games. Returns candidate competitors, query coverage, sponsored status and observation timestamps. Search is incomplete and cannot prove novelty or that existing games are worse. No AI/model cost.",
     schema: IDEA_RESEARCH_INPUT,
@@ -72,6 +77,18 @@ export function parsePlaceId(link: string): number {
 
 export async function runPublicTool(name: PublicToolName, input: unknown, service: PublicDataService = publicData): Promise<{ result: Record<string, unknown>; summary: string }> {
   switch (name) {
+    case "estimate_game_earnings": {
+      const { universeIds, days } = PUBLIC_TOOLS[name].schema.parse(input);
+      const observation = await service.stats(universeIds);
+      const games = observation.games.map((game) => {
+        const estimate = currentEarnings(game, days);
+        return { ...game, estimatedEarnings: estimate, estimatedRobuxLow: estimate?.robux.low ?? null, estimatedRobuxHigh: estimate?.robux.high ?? null };
+      });
+      return { result: { ...observation, kind: "estimate", modelVersion: EARNINGS_MODEL_VERSION, estimateDays: days,
+        method: "/analytics/earnings-method", genreRates: GENRE_RATES,
+        assumptions: "Current CCU held constant for the entire period. Genre rates are uncalibrated heuristic net Robux/player-hour bands, not measured averages or confidence intervals. Standard DevEx only. No actual/private earnings are disclosed.", games },
+        summary: `${games.length} game earnings estimates · ${days} days` };
+    }
     case "research_game_idea": {
       const result = await researchGameIdea(input, service);
       return { result, summary: `${result.games.length} candidate competitors; search ${result.status}` };

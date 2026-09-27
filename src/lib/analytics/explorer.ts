@@ -1,6 +1,7 @@
 import type { SampleGame } from "../market-analysis.ts";
 import type { GameStats } from "../roblox.ts";
 import { colorHex, PALETTE_ORDER, type ChartSpec } from "../charts/spec.ts";
+import { currentEarnings } from "./earnings.ts";
 
 export type ExplorerGame = SampleGame & {
   creatorName: string | null;
@@ -15,6 +16,7 @@ export const EXPLORER_METRICS = {
   visits: "Visits",
   favorites: "Favourites",
   likeRatio: "Rating",
+  estimatedRobux: "Est. earnings",
 } as const;
 export type ExplorerMetric = keyof typeof EXPLORER_METRICS;
 export type ExplorerSort = ExplorerMetric | "created";
@@ -47,6 +49,7 @@ export function filterGames(games: ExplorerGame[], options: {
   ).sort((a, b) => {
     const value = (game: ExplorerGame) => options.sort === "created"
       ? game.created && Number.isFinite(Date.parse(game.created)) ? Date.parse(game.created) : null
+      : options.sort === "estimatedRobux" ? (() => { const range = currentEarnings(game)?.robux; return range ? (range.low + range.high) / 2 : null; })()
       : game[options.sort];
     const left = value(a), right = value(b);
     // Missing values are always last, including ascending sorts. Zero is an observation.
@@ -55,9 +58,16 @@ export function filterGames(games: ExplorerGame[], options: {
   });
 }
 
-export function explorerChart(games: ExplorerGame[], metric: ExplorerMetric, kind: "bar" | "column" | "donut"): ChartSpec {
-  const effectiveKind = kind === "donut" && metric === "likeRatio" ? "bar" : kind;
+export function explorerChart(games: ExplorerGame[], metric: ExplorerMetric, kind: "bar" | "column" | "donut", days = 30, currency: "robux"|"usd" = "robux"): ChartSpec {
+  const effectiveKind = kind === "donut" && (metric === "likeRatio" || metric === "estimatedRobux") ? "bar" : kind;
   const rows = games.slice(0, effectiveKind === "donut" ? 6 : 12);
+  if (metric === "estimatedRobux") {
+    const estimates = rows.map((game) => currentEarnings(game, days)?.[currency]);
+    return { kind: effectiveKind, title: `Estimated earnings · ${days} ${days === 1 ? "day" : "days"}`, source: "Current CCU + genre model",
+      categories: rows.map((game) => ({ key:String(game.universeId),label:game.name,iconUrl:game.iconUrl,rootPlaceId:game.rootPlaceId })),
+      series: ["low", "high"].map((bound) => ({ key:bound,label:bound === "low" ? "Low estimate" : "High estimate",format:currency,values:estimates.map((range) => range?.[bound as "low"|"high"] ?? null) })),
+      colors: { low:colorHex("blue"),high:colorHex("orange") }, colorBy:"series", showValues:true };
+  }
   return {
     kind: effectiveKind,
     title: EXPLORER_METRICS[metric], source: "Roblox public data · selected games",
@@ -68,7 +78,7 @@ export function explorerChart(games: ExplorerGame[], metric: ExplorerMetric, kin
   };
 }
 
-export function chartPrompt(games: ExplorerGame[], metric: ExplorerMetric) {
+export function chartPrompt(games: ExplorerGame[], metric: ExplorerMetric, days = 30) {
   const ids = games.slice(0, 12).map((game) => game.universeId);
-  return `Create a chart comparing ${EXPLORER_METRICS[metric].toLowerCase()} for these Roblox universe IDs: ${ids.join(", ")}. Fetch fresh data first.`;
+  return `Create a chart comparing ${metric === "estimatedRobux" ? `estimated ${days}-day Robux earnings (both low and high bounds)` : EXPLORER_METRICS[metric].toLowerCase()} for these Roblox universe IDs: ${ids.join(", ")}. Fetch fresh data first.`;
 }

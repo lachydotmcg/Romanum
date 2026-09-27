@@ -2,8 +2,9 @@ import type { ChartColor, MetricKey } from "@/lib/charts/spec";
 import { METRIC_KEYS } from "../charts/spec.ts";
 import type { ApiMessage } from "./types";
 import { isRobloxImageUrl } from "../roblox-icons.ts";
+import { EARNINGS_MODEL_VERSION } from "../analytics/earnings.ts";
 
-export type GameRecord = { universeId: number; name: string; fetchedAt?: string; iconUrl?: string | null; rootPlaceId?: number } & Partial<Record<MetricKey, number>>;
+export type GameRecord = { universeId: number; name: string; fetchedAt?: string; iconUrl?: string | null; rootPlaceId?: number; estimateDays?: number } & Partial<Record<MetricKey, number>>;
 export const HISTORY_METRICS = ["playing", "visits", "favorites", "likes", "dislikes", "likeRatio"] as const;
 export type HistoryMetric = typeof HISTORY_METRICS[number];
 export type HistoryRecord = { name: string; points: ({ time: number } & Record<HistoryMetric, number | null>)[] };
@@ -34,10 +35,11 @@ export class FetchedData {
   /** Records every game object in a tool result, and colours assigned by earlier charts. */
   add(result: unknown) {
     if (!result || typeof result !== "object") return;
-    const { games, fetchedAt, chartColors } = result as Record<string, unknown>;
+    const { games, fetchedAt, chartColors, kind, modelVersion, estimateDays } = result as Record<string, unknown>;
+    const days = kind === "estimate" && modelVersion === EARNINGS_MODEL_VERSION && typeof estimateDays === "number" && Number.isInteger(estimateDays) && estimateDays >= 1 && estimateDays <= 366 ? estimateDays : undefined;
     this.addHistory(result as Record<string, unknown>);
     if (Array.isArray(games)) {
-      for (const game of games) this.addGame(game, typeof fetchedAt === "string" ? fetchedAt : undefined);
+      for (const game of games) this.addGame(game, typeof fetchedAt === "string" ? fetchedAt : undefined, days);
     }
     if (chartColors && typeof chartColors === "object") {
       for (const [key, color] of Object.entries(chartColors)) {
@@ -76,7 +78,7 @@ export class FetchedData {
     this.histories.set(universeId as number, { name: metadata.name, points: [...rows.values()].sort((a, b) => a.time - b.time) });
   }
 
-  private addGame(value: unknown, fetchedAt?: string) {
+  private addGame(value: unknown, fetchedAt?: string, estimateDays?: number) {
     if (!value || typeof value !== "object") return;
     const game = value as Record<string, unknown>;
     if (typeof game.universeId !== "number" || typeof game.name !== "string") return;
@@ -87,9 +89,19 @@ export class FetchedData {
       name: game.name,
       ...(fetchedAt ? { fetchedAt } : {}),
     };
+    // A fresh observation invalidates the earlier projection; do not mix its CCU or period.
+    delete record.estimatedRobuxLow;
+    delete record.estimatedRobuxHigh;
+    delete record.estimateDays;
     for (const key of METRIC_KEYS) {
+      if (key === "estimatedRobuxLow" || key === "estimatedRobuxHigh") continue;
       const metric = game[key];
       if (typeof metric === "number" && Number.isFinite(metric)) record[key] = metric;
+    }
+    if (estimateDays !== undefined && typeof game.estimatedRobuxLow === "number" && Number.isFinite(game.estimatedRobuxLow) && game.estimatedRobuxLow >= 0 && typeof game.estimatedRobuxHigh === "number" && Number.isFinite(game.estimatedRobuxHigh) && game.estimatedRobuxHigh >= game.estimatedRobuxLow) {
+      record.estimatedRobuxLow = game.estimatedRobuxLow;
+      record.estimatedRobuxHigh = game.estimatedRobuxHigh;
+      record.estimateDays = estimateDays;
     }
     if ("iconUrl" in game) record.iconUrl = isRobloxImageUrl(game.iconUrl) ? game.iconUrl : null;
     if (typeof game.rootPlaceId === "number" && Number.isSafeInteger(game.rootPlaceId) && game.rootPlaceId > 0) record.rootPlaceId = game.rootPlaceId;

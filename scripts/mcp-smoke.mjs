@@ -13,7 +13,7 @@ const call = async (name, args = {}) => {
 try {
   await client.connect(new StreamableHTTPClientTransport(endpoint));
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 9);
+  assert.equal(tools.length, 10);
   const { resources } = await client.listResources();
   assert.equal(resources.length, 8);
   await client.readResource({ uri: "romanum://skills/romanum-game-design" });
@@ -34,6 +34,11 @@ try {
   const stats = await call("get_game_stats", { universeIds: chart.games.map((game) => game.universeId) });
   assert.ok(stats.games.length > 0, "live stats resolve chart IDs");
   const first = stats.games[0];
+  const estimates = await call("estimate_game_earnings", { universeIds: stats.games.map((game) => game.universeId), days: 30 });
+  assert.equal(estimates.kind, "estimate");
+  assert.equal(estimates.estimateDays, 30);
+  assert.equal(estimates.fetchedAt, stats.fetchedAt);
+  assert.ok(estimates.games.every((game) => game.estimatedEarnings && game.estimatedRobuxHigh >= game.estimatedRobuxLow));
   const resolved = await call("resolve_game_link", { link: `https://www.roblox.com/games/${first.rootPlaceId}` });
   assert.equal(resolved.universeId, first.universeId);
   const history = await call("get_game_history", { universeId: first.universeId, days: 1 });
@@ -45,7 +50,7 @@ try {
   console.log(JSON.stringify({
     endpoint: endpoint.href, protocol: "legacy", tools: tools.length, resources: resources.length,
     searchMatches: search.games.length, chartGames: chart.games.length, statsGames: stats.games.length,
-    icons: stats.games.filter((game) => game.iconUrl).length,
+    icons: stats.games.filter((game) => game.iconUrl).length, earningsEstimates: estimates.games.length,
     historicalObservations: history.sampleCount,
     sampleSize: analysis.sampleSize, unavailableCharts: analysis.unavailableCharts,
     fetchedAt: chart.fetchedAt, source: chart.source,
