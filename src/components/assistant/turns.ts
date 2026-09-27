@@ -33,6 +33,8 @@ export type Turn = {
   pending: string;
   error: string | null;
   done: boolean;
+  /** What the answer cost, in credits, once it has been charged. */
+  credits?: number;
 };
 
 const NOTE_MAX_CHARS = 160;
@@ -116,5 +118,7 @@ export function applyEvent(turn: Turn, event: AssistantEvent, now: number): Turn
     case "suggestion":
       // Belongs to the prompt bar, not the transcript.
       return turn;
+    case "usage":
+      return { ...turn, credits: event.credits };
   }
 }

@@ -10,7 +10,8 @@ const QUOTES = /^["'“”‘’]+|["'“”‘’]+$/g;
 
 /**
  * Predicts the user's likely next question, offered as a suggestion they can accept with Tab.
- * Optional by design: any failure returns null and the answer stands on its own.
+ * Optional by design: any failure returns a null suggestion and the answer stands on its own. The call's token
+ * usage comes back too, so it can be charged with the answer.
  */
 export async function suggestFollowUp(
   client: OpenAI,
@@ -18,8 +19,8 @@ export async function suggestFollowUp(
   question: string,
   answer: string,
   signal: AbortSignal,
-): Promise<string | null> {
-  if (!answer.trim()) return null;
+): Promise<{ text: string | null; usage: OpenAI.CompletionUsage | null }> {
+  if (!answer.trim()) return { text: null, usage: null };
   // DeepSeek-specific: a one-line prediction doesn't need its reasoning mode.
   const params = {
     model,
@@ -35,8 +36,8 @@ export async function suggestFollowUp(
     const completion = await client.chat.completions.create(params, { signal, timeout: 8000, maxRetries: 0 });
     const line = (completion.choices[0]?.message?.content ?? "").split("\n").map((part) => part.trim()).find(Boolean);
     const text = line?.replace(QUOTES, "").trim();
-    return text && text.length <= 90 ? text : null;
+    return { text: text && text.length <= 90 ? text : null, usage: completion.usage ?? null };
   } catch {
-    return null;
+    return { text: null, usage: null };
   }
 }

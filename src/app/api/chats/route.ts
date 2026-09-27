@@ -1,6 +1,9 @@
 import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@/lib/chats/limits";
+import { welcomeGuest } from "@/lib/credits/guest";
+import { chargeAnswer } from "@/lib/credits/metering";
+import type { CallUsage } from "@/lib/credits/pricing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
 import {
   ChatError,
@@ -73,6 +76,12 @@ export async function POST(request: Request) {
   const db = await database();
   if (!db) return failure(503, "Chats unavailable.");
   const owner = await ensureGuest();
+  // Answers spend credits, so the guest needs some before anything is saved or the model is called.
+  try {
+    if ((await welcomeGuest(db, owner)).available < 1) return failure(402, "You're out of credits.");
+  } catch {
+    return failure(503, "Credits unavailable. Try again later.");
+  }
   let saved: Awaited<ReturnType<typeof saveQuestion>>;
   try {
     const attachments = await Promise.all(files.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })));
@@ -100,9 +109,11 @@ export async function POST(request: Request) {
         recordEvent(events, event, Date.now() - began);
         if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
+      let usage: CallUsage[] = [];
       try {
-        await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT });
+        usage = await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT });
       } finally {
+        await chargeAnswer(db, { ownerId: owner, feature: "chat", calls: usage, send });
         // Saved even when the reader leaves early, so the chat keeps what was answered.
         if (!answer.turn && !events.some(({ e }) => e.type === "error")) {
           recordEvent(events, { type: "error", message: "Stopped." }, Date.now() - began);

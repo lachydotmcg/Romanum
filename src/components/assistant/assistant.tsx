@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowUp, Square } from "lucide-react";
+import { CREDITS_CHANGED } from "@/components/events";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { Transcript } from "./transcript";
 import { applyEvent, finishTurn, newTurn, type Turn } from "./turns";
@@ -127,6 +128,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
             setRunning(false);
           }
           update((turn) => applyEvent(turn, parsed, Date.now()));
+          if (parsed.type === "usage") window.dispatchEvent(new Event(CREDITS_CHANGED));
         }
       }
       // If the stream ended without a "done" event, don't leave the turn spinning.

@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { ChartColumn, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plug, User } from "lucide-react";
 import type { ChatSummary } from "@/lib/chats/store";
 import { compactCredits, creditsInDollars } from "@/lib/credits/value";
-import { CHATS_CHANGED } from "./chats/events";
+import { CHATS_CHANGED, CREDITS_CHANGED } from "./events";
 import { Coin } from "./coin";
 import { Wordmark } from "./wordmark";
 
@@ -59,17 +59,21 @@ export function Sidebar() {
 
   useEffect(() => {
     let active = true;
-    // Also creates the guest on its first visit, with its welcome credits.
-    fetch("/api/credits", { method: "POST" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { available?: unknown } | null) => {
-        if (active) setCredits(typeof data?.available === "number" ? data.available : null);
-      })
-      .catch(() => {
-        if (active) setCredits(null);
-      });
+    // Also creates the guest on its first visit, with its welcome credits. Reloaded whenever an answer is charged.
+    const load = () =>
+      fetch("/api/credits", { method: "POST" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { available?: unknown } | null) => {
+          if (active) setCredits(typeof data?.available === "number" ? data.available : null);
+        })
+        .catch(() => {
+          if (active) setCredits(null);
+        });
+    load();
+    window.addEventListener(CREDITS_CHANGED, load);
     return () => {
       active = false;
+      window.removeEventListener(CREDITS_CHANGED, load);
     };
   }, []);
 

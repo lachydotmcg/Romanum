@@ -6,7 +6,7 @@ import { applyEvent, finishTurn, newTurn, type Turn } from "@/components/assista
 import type { AssistantEvent } from "@/lib/assistant/types";
 import type { ChatSummary, StoredMessage } from "@/lib/chats/store";
 import { Composer, type PendingImage } from "./composer";
-import { CHATS_CHANGED } from "./events";
+import { CHATS_CHANGED, CREDITS_CHANGED } from "@/components/events";
 import { RecentChats } from "./recent-chats";
 
 const attachmentUrl = (id: string) => `/api/chat-attachments/${id}`;
@@ -132,6 +132,7 @@ export function ChatView({
           // The answer is complete; the prompt bar is usable while the suggestion loads.
           if (event.type === "done") setRunning(false);
           update((turn) => applyEvent(turn, event, Date.now()));
+          if (event.type === "usage") window.dispatchEvent(new Event(CREDITS_CHANGED));
         }
       }
       // If the stream ended without a "done" event, don't leave the turn spinning.

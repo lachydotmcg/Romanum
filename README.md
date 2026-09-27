@@ -25,7 +25,9 @@ The integrated assistant uses `DEEPSEEK_API_KEY` in `.env.local`. Public analyti
 
 Chats (`/chats`) are saved conversations with the same assistant. A message can carry up to three PNG, JPEG or WebP reference images, up to 5 MB each. The model can't see images; it gets their names, and image generation isn't connected yet, so thumbnail requests get a written concept. Chats and attachments are stored in the local database (`npm run history:db`; run `npm run history:migrate` after pulling new migrations).
 
-Until sign-in exists, each browser is an anonymous guest identified by a random cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Credits don't buy anything yet. Guest identity, uploads and grants need sign-in, abuse limits, image decoding and moderation before public release.
+Until sign-in exists, each browser is an anonymous guest identified by a random cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Guest identity, uploads and grants need sign-in, abuse limits, image decoding and moderation before public release.
+
+Ask Romanum and Chats answers spend credits: the tokens each model call reports, priced from `src/lib/credits/pricing.ts` (copied from the providers' official pricing pages, with the date checked), times a 1.65× markup. Each answer shows its cost. Credits are whole numbers, so each guest's fractions carry over until they make a whole credit, which the ledger takes. Asking needs at least one available credit. Charges are recorded in `usage_charges`; public data, charts, game pages and MCP stay free.
 
 ## Current boundaries
 

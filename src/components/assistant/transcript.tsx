@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Brain, Check, ChevronRight, CircleAlert, LoaderCircle, X } from "lucide-react";
 import { ChartCard } from "@/components/charts/chart-card";
+import { formatCredits } from "@/lib/credits/value";
 import { AssistantMarkdown } from "./markdown";
 import type { Step, Turn } from "./turns";
 
@@ -80,15 +81,18 @@ function headline(steps: Step[], active: boolean): string {
   return `Worked for ${seconds}s · ${timed.length} ${timed.length === 1 ? "step" : "steps"}`;
 }
 
-/** Everything the assistant did for one answer, collapsed to a single live status line. */
-function ProcessGroup({ steps, active }: { steps: Step[]; active: boolean }) {
+/** Everything the assistant did for one answer, collapsed to a single live status line, with its cost once charged. */
+function ProcessGroup({ steps, active, credits }: { steps: Step[]; active: boolean; credits?: number }) {
   const failed = !active && steps.some((s) => s.kind === "tool" && s.status === "error");
   const Icon = active ? LoaderCircle : failed ? CircleAlert : Check;
   return (
     <details className="group/process text-sm">
       <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-1 text-fg-muted [&::-webkit-details-marker]:hidden">
         <Icon className={`size-4 shrink-0 text-white ${active ? "animate-spin" : ""}`} aria-hidden="true" />
-        <span className={active ? "text-fg" : ""}>{headline(steps, active)}</span>
+        <span className={active ? "text-fg" : ""}>
+          {headline(steps, active)}
+          {!active && credits !== undefined && ` · ${formatCredits(credits)}`}
+        </span>
         <ChevronRight
           className="size-4 shrink-0 text-white transition-transform group-open/process:rotate-90"
           aria-hidden="true"
@@ -136,7 +140,7 @@ function TurnView({ turn }: { turn: Turn }) {
       <div className="flex justify-end">
         <p className="max-w-[min(85%,40rem)] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
       </div>
-      {(turn.steps.length > 0 || working) && <ProcessGroup steps={turn.steps} active={working} />}
+      {(turn.steps.length > 0 || working) && <ProcessGroup steps={turn.steps} active={working} credits={turn.credits} />}
       {turn.charts.map(({ id, chart }) => (
         <ChartCard key={id} chart={chart} />
       ))}
@@ -151,6 +155,10 @@ function TurnView({ turn }: { turn: Turn }) {
           <CircleAlert className="mt-0.5 size-4 shrink-0 text-white" aria-hidden="true" />
           {turn.error}
         </p>
+      )}
+      {/* Without a process line to carry it, the cost gets its own. */}
+      {turn.credits !== undefined && turn.steps.length === 0 && !working && (
+        <p className="text-xs text-fg-subtle">{formatCredits(turn.credits)}</p>
       )}
     </div>
   );

@@ -22,4 +22,6 @@ export type AssistantEvent =
   | { type: "done"; messages: ApiMessage[] }
   /** Sent after "done": the user's likely next question, for the prompt bar to offer. */
   | { type: "suggestion"; text: string }
+  /** Sent last: what the answer cost, in credits (usually a fraction of one). */
+  | { type: "usage"; credits: number }
   | { type: "error"; message: string };

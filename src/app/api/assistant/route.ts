@@ -1,6 +1,11 @@
 import type OpenAI from "openai";
 import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
+import { welcomeGuest } from "@/lib/credits/guest";
+import { chargeAnswer } from "@/lib/credits/metering";
+import type { CallUsage } from "@/lib/credits/pricing";
+import { ensureGuest, isCrossSite } from "@/lib/guest";
+import { historyDatabase, type Database } from "@/lib/history/database";
 
 const MAX_MESSAGES = 80;
 const MAX_USER_CHARS = 4000;
@@ -50,6 +55,7 @@ function parseMessages(body: unknown): ApiMessage[] | null {
 }
 
 export async function POST(request: Request) {
+  if (isCrossSite(request)) return Response.json({ error: "Request rejected." }, { status: 403 });
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) return Response.json({ error: "The AI assistant isn't connected." }, { status: 503 });
 
@@ -64,6 +70,19 @@ export async function POST(request: Request) {
   if (!history) return Response.json({ error: "Invalid conversation." }, { status: 400 });
   const conversation = history;
 
+  // Answers spend credits, so the guest needs some before the model is called.
+  let db: Database;
+  let owner: string;
+  try {
+    const database = await historyDatabase();
+    if (!database) throw new Error("No database is configured.");
+    db = database;
+    owner = await ensureGuest();
+    if ((await welcomeGuest(db, owner)).available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
+  } catch {
+    return Response.json({ error: "Credits unavailable. Try again later." }, { status: 503 });
+  }
+
   const client = assistantClient(apiKey);
   const abort = new AbortController();
   request.signal.addEventListener("abort", () => abort.abort());
@@ -75,9 +94,11 @@ export async function POST(request: Request) {
       const send = (event: AssistantEvent) => {
         if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
+      let usage: CallUsage[] = [];
       try {
-        await runAssistant({ client, conversation, send, signal: abort.signal });
+        usage = await runAssistant({ client, conversation, send, signal: abort.signal });
       } finally {
+        await chargeAnswer(db, { ownerId: owner, feature: "ask", calls: usage, send });
         if (!closed) {
           closed = true;
           controller.close();

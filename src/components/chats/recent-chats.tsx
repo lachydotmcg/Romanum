@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import type { ChatSummary } from "@/lib/chats/store";
-import { CHATS_CHANGED } from "./events";
+import { CHATS_CHANGED } from "@/components/events";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { CallUsage } from "@/lib/credits/pricing";
 import { SYSTEM_PROMPT } from "./prompt";
 import { FetchedData } from "./fetched-data";
 import { suggestFollowUp } from "./follow-up";
@@ -15,8 +16,17 @@ const MAX_TOKENS = 16000;
 const MAX_STEPS = 8;
 
 type DeepSeekDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning_content?: string | null };
+/** DeepSeek splits input into cache hits and misses as well as the standard fields. */
+type DeepSeekUsage = OpenAI.CompletionUsage & { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number };
 
 export const assistantClient = (apiKey: string) => new OpenAI({ apiKey, baseURL: BASE_URL });
+
+/** One call's token counts in pricing terms: uncached input, cached input and output. */
+function callUsage(at: Date, usage: DeepSeekUsage): CallUsage {
+  const cachedInput = usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const input = usage.prompt_cache_miss_tokens ?? Math.max(0, usage.prompt_tokens - cachedInput);
+  return { model: MODEL, at, input, cachedInput, output: usage.completion_tokens };
+}
 
 function describeError(error: unknown): string {
   // Provider setup and billing diagnostics belong in server logs and README.md.
@@ -28,6 +38,8 @@ function describeError(error: unknown): string {
 /**
  * Answers the last question in `conversation`, streaming each step through `send`. It ends with a "done" event
  * holding the turn's model messages (then possibly a suggestion), or with an "error" event. It never throws.
+ * Returns the token usage of every model call that finished, for charging. A call cut off before the provider
+ * reported its usage isn't included.
  */
 export async function runAssistant({
   client,
@@ -41,14 +53,16 @@ export async function runAssistant({
   send: (event: AssistantEvent) => void;
   signal: AbortSignal;
   systemPrompt?: string;
-}): Promise<void> {
+}): Promise<CallUsage[]> {
   // Everything the model and tools add during this turn, returned so the conversation can continue from it.
   const turn: ApiMessage[] = [];
   // What the tools have fetched so far in the conversation; charts can only plot these values.
   const fetched = FetchedData.fromMessages(conversation);
+  const usage: CallUsage[] = [];
 
   try {
     for (let step = 0; step < MAX_STEPS; step++) {
+      const sentAt = new Date();
       const completion = await client.chat.completions.create(
         {
           model: MODEL,
@@ -56,15 +70,19 @@ export async function runAssistant({
           tools: TOOLS,
           max_tokens: MAX_TOKENS,
           stream: true,
+          stream_options: { include_usage: true },
         },
         { signal },
       );
 
       let content = "";
       let reasoning = "";
+      let reported: DeepSeekUsage | null = null;
       const calls: { id: string; name: string; arguments: string }[] = [];
 
       for await (const chunk of completion) {
+        // The request's token counts arrive with the last chunk.
+        if (chunk.usage) reported = chunk.usage;
         const delta = chunk.choices[0]?.delta as DeepSeekDelta | undefined;
         if (!delta) continue;
         if (delta.reasoning_content) {
@@ -83,6 +101,7 @@ export async function runAssistant({
         }
       }
 
+      if (reported) usage.push(callUsage(sentAt, reported));
       const toolCalls = calls.filter((call) => call && call.id && call.name);
       // DeepSeek requires reasoning_content on every assistant message it produced when tools are in use.
       turn.push({
@@ -104,9 +123,11 @@ export async function runAssistant({
         send({ type: "done", messages: turn });
         // The answer is complete above; the suggestion follows on the same stream when it's ready.
         const question = conversation.at(-1)?.content;
-        const suggestion = await suggestFollowUp(client, MODEL, typeof question === "string" ? question : "", content, signal);
-        if (suggestion) send({ type: "suggestion", text: suggestion });
-        return;
+        const followUpAt = new Date();
+        const followUp = await suggestFollowUp(client, MODEL, typeof question === "string" ? question : "", content, signal);
+        if (followUp.usage) usage.push(callUsage(followUpAt, followUp.usage));
+        if (followUp.text) send({ type: "suggestion", text: followUp.text });
+        return usage;
       }
 
       const execute = async (call: (typeof toolCalls)[number]) => {
@@ -162,4 +183,5 @@ export async function runAssistant({
       send({ type: "error", message: describeError(error) });
     }
   }
+  return usage;
 }
