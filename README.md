@@ -18,6 +18,10 @@ Then the idea grew. I watched Duckables try lemonade.gg and similar services, an
 
 I want to keep as much of Romanum free as I can reasonably afford to run. Analytics and MCP access will stay free. Hosted AI and generation cost money, so those parts will use credits, with subscriptions for people who want more. I want the pricing to make sense for someone trying to get their first game off the ground.
 
+That's why I made the [skills directory](https://github.com/romanumdev/romanum-skills) public and built [free MCP access](docs/mcp.md). Open a guide, give your AI the link or file, and ask it to use that guide to help plan your game. These are the same skills Romanum uses for research, game design, onboarding, economies, thumbnails and UI. Connect a compatible AI through MCP and it can work with Romanum's available public data too.
+
+I want these tools and guides to help you at every step, even if I never make a dime from it. Maybe that old Roblox ad is engraved in my brain, but I really do just want to power imagination.
+
 I started making Roblox games when I was ten. I couldn't afford to hire anyone, so whatever I didn't know how to do was something I had to figure out myself. The games were NOT good. I'm pretty confident ten-year-old me would've made better ones with Romanum around xD
 
 That's who I'm building this for, as well as developers who already know their way around Studio. If there's a part of making a game you struggle with, I want you to be able to open Romanum, talk it through and get help actually doing it.
