@@ -51,3 +51,5 @@ next-env.d.ts
 /artifacts/
 /docs/*
 !/docs/mcp.md
+!/docs/README.md
+!/docs/development.md

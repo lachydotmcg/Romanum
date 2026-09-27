@@ -8,7 +8,7 @@ Romanum exposes public Roblox data and repository guides through a free, read-on
 2. Add it to an MCP client that supports **Streamable HTTP**.
 3. Ask the agent to search for a game or retrieve a Roblox chart.
 
-Local development uses `http://localhost:3000/mcp`. This address works only for clients running on the same computer. A remotely hosted agent needs a reachable HTTPS deployment; there is no hosted Romanum MCP URL yet. No authentication is required for these public tools.
+Local development uses `http://localhost:3000/mcp`. This address works only for clients running on the same computer. A remotely hosted agent needs a reachable HTTPS deployment with its public URL configured as described below. No authentication is required for these public tools.
 
 Client setup screens and configuration formats vary. Use the client's remote/HTTP server option with the URL above, rather than a command to launch a local stdio process.
 
@@ -58,4 +58,6 @@ Optional configuration:
 
 The endpoint limits bodies to 16 KiB, requests to 300 per minute per process, and active tool executions to eight. With a trusted client IP header it also limits each IP to 60 requests per minute. HTTP quota responses include `Retry-After`. Caches and counters are bounded and process-local; multiple replicas need shared edge quotas. They are not durable historical storage.
 
-Expose only `/mcp` when deploying this slice. The existing paid `/api/assistant` route needs authentication and spending controls before public access. Serve the connection page only alongside a configured, reachable endpoint. Private data, account linking and write tools remain outside this implementation.
+The `/mcp` endpoint provides public, read-only tools. The integrated assistant uses separate account/guest verification and credit controls. Serve the connection page alongside a configured, reachable endpoint. Private account data and write tools are not exposed through public MCP.
+
+For application setup and collection, see [development and technical notes](development.md).
