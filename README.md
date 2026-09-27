@@ -23,7 +23,7 @@ The integrated assistant uses `DEEPSEEK_API_KEY` in `.env.local`. Public analyti
 
 ### Turnstile
 
-New guests and Roblox sign-in require Cloudflare Turnstile. Set these server environment variables (the site key is sent to the browser at runtime):
+Guests verify with Cloudflare Turnstile when sending their first AI message, in Ask Romanum or Chats. Browsing and viewing the welcome balance do not trigger it. Roblox sign-in also requires verification. Set these server environment variables (the site key is sent to the browser at runtime):
 
 ```dotenv
 TURNSTILE_SITE_KEY=your-site-key
@@ -31,7 +31,7 @@ TURNSTILE_SECRET_KEY=your-secret-key
 TURNSTILE_ALLOWED_HOSTNAMES=your-domain.example
 ```
 
-Create a **Managed** widget with the same hostnames in Cloudflare. Separate multiple hostnames with commas, without schemes or ports. The server checks Siteverify, the hostname and the action before creating a guest or starting OAuth. Missing configuration and verification outages fail closed. Signed guest cookies and signed OAuth attempts prevent bypassing the check with invented cookies. Existing unsigned guest cookies are upgraded after verification, preserving their credits and chats; adopted guests cannot reopen account data.
+Create a **Managed** widget with the same hostnames in Cloudflare. Separate multiple hostnames with commas, without schemes or ports. The server checks Siteverify, the hostname and the action before a guest AI submission or starting OAuth. Missing configuration and verification outages block those operations. Browsing creates a signed pending identity with welcome credits; this cannot authorize an AI call. Verification upgrades the same identity, preserving its balance and history. Signed guest cookies and signed OAuth attempts prevent bypassing the check with invented cookies; adopted guests cannot reopen account data.
 
 For `npm run dev` on localhost, use Cloudflare's [official test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/): site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`. They are rejected on non-local hosts and in production, including `npm run start`. Configure real keys, allowed hostnames and `ROMANUM_SECRETS_KEY` on Netlify before deployment. Test keys prove integration, not bot detection. Turnstile reduces automated sign-ups; it does not replace grant rate limits or spending controls. Public analytics and MCP remain accessible without a challenge.
 

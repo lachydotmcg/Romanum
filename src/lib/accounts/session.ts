@@ -23,7 +23,7 @@ export async function readOwner(): Promise<string | null> {
   return (await readAccount())?.ownerId ?? (await readGuest());
 }
 
-/** As readOwner, creating the guest on its first visit. Route handlers only, since that sets a cookie. */
+/** For AI submissions: an account session or a Turnstile-verified guest. May set a guest cookie. */
 export async function ensureOwner(request: Request): Promise<string> {
   return (await readAccount())?.ownerId ?? (await ensureGuest(request));
 }

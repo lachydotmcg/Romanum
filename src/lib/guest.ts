@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { secretsKey } from "./secrets";
-import { GUEST_ID, GUEST_SECONDS, signGuest, verifiedGuestId } from "./guest-token";
+import { GUEST_ID, GUEST_SECONDS, pendingGuestId, signGuest, signPendingGuest, verifiedGuestId } from "./guest-token";
 import { verifyTurnstile } from "./turnstile";
 import { historyDatabase } from "./history/database";
 
@@ -15,29 +15,35 @@ async function unclaimed(id: string): Promise<boolean> {
   return (await database.query("SELECT 1 FROM accounts WHERE owner_id=$1", [`guest:${id}`])).rows.length === 0;
 }
 
-/** The current guest's owner ID, or null before its first visit. Safe to call from server components. */
-export async function readGuest(): Promise<string | null> {
+async function currentGuest(): Promise<{ id: string; verified: boolean } | null> {
   const value = (await cookies()).get(COOKIE)?.value;
   if (!value || !value.includes(".")) return null;
   try {
-    const id = verifiedGuestId(value, await secretsKey());
-    return id && await unclaimed(id) ? `guest:${id}` : null;
+    const key = await secretsKey();
+    const verified = verifiedGuestId(value, key);
+    const id = verified ?? pendingGuestId(value, key);
+    return id && await unclaimed(id) ? { id, verified: verified !== null } : null;
   } catch {
     // Like account-session reads, a storage outage must not break public pages or authenticate a guest.
     return null;
   }
 }
 
-/** The current guest's owner ID, creating the guest on its first visit. Route handlers only, since it sets a cookie. */
-export async function ensureGuest(request: Request): Promise<string> {
-  const existing = await readGuest();
-  if (existing) return existing;
-  await verifyTurnstile(request, "guest");
-  const jar = await cookies();
-  const legacy = jar.get(COOKIE)?.value;
-  // Preserve pre-Turnstile guests after they verify once; never adopt an account's former guest identity.
-  const id = legacy && GUEST_ID.test(legacy) && await unclaimed(legacy) ? legacy : randomUUID();
-  jar.set(COOKIE, signGuest(id, await secretsKey()), {
+/** Reads identity for balances/history without starting verification. Safe in server components. */
+export async function readGuest(): Promise<string | null> {
+  const guest = await currentGuest();
+  return guest ? `guest:${guest.id}` : null;
+}
+
+async function newGuestId(): Promise<string> {
+  const legacy = (await cookies()).get(COOKIE)?.value;
+  // Preserve pre-Turnstile identities; never reopen a guest that was adopted by an account.
+  return legacy && GUEST_ID.test(legacy) && await unclaimed(legacy) ? legacy : randomUUID();
+}
+
+async function saveGuest(id: string, verified: boolean): Promise<string> {
+  const sign = verified ? signGuest : signPendingGuest;
+  (await cookies()).set(COOKIE, sign(id, await secretsKey()), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -45,6 +51,20 @@ export async function ensureGuest(request: Request): Promise<string> {
     maxAge: GUEST_SECONDS,
   });
   return `guest:${id}`;
+}
+
+/** Creates an identity for the welcome balance only. This cookie is not proof of Turnstile. */
+export async function ensureGuestIdentity(): Promise<string> {
+  const existing = await readGuest();
+  return existing ?? await saveGuest(await newGuestId(), false);
+}
+
+/** AI submissions require verification before any question is saved or provider called. */
+export async function ensureGuest(request: Request): Promise<string> {
+  const existing = await currentGuest();
+  if (existing?.verified) return `guest:${existing.id}`;
+  await verifyTurnstile(request, "guest");
+  return saveGuest(existing?.id ?? await newGuestId(), true);
 }
 
 /**

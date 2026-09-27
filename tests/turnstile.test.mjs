@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { turnstileConfig, verifyTurnstile, verificationResponse, VerificationError } from "../src/lib/turnstile.ts";
-import { GUEST_SECONDS, signGuest, verifiedGuestId } from "../src/lib/guest-token.ts";
+import { GUEST_SECONDS, pendingGuestId, signGuest, signPendingGuest, verifiedGuestId } from "../src/lib/guest-token.ts";
 import { signAttempt, verifiedAttempt } from "../src/lib/accounts/sign-in-cookie.ts";
 import { encodeAttempt, newSignInAttempt } from "../src/lib/accounts/roblox-oauth.ts";
 
@@ -104,4 +104,23 @@ test("OAuth callback requires a signed, recent attempt issued after Turnstile", 
   assert.equal(verifiedAttempt(signed, randomBytes(32), now), null);
   assert.equal(verifiedAttempt(signed, key, now + 600_000), null);
   assert.equal(verifiedAttempt(signed, key, now - 1000), null);
+});
+
+test("a browsing identity cannot authorize an AI message until verified", () => {
+  const key = randomBytes(32), id = randomUUID(), now = Date.now();
+  const pending = signPendingGuest(id, key, now);
+  assert.equal(pendingGuestId(pending, key, now), id);
+  assert.equal(verifiedGuestId(pending, key, now), null);
+  const verified = signGuest(id, key, now);
+  assert.equal(verifiedGuestId(verified, key, now), id);
+  assert.equal(pendingGuestId(verified, key, now), null);
+});
+
+test("pending identity cookies also reject forgery, tampering and expiry", () => {
+  const key = randomBytes(32), id = randomUUID(), now = Date.now();
+  const pending = signPendingGuest(id, key, now);
+  assert.equal(pendingGuestId(id, key, now), null);
+  assert.equal(pendingGuestId(pending.replace(id, randomUUID()), key, now), null);
+  assert.equal(pendingGuestId(pending, randomBytes(32), now), null);
+  assert.equal(pendingGuestId(pending, key, now + GUEST_SECONDS * 1000), null);
 });
