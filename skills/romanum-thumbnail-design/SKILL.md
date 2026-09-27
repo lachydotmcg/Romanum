@@ -1,6 +1,6 @@
 ---
 name: romanum-thumbnail-design
-license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/romanumdev/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 description: Develop Roblox thumbnail concepts and generation briefs that communicate real gameplay, compare creative hypotheses and plan measured tests. Use for thumbnail planning or an authorised generation workflow; do not claim predicted CTR.
 ---
 

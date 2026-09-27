@@ -1,6 +1,6 @@
 ---
 name: romanum-player-onboarding
-license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/romanumdev/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 description: Diagnose Roblox first-session friction and plan age-appropriate onboarding experiments from observed behaviour and authorised game analytics. Use for tutorials, early exits, first-success loops and retention hypotheses.
 ---
 

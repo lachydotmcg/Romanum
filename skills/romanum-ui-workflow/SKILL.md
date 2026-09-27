@@ -1,7 +1,7 @@
 ---
 name: romanum-ui-workflow
 description: Build Roblox interfaces by finding reusable UI, reviewing a visual concept, separating its assets, and assembling editable native controls. Use for UI library reuse, asset manifests and authorised Studio implementation.
-license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/romanumdev/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 ---
 
 # Roblox UI workflow

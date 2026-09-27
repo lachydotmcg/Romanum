@@ -10,7 +10,7 @@ export default function SkillsPage() {
     <>
       <header className="mb-8 flex items-center justify-between gap-5">
         <h1 className="text-2xl font-semibold tracking-tight">Skills</h1>
-        <a href="https://github.com/lachydotmcg/Romanum" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-muted">GitHub <ArrowUpRight className="size-3.5 text-white" aria-hidden="true" /></a>
+        <a href="https://github.com/romanumdev/romanum-skills" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-muted">GitHub <ArrowUpRight className="size-3.5 text-white" aria-hidden="true" /></a>
       </header>
       <div className="space-y-4">
         {SKILL_CATALOG.map((skill) => <article key={skill.id} className="flex flex-wrap items-center justify-between gap-5 rounded-xl border border-line bg-surface p-5 sm:p-6">

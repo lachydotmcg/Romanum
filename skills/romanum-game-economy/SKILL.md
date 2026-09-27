@@ -1,7 +1,7 @@
 ---
 name: romanum-game-economy
 description: Plan Roblox progression, currency balance and optional purchases using authorised product data and observed play. Use for economy reviews and monetisation experiments, not revenue guesses from public CCU or pressure tactics aimed at children.
-license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/romanumdev/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 ---
 
 # Roblox game economy

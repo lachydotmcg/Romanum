@@ -23,7 +23,7 @@ try {
     const guide = await call("load_skill", { skill: id });
     assert.equal(guide.id, id);
     assert.ok(guide.instructions.length > 500);
-    assert.equal(guide.licenseUrl, "https://github.com/lachydotmcg/Romanum/blob/main/LICENSE");
+    assert.equal(guide.licenseUrl, "https://github.com/romanumdev/Romanum/blob/main/LICENSE");
   }
   const search = await call("search_games", { query: "Blox Fruits" });
   const research = await call("research_game_idea", { title: "Blox Fruits", terms: ["pirate adventure"] });

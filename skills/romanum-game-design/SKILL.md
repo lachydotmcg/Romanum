@@ -1,6 +1,6 @@
 ---
 name: romanum-game-design
-license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/romanumdev/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 description: Turn Roblox market evidence into a differentiated game concept, a playable core loop, and a small validation plan. Use for game ideas, design briefs, onboarding, progression, and age-appropriate engagement.
 ---
 

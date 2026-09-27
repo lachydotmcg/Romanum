@@ -4,7 +4,7 @@ Create without limits.
 
 A Roblox development platform with public game search, current statistics, recorded player history, an AI assistant and a free read-only MCP server.
 
-- **[Browse the skills](skills/README.md)** — reusable research, game design, onboarding and thumbnail guides.
+- **[Browse the skills](https://github.com/romanumdev/romanum-skills)** — reusable research, game design, onboarding and thumbnail guides.
 - **[Connect through MCP](docs/mcp.md)** — use the same public data from an external agent.
 
 ## Local development

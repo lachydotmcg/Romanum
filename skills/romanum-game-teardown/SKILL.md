@@ -1,7 +1,7 @@
 ---
 name: romanum-game-teardown
 description: Study a Roblox game's actual gameplay, record a design hypothesis and revisit it against comparable observations. Use for competitor teardowns, reference-game research and learning design patterns; not for inferring mechanics from rankings alone.
-license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/lachydotmcg/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
+license: "Romanum Source-Available License 1.0; see LICENSE or https://github.com/romanumdev/Romanum/blob/main/LICENSE. Commercial project outputs are permitted."
 ---
 
 # Roblox game teardown

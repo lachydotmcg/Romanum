@@ -125,7 +125,7 @@ export async function runPublicTool(name: PublicToolName, input: unknown, servic
     case "load_skill": {
       const { skill: id } = PUBLIC_TOOLS[name].schema.parse(input);
       const skill = await loadSkill(id);
-      return { result: { id: skill.id, name: skill.name, instructions: skill.instructions, source: `skills/${skill.id}/SKILL.md`, license: "Romanum Source-Available License 1.0", licenseUrl: "https://github.com/lachydotmcg/Romanum/blob/main/LICENSE" }, summary: `${skill.name} guide loaded` };
+      return { result: { id: skill.id, name: skill.name, instructions: skill.instructions, source: `skills/${skill.id}/SKILL.md`, license: "Romanum Source-Available License 1.0", licenseUrl: "https://github.com/romanumdev/Romanum/blob/main/LICENSE" }, summary: `${skill.name} guide loaded` };
     }
     case "get_metric_definitions": {
       PUBLIC_TOOLS[name].schema.parse(input);
