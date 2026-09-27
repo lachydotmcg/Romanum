@@ -10,7 +10,7 @@ import type { ApiMessage, AssistantEvent } from "./types";
 
 // DeepSeek speaks the OpenAI chat-completions protocol.
 const BASE_URL = "https://api.deepseek.com";
-const MODEL = "deepseek-flash";
+export const ASSISTANT_MODEL = "deepseek-flash";
 const MAX_TOKENS = 16000;
 /** Model calls per user message, so a confused tool loop can't run up the bill. */
 const MAX_STEPS = 8;
@@ -21,11 +21,11 @@ type DeepSeekUsage = OpenAI.CompletionUsage & { prompt_cache_hit_tokens?: number
 
 export const assistantClient = (apiKey: string) => new OpenAI({ apiKey, baseURL: BASE_URL });
 
-/** One call's token counts in pricing terms: uncached input, cached input and output. */
-function callUsage(at: Date, usage: DeepSeekUsage): CallUsage {
+/** A DeepSeek call's token counts in pricing terms: uncached input, cached input and output. */
+export function callUsage(at: Date, usage: DeepSeekUsage): CallUsage {
   const cachedInput = usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
   const input = usage.prompt_cache_miss_tokens ?? Math.max(0, usage.prompt_tokens - cachedInput);
-  return { model: MODEL, at, input, cachedInput, output: usage.completion_tokens };
+  return { model: ASSISTANT_MODEL, at, input, cachedInput, output: usage.completion_tokens };
 }
 
 function describeError(error: unknown): string {
@@ -65,7 +65,7 @@ export async function runAssistant({
       const sentAt = new Date();
       const completion = await client.chat.completions.create(
         {
-          model: MODEL,
+          model: ASSISTANT_MODEL,
           messages: [{ role: "system", content: systemPrompt }, ...conversation, ...turn],
           tools: TOOLS,
           max_tokens: MAX_TOKENS,
@@ -124,7 +124,7 @@ export async function runAssistant({
         // The answer is complete above; the suggestion follows on the same stream when it's ready.
         const question = conversation.at(-1)?.content;
         const followUpAt = new Date();
-        const followUp = await suggestFollowUp(client, MODEL, typeof question === "string" ? question : "", content, signal);
+        const followUp = await suggestFollowUp(client, ASSISTANT_MODEL, typeof question === "string" ? question : "", content, signal);
         if (followUp.usage) usage.push(callUsage(followUpAt, followUp.usage));
         if (followUp.text) send({ type: "suggestion", text: followUp.text });
         return usage;

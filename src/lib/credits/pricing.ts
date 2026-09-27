@@ -57,8 +57,8 @@ export const MODEL_PRICING: readonly ModelPricing[] = [
   {
     id: "gpt-6-luna",
     provider: "OpenAI",
-    status: "planned",
-    role: "Analytics, for the auto router",
+    status: "in use",
+    role: "The daily insight's indie radar (web search); analytics, for the auto router",
     rates: { input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5 },
     longContext: OPENAI_LONG_CONTEXT,
     source: "https://developers.openai.com/api/docs/models/gpt-6-luna",
@@ -85,6 +85,12 @@ export const MODEL_PRICING: readonly ModelPricing[] = [
     checked: "2026-09-27",
   },
 ];
+
+/**
+ * OpenAI's web search tool: $10.00 per 1,000 calls, in nano-dollars per call. The search content it reads is
+ * billed as input tokens at the model's rates. https://developers.openai.com/api/docs/pricing, checked 2026-09-27.
+ */
+export const WEB_SEARCH_CALL_NANO_USD = 10_000_000;
 
 /** Romanum charges this multiple of what a request cost it (owner decision, 2026-09-27). */
 export const CREDIT_MARKUP = 1.65;

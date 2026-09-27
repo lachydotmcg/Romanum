@@ -12,7 +12,7 @@ test("every model's price has an official source and a checked date, and DeepSee
     assert.match(model.checked, /^\d{4}-\d{2}-\d{2}$/);
     if (model.offPeakRates) for (const key of ["input", "cachedInput", "output"]) assert.equal(model.offPeakRates[key] * 2, model.rates[key]);
   }
-  assert.deepEqual(MODEL_PRICING.filter((model) => model.status === "in use").map((model) => model.id), ["deepseek-flash"]);
+  assert.deepEqual(MODEL_PRICING.filter((model) => model.status === "in use").map((model) => model.id), ["deepseek-flash", "gpt-6-luna"]);
   assert.equal(CREDIT_MARKUP, 1.65);
   assert.equal(NANO_USD_PER_CREDIT, 10_000_000);
 });

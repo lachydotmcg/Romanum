@@ -3,10 +3,12 @@ import { type ChartSpec, colorHex } from "@/lib/charts/spec";
 import { getMarketData } from "@/lib/market-data";
 import { analyzeMarket } from "@/lib/market-analysis";
 import type { ChartGame } from "@/lib/roblox";
+import { currentInsight } from "@/lib/insights/current";
 import { RankedList } from "./ranked-list";
 import { GenreBreakdown } from "./genre-breakdown";
 import { PatternExplorer } from "./pattern-explorer";
 import { RetryMarket } from "./retry";
+import { RomanumInsight } from "./romanum-insight";
 
 function topPlayingChart(games: ChartGame[]): ChartSpec {
   const top = games.filter((game) => !game.sponsored).slice(0, 8);
@@ -19,7 +21,7 @@ function topPlayingChart(games: ChartGame[]): ChartSpec {
 }
 
 export async function MarketOverview({ connected }: { connected: boolean }) {
-  const { samples, analysis } = await getMarketData();
+  const [{ samples, analysis }, insight] = await Promise.all([getMarketData(), currentInsight()]);
   const playing = samples.find((sample) => sample.chart === "top-playing-now")?.games ?? null;
   const genreSample = analyzeMarket([{ chart: "top-playing-now", games: playing }], analysis.assembledAt);
   return (
@@ -29,12 +31,14 @@ export async function MarketOverview({ connected }: { connected: boolean }) {
           <h2 id="market-heading" className="text-base font-semibold tracking-tight">Roblox right now</h2>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          {playing?.length ? <><ChartCard className="lg:col-span-2" chart={topPlayingChart(playing)} showSource={false} /><GenreBreakdown analysis={genreSample} /></>
-            : <div className="rounded-xl border border-line p-5 text-sm text-fg-muted lg:col-span-3">
+          {playing?.length ? <ChartCard className={insight ? "lg:col-span-2" : "lg:col-span-3"} chart={topPlayingChart(playing)} showSource={false} />
+            : <div className={`rounded-xl border border-line p-5 text-sm text-fg-muted ${insight ? "lg:col-span-2" : "lg:col-span-3"}`}>
                 <p role="status">{playing === null ? "Couldn't load games." : "No games found."}</p>
                 {playing === null && <RetryMarket />}
               </div>}
+          {insight && <RomanumInsight initial={insight.insight} today={insight.today} connected={connected} />}
         </div>
+        {playing?.length ? <div className="mt-4"><GenreBreakdown analysis={genreSample} wide /></div> : null}
       </section>
       {analysis.availableCharts.length > 0 && <PatternExplorer analysis={analysis} connected={connected} />}
       <section className="mt-9" aria-label="Roblox discovery charts">
