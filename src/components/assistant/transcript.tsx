@@ -1,7 +1,8 @@
 import Image from "next/image";
 import { Brain, Check, ChevronRight, CircleAlert, LoaderCircle, X } from "lucide-react";
 import { ChartCard } from "@/components/charts/chart-card";
-import { formatCredits } from "@/lib/credits/value";
+import { Coin } from "@/components/coin";
+import { creditAmount, formatCredits } from "@/lib/credits/value";
 import { AssistantMarkdown } from "./markdown";
 import type { Step, Turn } from "./turns";
 
@@ -81,6 +82,17 @@ function headline(steps: Step[], active: boolean): string {
   return `Worked for ${seconds}s · ${timed.length} ${timed.length === 1 ? "step" : "steps"}`;
 }
 
+/** An answer's price: the coin and the amount. Screen readers hear "0.25 credits". */
+function CreditCost({ credits, className = "" }: { credits: number; className?: string }) {
+  return (
+    <span title={formatCredits(credits)} className={`inline-flex items-center gap-1 whitespace-nowrap ${className}`}>
+      <Coin className="size-3.5 shrink-0 text-white" />
+      {creditAmount(credits)}
+      <span className="sr-only"> credits</span>
+    </span>
+  );
+}
+
 /** Everything the assistant did for one answer, collapsed to a single live status line, with its cost once charged. */
 function ProcessGroup({ steps, active, credits }: { steps: Step[]; active: boolean; credits?: number }) {
   const failed = !active && steps.some((s) => s.kind === "tool" && s.status === "error");
@@ -91,7 +103,12 @@ function ProcessGroup({ steps, active, credits }: { steps: Step[]; active: boole
         <Icon className={`size-4 shrink-0 text-white ${active ? "animate-spin" : ""}`} aria-hidden="true" />
         <span className={active ? "text-fg" : ""}>
           {headline(steps, active)}
-          {!active && credits !== undefined && ` · ${formatCredits(credits)}`}
+          {!active && credits !== undefined && (
+            <>
+              {" · "}
+              <CreditCost credits={credits} className="align-[-0.15em]" />
+            </>
+          )}
         </span>
         <ChevronRight
           className="size-4 shrink-0 text-white transition-transform group-open/process:rotate-90"
@@ -158,7 +175,9 @@ function TurnView({ turn }: { turn: Turn }) {
       )}
       {/* Without a process line to carry it, the cost gets its own. */}
       {turn.credits !== undefined && turn.steps.length === 0 && !working && (
-        <p className="text-xs text-fg-subtle">{formatCredits(turn.credits)}</p>
+        <p className="text-xs text-fg-subtle">
+          <CreditCost credits={turn.credits} />
+        </p>
       )}
     </div>
   );

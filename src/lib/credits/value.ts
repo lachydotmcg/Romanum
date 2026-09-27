@@ -13,9 +13,14 @@ export function compactCredits(credits: number): string {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(credits);
 }
 
-/** An answer's price: "0.23 credits", "<0.01 credits", "1 credit". */
+/** An answer's price as a number to show beside the coin: "0.23", "<0.01", "1". */
+export function creditAmount(credits: number): string {
+  if (credits > 0 && credits < 0.01) return "<0.01";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(credits);
+}
+
+/** An answer's price in words, for tooltips and screen readers: "0.23 credits", "<0.01 credits", "1 credit". */
 export function formatCredits(credits: number): string {
-  if (credits > 0 && credits < 0.01) return "<0.01 credits";
-  const amount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(credits);
+  const amount = creditAmount(credits);
   return `${amount} ${amount === "1" ? "credit" : "credits"}`;
 }

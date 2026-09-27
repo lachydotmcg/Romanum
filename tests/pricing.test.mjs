@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CREDIT_MARKUP, MODEL_PRICING, NANO_USD_PER_CREDIT, callCost, isDeepSeekPeak, priceCalls } from "../src/lib/credits/pricing.ts";
-import { formatCredits } from "../src/lib/credits/value.ts";
+import { creditAmount, formatCredits } from "../src/lib/credits/value.ts";
 
 // 2026-09-23 is a Wednesday; 2026-09-26 is a Saturday.
 const at = (iso) => new Date(iso);
@@ -47,7 +47,10 @@ test("OpenAI's long prompts cost double input and 1.5× output for the whole req
   assert.equal(callCost({ model: "claude-opus-5-5", at: new Date(), input: 300_000, cachedInput: 0, output: 1_000 }), 300_000 * 4_000 + 1_000 * 20_000);
 });
 
-test("an answer's price reads as a short credit amount", () => {
+test("an answer's price reads as a short amount beside the coin, and in words for tooltips", () => {
+  assert.equal(creditAmount(0.6138), "0.61");
+  assert.equal(creditAmount(0.004), "<0.01");
+  assert.equal(creditAmount(1), "1");
   assert.equal(formatCredits(0.6138), "0.61 credits");
   assert.equal(formatCredits(0.004), "<0.01 credits");
   assert.equal(formatCredits(1), "1 credit");
