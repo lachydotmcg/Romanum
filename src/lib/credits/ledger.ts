@@ -2,15 +2,17 @@ import type { Database, Sql } from "../history/database.ts";
 
 // Romanum credit accounting foundation.
 //
-// Credits are opaque integer units of Romanum compute, not currency: no pricing,
-// payment processor or provider is involved here. Every mutation runs in one
-// transaction, claims a unique operation ID (idempotency key) and appends an
-// immutable audit row. Concurrent reservations lock the account row, so two of
-// them can never overspend, and the database constraints back that up.
+// Credits are integer units of Romanum compute. One credit is worth one US cent
+// (owner decision, 2026-09-27; see value.ts), but no pricing, payment processor
+// or provider is involved here. Every mutation runs in one transaction, claims a
+// unique operation ID (idempotency key) and appends an immutable audit row.
+// Concurrent reservations lock the account row, so two of them can never
+// overspend, and the database constraints back that up.
 //
-// Accounts are keyed by an opaque owner ID. There is no client-facing API yet,
-// so grants are only ever callable from trusted server code and reads never
-// create an account or hand out free credits.
+// Accounts are keyed by an opaque owner ID. Grants are only ever callable from
+// trusted server code: the one client-facing route, /api/credits, grants a
+// guest's fixed welcome credits once (guest.ts). Reads never create an account
+// or hand out free credits.
 
 export type CreditsErrorCode = "invalid_input" | "conflict" | "insufficient_balance" | "not_found" | "invalid_operation";
 
