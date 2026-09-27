@@ -104,3 +104,5 @@ The MCP smoke test requires a running local application and contacts Roblox. Uni
 ## Repository
 
 `src/app` contains routes, `src/lib` shared services, `docs` technical documentation, `skills` the portable guides and `tests` contract and storage checks. `skills` links [romanumdev/romanum-skills](https://github.com/romanumdev/romanum-skills) as a git submodule: clone with `--recurse-submodules`, or run `git submodule update --init` in an existing clone. Commit skill changes in that repository, then commit the updated link here. Internal planning and raw third-party transcripts are not distributed.
+
+Keep auto-discovered build configuration and package manifests at the project root so local commands, editors and Netlify agree on the application directory. The README and canonical licence also stay at the root; supporting documentation and third-party notices live in `docs/`. Local `AGENTS.md` instructions are ignored by Git, and Next.js agent-rule generation is disabled.

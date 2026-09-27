@@ -51,4 +51,4 @@ I'd love to build a community around this too. I have a lot of ideas for Romanum
 
 ## Licence
 
-You can use Romanum and its skills to make and monetise your own games, images, UI and client work. The platform code and skills are [source-available for noncommercial use](LICENSE); selling them or running a commercial service based on them requires permission. [Third-party rights still apply](THIRD_PARTY_NOTICES.md).
+You can use Romanum and its skills to make and monetise your own games, images, UI and client work. The platform code and skills are [source-available for noncommercial use](LICENSE); selling them or running a commercial service based on them requires permission. [Third-party rights still apply](docs/THIRD_PARTY_NOTICES.md).

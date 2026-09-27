@@ -46,6 +46,7 @@ next-env.d.ts
 /.local/
 
 # Local planning and review artifacts stay off the public repository.
+/AGENTS.md
 /PROJECT.md
 /emaillanguage.md
 /artifacts/
@@ -53,3 +54,4 @@ next-env.d.ts
 !/docs/mcp.md
 !/docs/README.md
 !/docs/development.md
+!/docs/THIRD_PARTY_NOTICES.md
