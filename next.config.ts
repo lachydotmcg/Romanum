@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Both loopback addresses are used for local OAuth and Turnstile checks.
+  allowedDevOrigins: ["127.0.0.1"],
   // Local database files and credentials must never enter a production deployment bundle.
   outputFileTracingExcludes: { "/*": ["./.local/**"] },
   outputFileTracingIncludes: {

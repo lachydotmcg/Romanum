@@ -21,6 +21,20 @@ Open http://localhost:3000. To collect public observations locally, run `npm run
 
 The integrated assistant uses `DEEPSEEK_API_KEY` in `.env.local`. Public analytics and MCP do not require a paid model. The assistant needs authentication and spending controls before public deployment.
 
+### Turnstile
+
+New guests and Roblox sign-in require Cloudflare Turnstile. Set these server environment variables (the site key is sent to the browser at runtime):
+
+```dotenv
+TURNSTILE_SITE_KEY=your-site-key
+TURNSTILE_SECRET_KEY=your-secret-key
+TURNSTILE_ALLOWED_HOSTNAMES=your-domain.example
+```
+
+Create a **Managed** widget with the same hostnames in Cloudflare. Separate multiple hostnames with commas, without schemes or ports. The server checks Siteverify, the hostname and the action before creating a guest or starting OAuth. Missing configuration and verification outages fail closed. Signed guest cookies and signed OAuth attempts prevent bypassing the check with invented cookies. Existing unsigned guest cookies are upgraded after verification, preserving their credits and chats; adopted guests cannot reopen account data.
+
+For `npm run dev` on localhost, use Cloudflare's [official test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/): site key `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`. They are rejected on non-local hosts and in production, including `npm run start`. Configure real keys, allowed hostnames and `ROMANUM_SECRETS_KEY` on Netlify before deployment. Test keys prove integration, not bot detection. Turnstile reduces automated sign-ups; it does not replace grant rate limits or spending controls. Public analytics and MCP remain accessible without a challenge.
+
 ### Chats and credits
 
 Chats (`/chats`) are saved conversations with the same assistant. A message can carry up to three PNG, JPEG or WebP reference images, up to 5 MB each. The model can't see images; it gets their names, and image generation isn't connected yet, so thumbnail requests get a written concept. Chats and attachments are stored in the local database (`npm run history:db`; run `npm run history:migrate` after pulling new migrations).

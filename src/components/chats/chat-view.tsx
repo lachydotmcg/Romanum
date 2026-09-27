@@ -8,6 +8,7 @@ import type { ChatSummary, StoredMessage } from "@/lib/chats/store";
 import { Composer, type PendingImage } from "./composer";
 import { CHATS_CHANGED, CREDITS_CHANGED } from "@/components/events";
 import { RecentChats } from "./recent-chats";
+import { useVerifiedFetch } from "../verification";
 
 const attachmentUrl = (id: string) => `/api/chat-attachments/${id}`;
 
@@ -42,6 +43,7 @@ export function ChatView({
   recent: ChatSummary[] | null;
   connected: boolean;
 }) {
+  const verifiedFetch = useVerifiedFetch();
   const [turns, setTurns] = useState<Turn[]>(() => replay(initialMessages));
   const [running, setRunning] = useState(false);
   // The model's guess at the next question: shown in the empty prompt bar and accepted with Tab.
@@ -99,7 +101,7 @@ export function ChatView({
     for (const image of images) body.append("files", image.file, image.file.name);
 
     try {
-      const res = await fetch("/api/chats", { method: "POST", body, signal: controller.signal });
+      const res = await verifiedFetch("/api/chats", { method: "POST", body, signal: controller.signal });
       if (!res.ok || !res.body) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? `The chat request failed (${res.status}).`);

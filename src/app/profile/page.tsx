@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
 import { Avatar } from "@/components/account/avatar";
-import { RobloxLogo } from "@/components/account/roblox-logo";
+import { SignInButton } from "@/components/account/sign-in";
 import { LinkedGames } from "@/components/account/linked-games";
 import { oauthClient } from "@/lib/accounts/roblox-oauth";
 import { readAccount } from "@/lib/accounts/session";
@@ -23,19 +23,6 @@ const NOTICES: Record<string, string> = {
   cancelled: "Sign-in cancelled.",
   expired: "Sign-in timed out. Try again.",
 };
-
-function SignInButton() {
-  // A plain link: signing in leaves the app for Roblox.
-  return (
-    <a
-      href="/auth/roblox?next=/profile"
-      className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white ${FOCUS}`}
-    >
-      <RobloxLogo className="size-5 shrink-0" />
-      Sign in with Roblox
-    </a>
-  );
-}
 
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ signin?: string }> }) {
   const { signin } = await searchParams;

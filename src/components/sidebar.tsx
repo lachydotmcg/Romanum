@@ -10,6 +10,7 @@ import { Avatar } from "./account/avatar";
 import { CHATS_CHANGED, CREDITS_CHANGED } from "./events";
 import { Coin } from "./coin";
 import { Wordmark } from "./wordmark";
+import { useVerifiedFetch } from "./verification";
 
 // Your games lives in the profile; this is its shortcut, since few people open a profile to find their games.
 const NAV = [
@@ -52,6 +53,7 @@ function CreditBalance({ credits, compact = false, className = "" }: { credits: 
 }
 
 export function Sidebar() {
+  const verifiedFetch = useVerifiedFetch();
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
   const [credits, setCredits] = useState<number | null | undefined>(undefined);
@@ -63,9 +65,10 @@ export function Sidebar() {
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     // Also creates the guest on its first visit, with its welcome credits. Reloaded whenever an answer is charged.
     const load = () =>
-      fetch("/api/credits", { method: "POST" })
+      verifiedFetch("/api/credits", { method: "POST", signal: controller.signal })
         .then((res) => (res.ok ? res.json() : null))
         .then((data: { available?: unknown } | null) => {
           if (active) setCredits(typeof data?.available === "number" ? data.available : null);
@@ -77,9 +80,10 @@ export function Sidebar() {
     window.addEventListener(CREDITS_CHANGED, load);
     return () => {
       active = false;
+      controller.abort();
       window.removeEventListener(CREDITS_CHANGED, load);
     };
-  }, []);
+  }, [verifiedFetch]);
 
   useEffect(() => {
     let active = true;

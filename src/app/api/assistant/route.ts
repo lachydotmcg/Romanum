@@ -7,6 +7,7 @@ import type { CallUsage } from "@/lib/credits/pricing";
 import { ensureOwner } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase, type Database } from "@/lib/history/database";
+import { verificationResponse } from "@/lib/turnstile";
 
 const MAX_MESSAGES = 80;
 const MAX_USER_CHARS = 4000;
@@ -78,9 +79,11 @@ export async function POST(request: Request) {
     const database = await historyDatabase();
     if (!database) throw new Error("No database is configured.");
     db = database;
-    owner = await ensureOwner();
+    owner = await ensureOwner(request);
     if ((await welcomeGuest(db, owner)).available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
-  } catch {
+  } catch (error) {
+    const verification = verificationResponse(error);
+    if (verification) return verification;
     return Response.json({ error: "Credits unavailable. Try again later." }, { status: 503 });
   }
 

@@ -19,6 +19,7 @@ import {
 import { ensureOwner, readOwner } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
+import { verificationResponse } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,11 +77,14 @@ export async function POST(request: Request) {
 
   const db = await database();
   if (!db) return failure(503, "Chats unavailable.");
-  const owner = await ensureOwner();
+  let owner: string;
   // Answers spend credits, so the owner needs some before anything is saved or the model is called.
   try {
+    owner = await ensureOwner(request);
     if ((await welcomeGuest(db, owner)).available < 1) return failure(402, "You're out of credits.");
-  } catch {
+  } catch (error) {
+    const verification = verificationResponse(error);
+    if (verification) return verification;
     return failure(503, "Credits unavailable. Try again later.");
   }
   let saved: Awaited<ReturnType<typeof saveQuestion>>;

@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { callbackUrl, completeSignIn, decodeAttempt, oauthClient, SIGN_IN_COOKIE, SignInError, type SignInAttempt } from "@/lib/accounts/roblox-oauth";
+import { callbackUrl, completeSignIn, oauthClient, SIGN_IN_COOKIE, SignInError, type SignInAttempt } from "@/lib/accounts/roblox-oauth";
+import { verifiedAttempt } from "@/lib/accounts/sign-in-cookie";
+import { secretsKey } from "@/lib/secrets";
 import { SESSION_COOKIE } from "@/lib/accounts/session";
 import { signInAccount, startSession } from "@/lib/accounts/store";
 import { forgetGuest, readGuest } from "@/lib/guest";
@@ -48,7 +50,8 @@ async function finish(request: Request, attempt: SignInAttempt | null): Promise<
 /** Roblox sends the person back here with an authorization code, which signs them in. */
 export async function GET(request: Request) {
   const store = await cookies();
-  const attempt = decodeAttempt(store.get(SIGN_IN_COOKIE.name)?.value);
+  const value = store.get(SIGN_IN_COOKIE.name)?.value;
+  const attempt = value ? verifiedAttempt(value, await secretsKey()) : null;
   // Each attempt is used once.
   store.set(SIGN_IN_COOKIE.name, "", { path: SIGN_IN_COOKIE.path, maxAge: 0 });
   redirect(await finish(request, attempt));

@@ -7,10 +7,12 @@ import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { Transcript } from "./transcript";
 import { applyEvent, finishTurn, newTurn, type Turn } from "./turns";
 import { PREFILL_EVENT, type AssistantPrefill } from "./prefill";
+import { useVerifiedFetch } from "../verification";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
 export function Assistant({ connected, initialPrompt = "" }: { connected: boolean; initialPrompt?: string }) {
+  const verifiedFetch = useVerifiedFetch();
   const [input, setInput] = useState(initialPrompt);
   const [turns, setTurns] = useState<Turn[]>([]);
   // The conversation in API form, including tool results and DeepSeek's reasoning, sent back on each question.
@@ -94,7 +96,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
     setTurns((prev) => [...prev, newTurn(turnId, question)]);
 
     try {
-      const res = await fetch("/api/assistant", {
+      const res = await verifiedFetch("/api/assistant", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: [...history, userMessage] }),

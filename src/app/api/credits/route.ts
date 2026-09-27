@@ -3,6 +3,7 @@ import { welcomeAccount } from "@/lib/credits/account";
 import { readAccount } from "@/lib/accounts/session";
 import { ensureGuest, isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
+import { verificationResponse } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,9 +20,11 @@ export async function POST(request: Request) {
     const account = await readAccount();
     const { balance, reserved, available } = account
       ? await welcomeAccount(database, account.id)
-      : await welcomeGuest(database, await ensureGuest());
+      : await welcomeGuest(database, await ensureGuest(request));
     return Response.json({ balance, reserved, available }, { headers: NO_STORE });
-  } catch {
+  } catch (error) {
+    const verification = verificationResponse(error);
+    if (verification) return verification;
     return Response.json({ error: "Credits unavailable." }, { status: 503, headers: NO_STORE });
   }
 }

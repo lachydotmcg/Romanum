@@ -24,6 +24,6 @@ export async function readOwner(): Promise<string | null> {
 }
 
 /** As readOwner, creating the guest on its first visit. Route handlers only, since that sets a cookie. */
-export async function ensureOwner(): Promise<string> {
-  return (await readAccount())?.ownerId ?? (await ensureGuest());
+export async function ensureOwner(request: Request): Promise<string> {
+  return (await readAccount())?.ownerId ?? (await ensureGuest(request));
 }
