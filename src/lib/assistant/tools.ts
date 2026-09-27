@@ -16,12 +16,11 @@ export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
     function: {
       name: "create_chart",
       description:
-        "Show a chart or stat tiles in the chat. Values are filled in from data your other tools already fetched in this conversation, so fetch first. Forms: bar (horizontal, best for rankings and long names), column, stacked_bar (parts of a total per game), donut (share of one metric, up to 6 slices), treemap (share across many games), scatter (metrics[0] on x, metrics[1] on y, optional metrics[2] as bubble size), radar (3+ metrics for up to 3 games, each axis relative to the highest value), stat_tiles (headline numbers for up to 3 games).",
+        "Show a chart or stat tiles in the chat. Values are filled in from data your other tools already fetched in this conversation, so fetch first. Forms: line (one game and one metric over time; fetch get_game_history first, requires at least two observations, keeps gaps), bar (horizontal, best for rankings and long names), column, stacked_bar (parts of a total per game), donut (share of one metric, up to 6 slices), treemap (share across many games), scatter (metrics[0] on x, metrics[1] on y, optional metrics[2] as bubble size), radar (3+ metrics for up to 3 games, each axis relative to the highest value), stat_tiles (headline numbers for up to 3 games).",
       parameters: {
         type: "object",
         properties: {
-          // This chat chart tool uses current comparisons; recorded lines live in Player history.
-          type: { type: "string", enum: CHART_KINDS.filter((kind) => kind !== "line") },
+          type: { type: "string", enum: CHART_KINDS },
           title: { type: "string", description: "Short title, up to 80 characters." },
           subtitle: { type: "string", description: "Optional one-line context." },
           universeIds: { type: "array", items: { type: "integer" }, minItems: 1, maxItems: 30 },

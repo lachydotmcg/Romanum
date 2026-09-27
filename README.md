@@ -7,6 +7,12 @@ A Roblox development platform with public game search, current statistics, recor
 - **[Browse the skills](https://github.com/romanumdev/romanum-skills)** — reusable research, game design, onboarding and thumbnail guides.
 - **[Connect through MCP](docs/mcp.md)** — use the same public data from an external agent.
 
+## Analytics
+
+Analytics includes Overview, Games, Trends, Genres, Charts and Earnings. The game directory filters Roblox's current chart sample by genre, chart, title or creator, with sortable public metrics. Charts can be built manually for free; the integrated AI can create comparisons and single-game historical lines from retrieved observations, preserving collection gaps. AI actions prepare a prompt for review before sending.
+
+The free earnings calculator models average CCU × hours × user-supplied net Earned Robux per player-hour. Genre scenarios have separate editable assumptions, with no unverified default benchmarks. Robux is the default; USD uses standard DevEx, with an optional explicitly eligible US 18+ earnings share. Method, eligibility and dated primary sources are linked from the calculator. These are scenarios, not measured game revenue, profit or statistical confidence intervals.
+
 ## Local development
 
 Use Node.js 22.18 or newer (24 recommended).

@@ -2,20 +2,25 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Assistant } from "@/components/assistant/assistant";
-import { MarketOverview, MarketOverviewLoading } from "@/components/market/overview";
+import { MarketOverview } from "@/components/market/overview";
 import { SKILL_CATALOG } from "@/lib/skill-catalog";
 import { PlayerHistory } from "@/components/history/player-history";
 import { GameSearch } from "@/components/games/game-search";
+import { ANALYTICS_VIEWS, AnalyticsNavigation, type AnalyticsView } from "@/components/analytics/navigation";
+import { ChartInvitation } from "@/components/analytics/chart-invitation";
+import { GamesSection, GenresSection, TrendsSection } from "@/components/analytics/sections";
+import { EarningsCalculator } from "@/components/analytics/earnings-calculator";
 
 export const metadata: Metadata = {
   title: "Analytics",
 };
 
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ starter?: string }> }) {
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ starter?: string; view?: string; genre?: string }> }) {
   // Check for the key per request rather than baking the answer in at build time.
   await connection();
   const connected = Boolean(process.env.DEEPSEEK_API_KEY);
-  const { starter } = await searchParams;
+  const { starter, view: requestedView, genre } = await searchParams;
+  const view: AnalyticsView = ANALYTICS_VIEWS.includes(requestedView as AnalyticsView) ? requestedView as AnalyticsView : "overview";
   const initialPrompt = SKILL_CATALOG.find((skill) => skill.id === starter)?.prompt ?? "";
 
   return (
@@ -24,15 +29,20 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <h1 className="text-2xl font-semibold tracking-tight">Explore the market</h1>
       </header>
       <Assistant key={starter ?? "default"} connected={connected} initialPrompt={initialPrompt} />
+      <ChartInvitation connected={connected} />
+      <AnalyticsNavigation view={view} />
 
-      <GameSearch />
+      {(view === "overview" || view === "games") && <GameSearch />}
 
       {/* Streams in after the prompt bar, so a slow Roblox response doesn't hold up the page. */}
-      <Suspense fallback={<MarketOverviewLoading />}>
-        <MarketOverview connected={connected} />
+      <Suspense key={`${view}:${genre ?? ""}`} fallback={<p role="status" className="mt-7 text-sm text-fg-muted">Loading…</p>}>
+        {view === "overview" && <MarketOverview connected={connected} />}
+        {(view === "games" || view === "charts") && <GamesSection connected={connected} chartMode={view === "charts"} genre={genre} />}
+        {view === "trends" && <TrendsSection connected={connected} />}
+        {view === "genres" && <GenresSection />}
       </Suspense>
-
-      <PlayerHistory />
+      {view === "earnings" && <EarningsCalculator />}
+      {(view === "overview" || view === "charts") && <PlayerHistory />}
     </>
   );
 }

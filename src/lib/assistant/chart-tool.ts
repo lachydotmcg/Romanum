@@ -10,8 +10,9 @@ import {
   PALETTE_ORDER,
   type PaletteColor,
   type ValueFormat,
-} from "@/lib/charts/spec";
+} from "../charts/spec.ts";
 import type { FetchedData, GameRecord } from "./fetched-data";
+import { HISTORY_METRICS, type HistoryMetric } from "./fetched-data.ts";
 
 export type ChartBuild =
   | { ok: true; chart: ChartSpec; chartColors: Record<string, ChartColor>; summary: string }
@@ -26,7 +27,7 @@ const LIMITS: Record<ChartKind, { games: [number, number]; metrics: [number, num
   bar: { games: [1, 20], metrics: [1, 4] },
   column: { games: [1, 12], metrics: [1, 4] },
   stacked_bar: { games: [1, 20], metrics: [2, 4] },
-  line: { games: [1, 8], metrics: [1, 1] },
+  line: { games: [1, 1], metrics: [1, 1] },
   donut: { games: [2, 20], metrics: [1, 1] },
   treemap: { games: [2, 30], metrics: [1, 1] },
   scatter: { games: [2, 30], metrics: [2, 3] },
@@ -47,9 +48,6 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
   const fail = (error: string): ChartBuild => ({ ok: false, error });
 
   const kind = args.type as ChartKind;
-  if (kind === "line") {
-    return fail("Line charts need history over time, and Romanum doesn't record history yet. Say so, and offer a bar chart of the current numbers.");
-  }
   if (!CHART_KINDS.includes(kind)) return fail(`"type" must be one of: ${CHART_KINDS.join(", ")}.`);
 
   const title = typeof args.title === "string" ? args.title.trim() : "";
@@ -69,6 +67,21 @@ export function buildChart(args: Record<string, unknown>, data: FetchedData): Ch
   }
   if (metrics.length < limit.metrics[0] || metrics.length > limit.metrics[1]) {
     return fail(`A ${kind} chart takes ${limit.metrics[0]} to ${limit.metrics[1]} metrics.`);
+  }
+  if (kind === "line") {
+    const metric = metrics[0] as HistoryMetric;
+    if (!(HISTORY_METRICS as readonly string[]).includes(metric)) return fail("This metric has no recorded history. Use players, visits, favourites or votes.");
+    const history = data.getHistory(ids[0]);
+    if (!history) return fail("Fetch get_game_history for this universe first. Current counts cannot form a time series.");
+    if (history.points.filter((point) => point[metric] !== null).length < 2) return fail("Not enough recorded observations for a line chart. Offer current statistics instead.");
+    const key = String(ids[0]);
+    const chart: ChartSpec = {
+      kind: "line", title, subtitle, source: "Romanum recorded history · UTC",
+      categories: history.points.map((point) => ({ key: String(point.time), label: new Date(point.time).toISOString().replace("T", " ").replace(".000Z", " UTC") })),
+      series: [{ key, label: `${history.name} · ${METRICS[metric].label}`, format: metric === "likeRatio" ? "percent" : "compact", values: history.points.map((point) => point[metric]) }],
+      colors: { [key]: colorHex("blue") }, colorBy: "series", size: "large",
+    };
+    return { ok: true, chart, chartColors: { [key]: "blue" }, summary: `Recorded ${METRICS[metric].label.toLowerCase()} · ${history.name}` };
   }
   const hasRatio = metrics.includes("likeRatio");
   if (["bar", "column"].includes(kind) && hasRatio && metrics.length > 1) {
