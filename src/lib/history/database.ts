@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
 import { connectionOptions } from "./connection.ts";
+import { reportDatabaseFailure } from "./diagnostics.ts";
 
 export interface Sql {
   query<T = Record<string, unknown>>(text: string, values?: unknown[]): Promise<{ rows: T[] }>;
@@ -13,17 +14,26 @@ export interface Database extends Sql {
 }
 
 export function postgresDatabase(connectionString: string): Database {
-  const pool = new pg.Pool({ ...connectionOptions(connectionString), max: 5, connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000, statement_timeout: 10000 });
+  let pool: pg.Pool;
+  try {
+    pool = new pg.Pool({ ...connectionOptions(connectionString), max: 5, connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000, statement_timeout: 10000 });
+  } catch (error) { reportDatabaseFailure(error); throw error; }
   // Pool errors must not terminate the web process or print connection credentials.
-  pool.on("error", () => console.error("History database connection failed."));
+  pool.on("error", reportDatabaseFailure);
   const adapter = (client: Pick<pg.Pool, "query"> | pg.PoolClient): Sql => ({
-    async query<T>(text: string, values?: unknown[]) { return { rows: (await client.query(text, values)).rows as T[] }; },
-    async exec(text) { await client.query(text); },
+    async query<T>(text: string, values?: unknown[]) {
+      try { return { rows: (await client.query(text, values)).rows as T[] }; }
+      catch (error) { reportDatabaseFailure(error); throw error; }
+    },
+    async exec(text) {
+      try { await client.query(text); }
+      catch (error) { reportDatabaseFailure(error); throw error; }
+    },
   });
   return {
     ...adapter(pool),
     async transaction(operation) {
-      const client = await pool.connect();
+      const client = await pool.connect().catch((error) => { reportDatabaseFailure(error); throw error; });
       try {
         await client.query("BEGIN");
         const result = await operation(adapter(client));
