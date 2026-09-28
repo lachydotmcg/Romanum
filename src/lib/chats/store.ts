@@ -149,6 +149,8 @@ export async function saveQuestion(
   if (input.projectId !== undefined && input.projectId !== null && !isChatId(input.projectId)) throw new ChatError("not_found", "Project not found.");
 
   return database.transaction(async (sql) => {
+    // Match context saves and account closure before locking a chat or project.
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [input.ownerId]);
     let chatId = input.chatId;
     let history: ApiMessage[] = [];
     let projectId = input.projectId ?? null;
@@ -191,6 +193,7 @@ export async function saveAnswer(
   input: { ownerId: string; chatId: string; question: ApiMessage; turn: ApiMessage[] | null; events: TimedEvent[] },
 ) {
   await database.transaction(async (sql) => {
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [input.ownerId]);
     const { rows } = await sql.query<{ history: ApiMessage[] }>("SELECT history FROM chats WHERE id=$1 AND owner_id=$2 FOR UPDATE", [input.chatId, input.ownerId]);
     // The chat was deleted while the answer streamed.
     if (!rows[0]) return;

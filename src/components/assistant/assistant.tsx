@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowUp, Square } from "lucide-react";
-import Link from "next/link";
 import { CREDITS_CHANGED } from "@/components/events";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { Transcript } from "./transcript";
@@ -277,7 +276,6 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
         </form>
       </div>
 
-      <Link href="/privacy#ai" target="_blank" className={`inline-flex min-h-9 items-center self-end rounded-sm text-xs text-fg-muted hover:text-fg ${FOCUS}`}>AI privacy</Link>
       {turns.length > 0 && (
         <div
           ref={scrollRef}

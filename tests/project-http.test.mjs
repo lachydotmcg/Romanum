@@ -58,7 +58,7 @@ test("project HTTP bounds actual streamed bytes and refuses identity injection a
     assert.equal((await projectResponse(request("POST", body), mine)).status, 400);
   }
   // No Content-Length is required or trusted for the bounded JSON reader.
-  assert.equal((await projectResponse(request("POST", " ".repeat(32_769)), mine)).status, 413);
+  assert.equal((await projectResponse(request("POST", " ".repeat(196_609)), mine)).status, 413);
   assert.equal((await projectResponse(new Request("https://romanum.test/api/projects", { method: "POST", body: JSON.stringify(input) }), mine)).status, 400);
   assert.equal((await db.query("SELECT count(*)::int AS count FROM creative_projects")).rows[0].count, 0);
 });

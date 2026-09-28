@@ -14,7 +14,10 @@ export const contextSchema = z.object({
   audience: draftText(500),
   artDirection: draftText(1000),
   constraints: z.array(text(300)).max(12).default([]),
-}).strict();
+  plan: z.string().trim().max(12000).optional(),
+  roadmap: z.array(z.object({ title: text(100), detail: z.string().trim().max(1000) }).strict()).max(12).optional(),
+  todos: z.array(z.object({ id: key, text: text(300), done: z.boolean() }).strict()).max(40).optional(),
+}).strict().refine(context => !context.todos || new Set(context.todos.map(todo => todo.id)).size === context.todos.length, "Todo ids must be unique.");
 export const briefSchema = z.object({
   goal: text(1000),
   truthfulContent: text(2000),

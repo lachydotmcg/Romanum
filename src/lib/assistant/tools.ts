@@ -6,6 +6,7 @@ import { PUBLIC_TOOLS, isPublicTool, runPublicTool, publicToolError } from "../p
 import { buildChart } from "./chart-tool.ts";
 import type { FetchedData } from "./fetched-data";
 import type { SavedPlanCard } from "./types";
+import type { ProjectBrief } from "../projects/store.ts";
 
 export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
   ...Object.entries(PUBLIC_TOOLS).map(([name, tool]): OpenAI.Chat.ChatCompletionFunctionTool => ({
@@ -46,6 +47,7 @@ export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
 ];
 
 const LABELS: Record<string, string> = {
+  save_project_context: "Save project context",
   save_asset_plan: "Save asset plan",
   list_asset_plans: "Find saved plans",
   read_asset_plan: "Read asset plan",
@@ -72,7 +74,7 @@ export type ToolCall = {
 };
 
 export type ToolOutcome =
-  | { ok: true; result: unknown; summary: string; chart?: ChartSpec; plan?: SavedPlanCard }
+  | { ok: true; result: unknown; summary: string; chart?: ChartSpec; plan?: SavedPlanCard; project?: ProjectBrief }
   | { ok: false; error: string };
 
 function parseArgs(raw: string): Record<string, unknown> {
@@ -86,6 +88,8 @@ function parseArgs(raw: string): Record<string, unknown> {
 
 function describe(name: string, args: Record<string, unknown>): { activity: string; detail: string } {
   switch (name) {
+    case "save_project_context":
+      return { activity: "Saving the game plan", detail: String(args.name ?? "") };
     case "save_asset_plan":
       return { activity: "Saving a written asset plan", detail: String(args.title ?? "") };
     case "list_asset_plans":

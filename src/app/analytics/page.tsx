@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Assistant } from "@/components/assistant/assistant";
@@ -49,6 +50,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         {view === "earnings" && <EarningsCalculator />}
         {(view === "overview" || view === "charts") && <PlayerHistory />}
       </div>
+      <footer className="mt-10 border-t border-line py-5 text-xs text-fg-subtle"><Link href="/privacy" className="inline-flex min-h-10 items-center rounded-sm hover:text-fg focus-visible:outline-2 focus-visible:outline-fg/70">Privacy policy</Link></footer>
     </>
   );
 }

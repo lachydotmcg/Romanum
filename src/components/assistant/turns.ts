@@ -73,6 +73,8 @@ export function finishTurn(turn: Turn, now: number, error: string | null = null)
 /** Folds one streamed event into the turn. */
 export function applyEvent(turn: Turn, event: AssistantEvent, now: number): Turn {
   switch (event.type) {
+    case "project_context":
+      return turn;
     case "thinking": {
       const settled = settlePending(turn, true);
       const last = settled.steps.at(-1);

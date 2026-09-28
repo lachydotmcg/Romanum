@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
 import { X } from "lucide-react";
 
@@ -43,7 +42,7 @@ export function DeleteAccount({ accountId, username }: { accountId: string; user
         <button type="button" aria-label="Close deletion" disabled={busy} onClick={() => dialog.current?.close()} className={`grid size-8 shrink-0 place-items-center rounded-lg hover:bg-surface-hover disabled:opacity-40 ${FOCUS}`}><X className="size-5" aria-hidden="true" /></button>
       </header>
       <p className="mt-4 text-sm leading-relaxed text-fg-muted">Your profile, chats, projects, images and linked game data will be permanently removed. Unused credits won’t transfer if you return.</p>
-      <p className="mt-3 text-sm leading-relaxed text-fg-muted">Credit and security records remain. <Link href="/privacy#retention" target="_blank" className="text-fg underline underline-offset-4">Details</Link></p>
+      <p className="mt-3 text-sm leading-relaxed text-fg-muted">Credit and security records remain.</p>
       <form className="mt-6" onSubmit={(event) => { event.preventDefault(); void remove(); }}>
         <label htmlFor="delete-confirmation" className="block text-sm">Type DELETE to confirm</label>
         <input id="delete-confirmation" autoFocus autoComplete="off" spellCheck={false} value={confirmation} disabled={busy} onChange={(event) => setConfirmation(event.target.value)} className={`mt-2 min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3 text-sm disabled:opacity-50 ${FOCUS}`} />

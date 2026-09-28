@@ -155,6 +155,7 @@ export async function runAssistant({
         });
         if (outcome.ok && outcome.chart) send({ type: "chart", id: call.id, chart: outcome.chart });
         if (outcome.ok && outcome.plan) send({ type: "asset_plan", plan: outcome.plan });
+        if (outcome.ok && outcome.project) send({ type: "project_context", project: outcome.project });
         return {
           role: "tool" as const,
           tool_call_id: call.id,
@@ -163,10 +164,13 @@ export async function runAssistant({
       };
 
       // Lookups run in parallel; charts run after them, so a chart requested alongside a lookup sees its data.
-      const lookups = toolCalls.filter((call) => call.name !== "create_chart");
+      const writes = toolCalls.filter((call) => call.name === "save_project_context" || call.name === "save_asset_plan");
+      const lookups = toolCalls.filter((call) => call.name !== "create_chart" && !writes.includes(call));
       const charts = toolCalls.filter((call) => call.name === "create_chart");
       const results = new Map<string, ApiMessage>();
       for (const message of await Promise.all(lookups.map(execute))) results.set(message.tool_call_id, message);
+      // Private mutations are ordered so a context save cannot race an asset plan.
+      for (const call of writes) { const message = await execute(call); results.set(message.tool_call_id, message); }
       for (const call of charts) {
         const message = await execute(call);
         results.set(message.tool_call_id, message);

@@ -24,7 +24,6 @@ export default async function AccountDataPage() {
             <ChevronRight className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />
           </Link>
           <div className="pt-3"><DeleteAccount accountId={account.id} username={account.username} /></div>
-          <Link href="/privacy" className="inline-flex min-h-11 items-center text-sm text-fg-muted hover:text-fg">Privacy policy</Link>
         </div>
       ) : (
         <div className="mt-7 space-y-4"><p className="text-sm text-fg-muted">Sign in to manage your data.</p>{oauthClient() && <SignInButton />}</div>

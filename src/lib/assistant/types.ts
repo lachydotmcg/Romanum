@@ -1,5 +1,6 @@
 import type OpenAI from "openai";
 import type { ChartSpec } from "@/lib/charts/spec";
+import type { ProjectBrief } from "../projects/store.ts";
 
 export type SavedPlanCard = { id: string; projectId: string; title: string; kind: "thumbnail" | "ui"; conceptCount: number };
 
@@ -22,6 +23,7 @@ export type AssistantEvent =
   | { type: "tool_end"; id: string; ok: boolean; summary: string; result: unknown; ms: number }
   | { type: "chart"; id: string; chart: ChartSpec }
   | { type: "asset_plan"; plan: SavedPlanCard }
+  | { type: "project_context"; project: ProjectBrief }
   | { type: "done"; messages: ApiMessage[] }
   /** Sent after "done": the user's likely next question, for the prompt bar to offer. */
   | { type: "suggestion"; text: string }

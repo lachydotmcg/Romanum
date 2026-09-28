@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 import { IMAGE_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, MAX_QUESTION_CHARS } from "@/lib/chats/limits";
 import { ReferencePicker } from "@/components/projects/reference-picker";
@@ -220,7 +219,6 @@ export function Composer({
             <span className="rounded-full border border-line-strong px-2 py-0.5 text-xs text-fg-muted">Not connected</span>
           )}
           <span className="flex-1" />
-          <Link href="/privacy#ai" target="_blank" className={`inline-flex min-h-8 items-center rounded-sm text-xs text-fg-muted hover:text-fg ${FOCUS}`}>AI privacy</Link>
           {suggestion && !text && !running && (
             <button
               type="button"

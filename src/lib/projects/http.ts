@@ -20,7 +20,7 @@ async function readBody(request: Request): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 32_768) { await reader.cancel(); throw new Error("size"); }
+      if (size > 196_608) { await reader.cancel(); throw new Error("size"); }
       chunks.push(value);
     }
   } finally { reader.releaseLock(); }

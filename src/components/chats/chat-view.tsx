@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Folder } from "lucide-react";
 import { Transcript } from "@/components/assistant/transcript";
@@ -11,6 +11,9 @@ import { Composer, type PendingImage } from "./composer";
 import { CHATS_CHANGED, CREDITS_CHANGED } from "@/components/events";
 import { RecentChats } from "./recent-chats";
 import { useVerifiedFetch } from "../verification";
+import type { ProjectBrief, ProjectSummary } from "@/lib/projects/store";
+import { ProjectPanel } from "./project-panel";
+import { WorkspaceList } from "./workspace-list";
 
 const attachmentUrl = (id: string) => `/api/chat-attachments/${id}`;
 
@@ -39,17 +42,29 @@ export function ChatView({
   initialMessages,
   recent,
   connected,
-  project = null,
+  project: initialProject = null,
+  canPlan = false,
+  onboarding = false,
+  projects = [],
+  archived = false,
+  contextTab,
 }: {
   chatId: string | null;
   initialMessages: StoredMessage[];
   recent: ChatSummary[] | null;
   connected: boolean;
-  project?: { id: string; name: string; archived: boolean } | null;
+  project?: ProjectBrief | null;
+  canPlan?: boolean;
+  onboarding?: boolean;
+  projects?: ProjectSummary[];
+  archived?: boolean;
+  contextTab?: string;
 }) {
   const verifiedFetch = useVerifiedFetch();
   const [turns, setTurns] = useState<Turn[]>(() => replay(initialMessages));
   const [running, setRunning] = useState(false);
+  const [project, setProject] = useState(initialProject);
+  const projectSaved = useCallback((next: ProjectBrief) => setProject(current => current?.id === next.id && current.revision > next.revision ? current : next), []);
   // The model's guess at the next question: shown in the empty prompt bar and accepted with Tab.
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const chatRef = useRef(chatId);
@@ -132,6 +147,7 @@ export function ChatView({
           buffer = buffer.slice(newline + 1);
           if (!line) continue;
           const event = JSON.parse(line) as AssistantEvent;
+          if (event.type === "project_context") { projectSaved(event.project); window.dispatchEvent(new Event(CHATS_CHANGED)); }
           if (event.type === "suggestion") {
             if (request === requestRef.current) setSuggestion(event.text);
             continue;
@@ -162,17 +178,17 @@ export function ChatView({
         empty ? "justify-center pb-6 sm:pb-8" : ""
       }`}
     >
-      {project && <Link href={`/projects/${project.id}`} className={`mb-5 inline-flex max-w-full items-center gap-2 rounded text-sm text-fg-muted outline-offset-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-fg/70 ${empty ? "self-center" : "self-start"}`}><Folder className="size-4 shrink-0 text-white" /><span className="truncate">{project.name}</span>{project.archived && <span className="text-xs">· Archived</span>}</Link>}
+      {project ? <header className="mb-6 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 flex-1 items-center gap-2 text-sm"><Folder className="size-4 shrink-0" /><span className="truncate">{project.name}</span>{project.archived && <span className="text-xs text-fg-muted">Archived</span>}</div><div className="flex items-center gap-3">{!project.archived && <Link href={`/chats?project=${project.id}`} className="rounded text-xs text-fg-muted hover:text-fg focus-visible:outline-2">New chat</Link>}<ProjectPanel project={project} onSaved={projectSaved} initialTab={contextTab} /></div></header> : !empty && canPlan ? <div className="mb-4 flex justify-end"><button type="button" disabled={running} onClick={() => void ask("Help me turn this conversation into a game plan. Ask about anything important that's missing, then save our agreed plan, roadmap and to-dos as project context.", [])} className="min-h-10 rounded-lg border border-line px-3 text-xs text-fg-muted hover:text-fg disabled:opacity-40">Plan this game</button></div> : null}
       {empty ? (
         <h1 key="heading" className="mb-6 text-center text-2xl font-semibold tracking-tight">
-          What are we making?
+          {project?.archived ? "This project is archived" : onboarding ? "Tell me about your game" : "What are we making?"}
         </h1>
       ) : (
         <div key="transcript" className="flex-1 pb-6" aria-busy={running}>
           <Transcript turns={turns} />
         </div>
       )}
-      <div key="composer" className={empty ? "" : "sticky bottom-0 z-20 pb-4"}>
+      {!(empty && project?.archived) && <div key="composer" className={empty ? "" : "sticky bottom-0 z-20 pb-4"}>
         {/* The conversation scrolls under the bar through a blur that fades out above it. */}
         {!empty && (
           <div className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10 backdrop-blur-xl [mask-image:linear-gradient(to_top,black_calc(100%_-_2.5rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:bg-canvas" />
@@ -185,10 +201,12 @@ export function ChatView({
           onSend={ask}
           onStop={() => abortRef.current?.abort()}
           onDismissSuggestion={() => setSuggestion(null)}
-          starters={empty && project && !project.archived ? [{ label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
+          starters={empty && onboarding ? [{ label: "I have an idea", prompt: "I'd like to plan a Roblox game. Help me shape my idea, one question at a time." }, { label: "Help me find one", prompt: "Help me find a Roblox game idea that fits my skills and time. Ask me one question at a time before researching options." }, { label: "I have a game already", prompt: "Help me plan the next steps for my existing Roblox game. Start by asking what I've built so far." }] : empty && project && !project.archived ? [{ label: "Plan next steps", prompt: "Help me review this game's plan and work out the next steps. Save the agreed roadmap and to-dos in context." }, { label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
         />
-      </div>
-      {empty && recent && <RecentChats key="recent" initial={recent} />}
+      </div>}
+      {empty && !project && !onboarding && canPlan && <Link href="/chats?onboarding=true" className="mt-5 self-center rounded text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline focus-visible:outline-2">Plan a game</Link>}
+      {empty && !project && !onboarding && canPlan && (projects.length > 0 || archived) && <WorkspaceList projects={projects} archived={archived} />}
+      {empty && !onboarding && recent && <RecentChats key="recent" initial={recent} />}
       <p role="status" className="sr-only">
         {running ? "The assistant is responding." : ""}
       </p>

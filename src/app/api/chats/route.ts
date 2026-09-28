@@ -6,7 +6,7 @@ import { assistantBilling } from "@/lib/assistant/billing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
 import { withReferenceImages } from "@/lib/chats/vision";
 import { withProjectContext } from "@/lib/projects/chat-context";
-import { projectChatTools } from "@/lib/projects/chat-tools";
+import { conversationTools } from "@/lib/projects/conversation-tools";
 import {
   ChatError,
   isChatId,
@@ -18,7 +18,7 @@ import {
   saveQuestion,
   type TimedEvent,
 } from "@/lib/chats/store";
-import { ensureOwner, readOwner } from "@/lib/accounts/session";
+import { ensureOwner, readOwner, readAccount } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
 import { verificationResponse } from "@/lib/turnstile";
@@ -100,6 +100,7 @@ export async function POST(request: Request) {
   }
 
   const question = questionForModel(saved.question, saved.attachments.map((file) => file.name));
+  const account = await readAccount();
   const conversation = withProjectContext(modelConversation(saved.history, withReferenceImages(question, saved.images)), saved.project);
   const client = assistantClient(apiKey);
   const abort = new AbortController();
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
       };
       const billing = assistantBilling(db, owner, "chat");
       try {
-        const projectTools = saved.project ? projectChatTools(db!, { ownerId: owner, projectId: saved.project.id, chatId: saved.chatId, questionId: saved.questionId, projectRevision: saved.project.revision, archived: saved.project.archived }, abort.signal) : undefined;
+        const projectTools = account?.ownerId === owner ? conversationTools(db!, { ownerId: owner, chatId: saved.chatId, questionId: saved.questionId, project: saved.project }, abort.signal) : undefined;
         await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing, projectTools });
       } finally {
         if (billing.credits) send({ type: "usage", credits: billing.credits });

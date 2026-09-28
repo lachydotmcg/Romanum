@@ -58,6 +58,7 @@ export async function createProject(
   const id = randomUUID();
   return database.transaction(async (sql) => {
     // Serialise creation per owner so the cap holds even for concurrent requests.
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [ownerId]);
     await sql.query("SELECT pg_advisory_xact_lock(hashtext('romanum_projects'), hashtext($1))", [ownerId]);
     const { rows } = await sql.query<{ count: number }>("SELECT count(*)::int AS count FROM creative_projects WHERE owner_id=$1", [ownerId]);
     if (rows[0].count >= MAX_PROJECTS) throw new ProjectError("limit", `You can keep up to ${MAX_PROJECTS} projects.`);
@@ -105,6 +106,7 @@ export async function updateProject(
   const parsed = projectUpdateSchema.safeParse({ name: input.name, context: input.context, revision: input.revision, archived: input.archived });
   if (!parsed.success) throw new ProjectError("invalid_input", "Check the project details, revision and archived flag.");
   return database.transaction(async (sql) => {
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [ownerId]);
     const { rows } = await sql.query<ProjectRow>(
       `UPDATE creative_projects SET name=$3, context=$4, archived=$5, revision=revision+1, updated_at=now()
        WHERE id=$1 AND owner_id=$2 AND revision=$6 RETURNING ${COLUMNS}`,
