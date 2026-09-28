@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { after } from "next/server";
 import { Avatar } from "@/components/account/avatar";
 import { SignInButton } from "@/components/account/sign-in";
@@ -80,6 +81,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
         )}
       </section>
+      {account && <Link href="/profile/data" className={`mt-6 inline-flex min-h-11 items-center text-sm text-fg-muted hover:text-fg ${FOCUS}`}>Your data</Link>}
     </>
   );
 }

@@ -170,6 +170,9 @@ export function ProfileMenu({ account, credits, signInAvailable, children, class
         <Link href="/profile#games" onClick={navigate} className={`flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-3 text-sm hover:bg-surface-hover ${FOCUS}`}>
           <span>Game data & sharing</span><span className="text-fg-muted">Manage</span>
         </Link>
+        <Link href="/profile/data" onClick={navigate} className={`mt-2 flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-3 text-sm hover:bg-surface-hover ${FOCUS}`}>
+          <span>Your data</span><span className="text-fg-muted">Download</span>
+        </Link>
       </dialog>
     </>
   );

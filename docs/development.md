@@ -89,6 +89,14 @@ Signed-in developers link a game on Your games with its universe ID and an Open 
 
 Not built yet: a privacy policy and data-use page, account deletion, anything that uses shared metrics, and linking games through OAuth instead of pasted keys. The Analytics Query API is in beta; check synced metric units against Creator Dashboard when validating a connection.
 
+## Account data downloads
+
+Settings → Your data (`/profile/data`) downloads a ZIP of the signed-in account's profile, credit history, chats, projects, written plans, creation records, UI-library records and linked-game analytics/consent choices. Images are optional. Private keys, session hashes, internal claim identifiers and operator reconciliation evidence are excluded; the owner's own UI-rights declarations are included. JSON sections use explicit column allowlists. New tables or fields need a deliberate export decision and coverage tests.
+
+`GET /api/account/export` resolves the session on every request. Pages and image chunks are owner-scoped and uncached. An expected-account header prevents the browser from combining accounts if another tab signs out and signs in. Each page uses a repeatable read, but the whole archive is a series of live reads; it is not a frozen database snapshot. Concurrent edits can affect the result. The archive README and timestamps describe this limit.
+
+The browser assembles the ZIP with fflate and downloads it only after every requested page and image is complete. No export is stored on the server. PostgreSQL measures projected record sizes before transferring contents; pages contain up to 100 records/512 KiB, with a single-record allowance of 3 MiB. Images use 512 KiB slices. Browser archives are capped at 128 MiB and 50,000 files. Oversized or interrupted exports fail explicitly instead of silently truncating. Larger exports will need a private background export job and expiry policy before this limit is raised. Stored chat images are normalized copies, not original uploads. Downloads do not delete data or change consent.
+
 ## Current boundaries
 
 Charts use actual observations and preserve collection gaps. Public data does not reveal private retention, revenue, demographic or thumbnail CTR metrics. Idea research finds candidate competitors; it does not certify originality or compare gameplay quality.
