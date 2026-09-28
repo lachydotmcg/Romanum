@@ -71,7 +71,7 @@ function modelFixture(onRequest) {
   const usage = { prompt_tokens: 100, completion_tokens: 30, total_tokens: 130 };
   const client = { chat: { completions: { create: async (request) => {
     requests.push(request); onRequest?.(request);
-    if (!request.stream) return { choices: [{ message: { content: "Refine the first concept" } }], usage };
+    assert.equal(request.stream, true);
     const first = number++ === 0;
     return (async function* () {
       if (first) yield { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_0", function: { name: "save_asset_plan", arguments: JSON.stringify(input) } }] } }] };
@@ -96,7 +96,7 @@ test("the assistant saves a real plan through its tool loop, bills model steps a
   assert.equal((await readProjectPlan(db, ownerId, project.id, planEvent.plan.id)).title, input.title);
   assert.ok(model.requests[0].tools.some((tool) => tool.function.name === "save_asset_plan"));
   assert.equal(JSON.parse(model.requests[1].messages.findLast((entry) => entry.role === "tool").content).generationStarted, false);
-  assert.deepEqual(model.charges.map(([kind]) => kind), ["reserve", "settle", "reserve", "settle", "reserve", "settle"]);
+  assert.deepEqual(model.charges.map(([kind]) => kind), ["reserve", "settle", "reserve", "settle"]);
   const done = events.find((event) => event.type === "done");
   await saveAnswer(db, { ownerId, chatId: question.chatId, question: message, turn: done.messages, events: events.map((e, t) => ({ t, e })) });
   const saved = await readChat(db, ownerId, question.chatId);

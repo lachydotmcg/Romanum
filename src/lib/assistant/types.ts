@@ -25,7 +25,7 @@ export type AssistantEvent =
   | { type: "asset_plan"; plan: SavedPlanCard }
   | { type: "project_context"; project: ProjectBrief }
   | { type: "done"; messages: ApiMessage[] }
-  /** Sent after "done": the user's likely next question, for the prompt bar to offer. */
+  /** Legacy event: ignored by clients and persistence; no longer generated. */
   | { type: "suggestion"; text: string }
   /** Sent last: what the answer cost, in credits (usually a fraction of one). */
   | { type: "usage"; credits: number }

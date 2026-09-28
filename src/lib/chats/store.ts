@@ -77,7 +77,7 @@ export const modelConversation = (history: ApiMessage[], question: ApiMessage) =
 
 /**
  * Adds a streamed event to an answer's record. Consecutive thinking or text chunks merge into one event, which
- * replays to the same answer. Suggestions belong to the prompt bar, and the finished turn's model messages are
+ * replays to the same answer. Legacy suggestions are discarded, and the finished turn's model messages are
  * kept in the chat's history instead.
  */
 export function recordEvent(events: TimedEvent[], event: AssistantEvent, t: number) {

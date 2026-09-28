@@ -19,20 +19,16 @@ const isImage = (file: File) => (IMAGE_TYPES as readonly string[]).includes(file
 export function Composer({
   connected,
   running,
-  suggestion,
   onSend,
   onStop,
-  onDismissSuggestion,
   starters = [],
   projectId,
 }: {
   connected: boolean;
   running: boolean;
-  suggestion: string | null;
   /** Takes over the images' preview URLs. */
   onSend: (text: string, images: PendingImage[]) => void;
   onStop: () => void;
-  onDismissSuggestion: () => void;
   starters?: { label: string; prompt: string }[];
   projectId?: string;
 }) {
@@ -102,12 +98,6 @@ export function Composer({
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       submit();
-    } else if (event.key === "Tab" && !event.shiftKey && suggestion && !text) {
-      // Tab only takes the suggestion while the bar is empty; otherwise it moves focus as usual.
-      event.preventDefault();
-      setText(suggestion);
-    } else if (event.key === "Escape" && suggestion && !text) {
-      onDismissSuggestion();
     }
   }
 
@@ -183,15 +173,9 @@ export function Composer({
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={suggestion ?? "Ask Romanum…"}
-          aria-describedby={suggestion && !text ? "chat-suggestion-hint" : undefined}
-          className={`block w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-6 text-fg focus:outline-none disabled:cursor-not-allowed ${
-            suggestion ? "placeholder:text-fg-muted" : "placeholder:text-fg-subtle"
-          }`}
+          placeholder="Ask Romanum…"
+          className="block w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-6 text-fg placeholder:text-fg-subtle focus:outline-none disabled:cursor-not-allowed"
         />
-        <span id="chat-suggestion-hint" className="sr-only">
-          Press Tab to use the suggested question.
-        </span>
         <div className="mt-1 flex items-center gap-2">
           <button
             type="button"
@@ -219,19 +203,6 @@ export function Composer({
             <span className="rounded-full border border-line-strong px-2 py-0.5 text-xs text-fg-muted">Not connected</span>
           )}
           <span className="flex-1" />
-          {suggestion && !text && !running && (
-            <button
-              type="button"
-              onClick={() => {
-                setText(suggestion);
-                textRef.current?.focus();
-              }}
-              aria-label={`Use suggestion: ${suggestion}`}
-              className={`shrink-0 rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] leading-4 text-fg-muted hover:bg-surface-hover hover:text-fg ${FOCUS}`}
-            >
-              Tab
-            </button>
-          )}
           {running ? (
             <button
               type="button"

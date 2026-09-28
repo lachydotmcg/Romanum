@@ -1,6 +1,6 @@
 import type { ApiMessage } from "./types.ts";
 
-/** Text only: follow-up prompts and persisted history must not copy inline image bytes. */
+/** Text only: persisted history must not copy inline image bytes. */
 export function messageText(message: Pick<ApiMessage, "content"> | undefined): string {
   if (typeof message?.content === "string") return message.content;
   if (!Array.isArray(message?.content)) return "";

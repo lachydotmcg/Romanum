@@ -35,7 +35,7 @@ test("signed-in chat tools save context in the model loop, then unlock asset pla
   const usage = { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 };
   const client = { chat: { completions: { create: async request => {
     requests.push(request);
-    if (!request.stream) return { choices: [{ message: { content: "What should we prototype first?" } }], usage };
+    assert.equal(request.stream, true);
     const index = step++;
     return (async function* () {
       const action = index === 0 ? ["save_project_context", input] : index === 1 ? ["save_asset_plan", plan] : null;
@@ -50,7 +50,9 @@ test("signed-in chat tools save context in the model loop, then unlock asset pla
   assert.equal(events.find(e => e.type === "asset_plan").plan.projectId, saved.project.id);
   assert.ok(!requests[0].tools.some(tool => tool.function.name === "save_asset_plan"));
   assert.ok(requests[1].tools.some(tool => tool.function.name === "save_asset_plan"));
-  assert.equal(charges.length, 8);
+  assert.equal(requests.length, 3);
+  assert.equal(charges.length, 6);
+  assert.equal(events.at(-1).type, "done");
   const timed = []; events.forEach((e, index) => recordEvent(timed, e, index));
   await saveAnswer(db, { ownerId, chatId: question.chatId, question: questionForModel(question.question, []), turn: events.find(e => e.type === "done").messages, events: timed });
   const chat = await readChat(db, ownerId, question.chatId); assert.equal(chat.projectId, saved.project.id); assert.equal(chat.messages.length, 2);

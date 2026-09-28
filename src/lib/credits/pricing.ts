@@ -38,7 +38,7 @@ export const MODEL_PRICING: readonly ModelPricing[] = [
     id: "deepseek-flash",
     provider: "DeepSeek",
     status: "in use",
-    role: "Ask Romanum, Chats and follow-up suggestions",
+    role: "Ask Romanum and Chats",
     rates: { input: 0.3, cachedInput: 0.006, output: 1.2 },
     offPeakRates: { input: 0.15, cachedInput: 0.003, output: 0.6 },
     source: "https://api-docs.deepseek.com/quick_start/pricing",

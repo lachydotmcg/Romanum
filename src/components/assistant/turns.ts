@@ -121,7 +121,7 @@ export function applyEvent(turn: Turn, event: AssistantEvent, now: number): Turn
     case "done":
       return finishTurn(turn, now);
     case "suggestion":
-      // Belongs to the prompt bar, not the transcript.
+      // Ignore legacy prompt-bar suggestions.
       return turn;
     case "usage":
       return { ...turn, credits: event.credits };

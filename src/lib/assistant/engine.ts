@@ -2,10 +2,8 @@ import OpenAI from "openai";
 import type { CallUsage } from "@/lib/credits/pricing";
 import { CreditsError } from "../credits/ledger.ts";
 import { meteredStream, reportedCallUsage, type AssistantBilling } from "./billing.ts";
-import { messageText } from "./message-text.ts";
 import { SYSTEM_PROMPT } from "./prompt.ts";
 import { FetchedData } from "./fetched-data.ts";
-import { suggestFollowUp } from "./follow-up.ts";
 import { prepareCall, runTool, TOOLS } from "./tools.ts";
 import type { ApiMessage, AssistantEvent } from "./types";
 import type { ProjectChatTools } from "../projects/chat-tools";
@@ -40,7 +38,7 @@ function describeError(error: unknown): string {
 
 /**
  * Answers the last question in `conversation`, streaming each step through `send`. It ends with a "done" event
- * holding the turn's model messages (then possibly a suggestion), or with an "error" event. It never throws.
+ * holding the turn's model messages, or with an "error" event. It never throws.
  * Each provider attempt reserves credits first and settles before the next step.
  */
 export async function runAssistant({
@@ -123,10 +121,6 @@ export async function runAssistant({
 
       if (!toolCalls.length) {
         send({ type: "done", messages: turn });
-        // The answer is complete above; the suggestion follows on the same stream when it's ready.
-        const question = messageText(conversation.at(-1));
-        const followUp = await suggestFollowUp(client, ASSISTANT_MODEL, question, content, signal, billing);
-        if (followUp.text) send({ type: "suggestion", text: followUp.text });
         return;
       }
 

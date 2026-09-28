@@ -71,11 +71,9 @@ export function ChatView({
   const [contextExpanded, setContextExpanded] = useState(Boolean(contextTab));
   const [contextAnimation, setContextAnimation] = useState(0);
   const projectSaved = useCallback((next: ProjectBrief) => setProject(current => current?.id === next.id && current.revision > next.revision ? current : next), []);
-  // The model's guess at the next question: shown in the empty prompt bar and accepted with Tab.
-  const [suggestion, setSuggestion] = useState<string | null>(null);
   const chatRef = useRef(chatId);
   const abortRef = useRef<AbortController | null>(null);
-  // Only the newest request may update the prompt bar; an older stream can still be delivering its suggestion.
+  // An older stream may finish closing after the next question starts.
   const requestRef = useRef(0);
   // Follow new output unless the reader has scrolled up to read.
   const followRef = useRef(true);
@@ -104,7 +102,7 @@ export function ChatView({
 
   async function ask(question: string, images: PendingImage[]) {
     if (running) return;
-    // The previous answer is finished, but its stream may still be waiting on a suggestion.
+    // Close any remaining stream from the previous answer.
     abortRef.current?.abort();
     const request = ++requestRef.current;
     const controller = new AbortController();
@@ -113,7 +111,6 @@ export function ChatView({
     const update = (change: (turn: Turn) => Turn) => setTurns((prev) => prev.map((turn) => (turn.id === turnId ? change(turn) : turn)));
     for (const image of images) previews.current.add(image.url);
     followRef.current = true;
-    setSuggestion(null);
     setRunning(true);
     setTurns((prev) => [
       ...prev,
@@ -154,11 +151,7 @@ export function ChatView({
           if (!line) continue;
           const event = JSON.parse(line) as AssistantEvent;
           if (event.type === "project_context") { projectSaved(event.project); setContextAnimation(version => version + 1); window.dispatchEvent(new Event(CHATS_CHANGED)); }
-          if (event.type === "suggestion") {
-            if (request === requestRef.current) setSuggestion(event.text);
-            continue;
-          }
-          // The answer is complete; the prompt bar is usable while the suggestion loads.
+          if (event.type === "suggestion") continue; // Ignore legacy server events during deploys.
           if (event.type === "done") setRunning(false);
           update((turn) => applyEvent(turn, event, Date.now()));
           if (event.type === "usage") window.dispatchEvent(new Event(CREDITS_CHANGED));
@@ -168,7 +161,7 @@ export function ChatView({
       update((turn) => (turn.done ? turn : finishTurn(turn, Date.now(), "The response ended unexpectedly.")));
     } catch (error) {
       const message = controller.signal.aborted ? "Stopped." : error instanceof Error ? error.message : "Something went wrong.";
-      // A finished answer whose suggestion stream was cut off stays as it was.
+      // A completed answer stays intact if its remaining stream is interrupted.
       update((turn) => (turn.done ? turn : finishTurn(turn, Date.now(), message)));
     } finally {
       if (request === requestRef.current) setRunning(false);
@@ -204,10 +197,8 @@ export function ChatView({
           projectId={project?.id}
           connected={connected}
           running={running}
-          suggestion={suggestion}
           onSend={ask}
           onStop={() => abortRef.current?.abort()}
-          onDismissSuggestion={() => setSuggestion(null)}
           starters={!empty ? [] : !project ? STARTERS : !project.archived ? [{ label: "Plan next steps", prompt: "Help me review this game's plan and work out the next steps. Save the agreed roadmap and to-dos in context." }, { label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
         />
       </div>}

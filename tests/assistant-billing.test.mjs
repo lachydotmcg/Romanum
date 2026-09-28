@@ -95,7 +95,7 @@ test("failed settlement cannot return a successful completed stream", async () =
   await assert.rejects(collect(meteredStream(f.client, params, f.billing, signal())), /database unavailable/);
 });
 
-test("non-streaming follow-ups use the same reservation and settlement rules", async () => {
+test("non-streaming calls use the same reservation and settlement rules", async () => {
   const f = fixture(() => ({ choices: [], usage }));
   await meteredCompletion(f.client, { ...params, stream: false, max_tokens: 40 }, f.billing, signal(), 8000);
   assert.deepEqual(f.events.map(([name]) => name), ["reserve", "provider", "settle"]);
