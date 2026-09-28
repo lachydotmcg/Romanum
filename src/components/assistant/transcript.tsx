@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Brain, Check, ChevronRight, CircleAlert, LoaderCircle, X } from "lucide-react";
 import { ChartCard } from "@/components/charts/chart-card";
 import { Coin } from "@/components/coin";
+import { PlanCard } from "@/components/projects/plan-card";
 import { creditAmount, formatCredits } from "@/lib/credits/value";
 import { AssistantMarkdown } from "./markdown";
 import type { Step, Turn } from "./turns";
@@ -161,6 +162,7 @@ function TurnView({ turn }: { turn: Turn }) {
       {turn.charts.map(({ id, chart }) => (
         <ChartCard key={id} chart={chart} />
       ))}
+      {turn.plans.map((plan) => <PlanCard key={plan.id} plan={plan} />)}
       {text && (
         // Charts may use the full width; prose stays at a comfortable line length.
         <div className="max-w-3xl text-sm leading-6 text-fg">

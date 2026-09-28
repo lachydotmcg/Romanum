@@ -1,13 +1,14 @@
 import OpenAI from "openai";
 import type { CallUsage } from "@/lib/credits/pricing";
-import { CreditsError } from "@/lib/credits/ledger";
-import { meteredStream, reportedCallUsage, type AssistantBilling } from "./billing";
-import { messageText } from "./message-text";
-import { SYSTEM_PROMPT } from "./prompt";
-import { FetchedData } from "./fetched-data";
-import { suggestFollowUp } from "./follow-up";
-import { prepareCall, runTool, TOOLS } from "./tools";
+import { CreditsError } from "../credits/ledger.ts";
+import { meteredStream, reportedCallUsage, type AssistantBilling } from "./billing.ts";
+import { messageText } from "./message-text.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
+import { FetchedData } from "./fetched-data.ts";
+import { suggestFollowUp } from "./follow-up.ts";
+import { prepareCall, runTool, TOOLS } from "./tools.ts";
 import type { ApiMessage, AssistantEvent } from "./types";
+import type { ProjectChatTools } from "../projects/chat-tools";
 
 // The assistant's model loop, shared by Ask Romanum (/api/assistant) and saved chats (/api/chats).
 
@@ -49,6 +50,7 @@ export async function runAssistant({
   signal,
   billing,
   systemPrompt = SYSTEM_PROMPT,
+  projectTools,
 }: {
   client: OpenAI;
   conversation: ApiMessage[];
@@ -56,6 +58,7 @@ export async function runAssistant({
   signal: AbortSignal;
   billing: AssistantBilling;
   systemPrompt?: string;
+  projectTools?: ProjectChatTools;
 }): Promise<void> {
   // Everything the model and tools add during this turn, returned so the conversation can continue from it.
   const turn: ApiMessage[] = [];
@@ -69,7 +72,7 @@ export async function runAssistant({
         {
           model: ASSISTANT_MODEL,
           messages: [{ role: "system", content: systemPrompt }, ...conversation, ...turn],
-          tools: TOOLS,
+          tools: [...TOOLS, ...(projectTools?.definitions ?? [])],
           max_tokens: MAX_TOKENS,
           stream: true,
           stream_options: { include_usage: true },
@@ -138,7 +141,9 @@ export async function runAssistant({
           input: prepared.args,
         });
         const started = Date.now();
-        const outcome = await runTool(prepared, fetched);
+        const privateCall = projectTools?.definitions.some((tool) => tool.function.name === call.name);
+        const outcome = signal.aborted ? { ok: false as const, error: "Stopped." }
+          : privateCall ? await projectTools!.execute(prepared, call.id) : await runTool(prepared, fetched);
         if (outcome.ok) fetched.add(outcome.result);
         send({
           type: "tool_end",
@@ -149,6 +154,7 @@ export async function runAssistant({
           ms: Date.now() - started,
         });
         if (outcome.ok && outcome.chart) send({ type: "chart", id: call.id, chart: outcome.chart });
+        if (outcome.ok && outcome.plan) send({ type: "asset_plan", plan: outcome.plan });
         return {
           role: "tool" as const,
           tool_call_id: call.id,

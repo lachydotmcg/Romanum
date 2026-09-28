@@ -22,6 +22,7 @@ export function Composer({
   onSend,
   onStop,
   onDismissSuggestion,
+  starters = [],
 }: {
   connected: boolean;
   running: boolean;
@@ -30,6 +31,7 @@ export function Composer({
   onSend: (text: string, images: PendingImage[]) => void;
   onStop: () => void;
   onDismissSuggestion: () => void;
+  starters?: { label: string; prompt: string }[];
 }) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PendingImage[]>([]);
@@ -243,6 +245,7 @@ export function Composer({
           )}
         </div>
       </form>
+      {starters.length > 0 && !text && !running && connected && <div className="mt-4 flex flex-wrap justify-center gap-2">{starters.map((starter) => <button key={starter.label} type="button" onClick={() => { setText(starter.prompt); textRef.current?.focus(); }} className={`min-h-10 rounded-lg border border-line px-3 text-xs text-fg-muted hover:bg-surface hover:text-fg ${FOCUS}`}>{starter.label}</button>)}</div>}
       {notice && (
         <p role="alert" className="mt-2 px-4 text-xs text-fg-muted">
           {notice}

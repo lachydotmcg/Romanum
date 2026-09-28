@@ -1,10 +1,11 @@
 import type OpenAI from "openai";
 import { z } from "zod";
-import { CHART_KINDS, type ChartSpec, METRIC_KEYS, PALETTE_ORDER } from "@/lib/charts/spec";
-import { ROBLOX_CHARTS, type RobloxChartId } from "@/lib/roblox";
-import { PUBLIC_TOOLS, isPublicTool, runPublicTool, publicToolError } from "@/lib/public-tools";
-import { buildChart } from "./chart-tool";
+import { CHART_KINDS, type ChartSpec, METRIC_KEYS, PALETTE_ORDER } from "../charts/spec.ts";
+import { ROBLOX_CHARTS, type RobloxChartId } from "../roblox.ts";
+import { PUBLIC_TOOLS, isPublicTool, runPublicTool, publicToolError } from "../public-tools.ts";
+import { buildChart } from "./chart-tool.ts";
 import type { FetchedData } from "./fetched-data";
+import type { SavedPlanCard } from "./types";
 
 export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
   ...Object.entries(PUBLIC_TOOLS).map(([name, tool]): OpenAI.Chat.ChatCompletionFunctionTool => ({
@@ -45,6 +46,9 @@ export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
 ];
 
 const LABELS: Record<string, string> = {
+  save_asset_plan: "Save asset plan",
+  list_asset_plans: "Find saved plans",
+  read_asset_plan: "Read asset plan",
   estimate_game_earnings: "Estimate earnings",
   research_game_idea: "Check similar games",
   get_game_history: "Read game history",
@@ -68,7 +72,7 @@ export type ToolCall = {
 };
 
 export type ToolOutcome =
-  | { ok: true; result: unknown; summary: string; chart?: ChartSpec }
+  | { ok: true; result: unknown; summary: string; chart?: ChartSpec; plan?: SavedPlanCard }
   | { ok: false; error: string };
 
 function parseArgs(raw: string): Record<string, unknown> {
@@ -82,6 +86,12 @@ function parseArgs(raw: string): Record<string, unknown> {
 
 function describe(name: string, args: Record<string, unknown>): { activity: string; detail: string } {
   switch (name) {
+    case "save_asset_plan":
+      return { activity: "Saving a written asset plan", detail: String(args.title ?? "") };
+    case "list_asset_plans":
+      return { activity: "Finding this project's plans", detail: "" };
+    case "read_asset_plan":
+      return { activity: "Reading a saved plan", detail: "" };
     case "estimate_game_earnings":
       return { activity: "Estimating earnings from CCU and genre", detail: `${args.days ?? 30} days` };
     case "research_game_idea":

@@ -1,5 +1,5 @@
 import type { ChartSpec } from "@/lib/charts/spec";
-import type { AssistantEvent } from "@/lib/assistant/types";
+import type { AssistantEvent, SavedPlanCard } from "@/lib/assistant/types";
 
 export type Step =
   | { kind: "thinking"; id: string; text: string; startedAt: number; endedAt: number | null }
@@ -28,6 +28,7 @@ export type Turn = {
   attachments?: { id: string; name: string; url: string }[];
   steps: Step[];
   charts: { id: string; chart: ChartSpec }[];
+  plans: SavedPlanCard[];
   answer: string[];
   /** Text still streaming: it becomes a note if more steps follow, or part of the answer. */
   pending: string;
@@ -40,7 +41,7 @@ export type Turn = {
 const NOTE_MAX_CHARS = 160;
 
 export function newTurn(id: string, question: string): Turn {
-  return { id, question, steps: [], charts: [], answer: [], pending: "", error: null, done: false };
+  return { id, question, steps: [], charts: [], plans: [], answer: [], pending: "", error: null, done: false };
 }
 
 function closeThinking(steps: Step[], now: number): Step[] {
@@ -109,6 +110,8 @@ export function applyEvent(turn: Turn, event: AssistantEvent, now: number): Turn
       };
     case "chart":
       return { ...turn, charts: [...turn.charts, { id: event.id, chart: event.chart }] };
+    case "asset_plan":
+      return { ...turn, plans: [...turn.plans.filter((plan) => plan.id !== event.plan.id), event.plan] };
     case "error": {
       const settled = settlePending(turn, false);
       return { ...settled, steps: closeThinking(settled.steps, now), error: event.message };

@@ -6,6 +6,7 @@ import { assistantBilling } from "@/lib/assistant/billing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
 import { withReferenceImages } from "@/lib/chats/vision";
 import { withProjectContext } from "@/lib/projects/chat-context";
+import { projectChatTools } from "@/lib/projects/chat-tools";
 import {
   ChatError,
   isChatId,
@@ -118,7 +119,8 @@ export async function POST(request: Request) {
       };
       const billing = assistantBilling(db, owner, "chat");
       try {
-        await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing });
+        const projectTools = saved.project ? projectChatTools(db!, { ownerId: owner, projectId: saved.project.id, chatId: saved.chatId, questionId: saved.questionId, projectRevision: saved.project.revision, archived: saved.project.archived }, abort.signal) : undefined;
+        await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing, projectTools });
       } finally {
         if (billing.credits) send({ type: "usage", credits: billing.credits });
         // Saved even when the reader leaves early, so the chat keeps what was answered.

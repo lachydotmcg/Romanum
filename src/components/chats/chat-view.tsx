@@ -184,6 +184,7 @@ export function ChatView({
           onSend={ask}
           onStop={() => abortRef.current?.abort()}
           onDismissSuggestion={() => setSuggestion(null)}
+          starters={empty && project && !project.archived ? [{ label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
         />
       </div>
       {empty && recent && <RecentChats key="recent" initial={recent} />}

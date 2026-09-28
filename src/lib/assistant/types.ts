@@ -1,6 +1,8 @@
 import type OpenAI from "openai";
 import type { ChartSpec } from "@/lib/charts/spec";
 
+export type SavedPlanCard = { id: string; projectId: string; title: string; kind: "thumbnail" | "ui"; conceptCount: number };
+
 /** DeepSeek returns its reasoning alongside the reply and needs it sent back on later requests. */
 export type AssistantApiMessage = OpenAI.Chat.ChatCompletionAssistantMessageParam & {
   reasoning_content?: string;
@@ -19,6 +21,7 @@ export type AssistantEvent =
   | { type: "tool_start"; id: string; label: string; activity: string; detail: string; input: unknown }
   | { type: "tool_end"; id: string; ok: boolean; summary: string; result: unknown; ms: number }
   | { type: "chart"; id: string; chart: ChartSpec }
+  | { type: "asset_plan"; plan: SavedPlanCard }
   | { type: "done"; messages: ApiMessage[] }
   /** Sent after "done": the user's likely next question, for the prompt bar to offer. */
   | { type: "suggestion"; text: string }

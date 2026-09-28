@@ -181,7 +181,7 @@ export async function saveQuestion(
       );
       attachments.push({ id, name: file.name });
     }
-    return { chatId, question, history, attachments, images: files, project };
+    return { chatId, questionId: messageId, question, history, attachments, images: files, project };
   });
 }
 

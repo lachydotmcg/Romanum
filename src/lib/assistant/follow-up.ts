@@ -1,5 +1,5 @@
 import type OpenAI from "openai";
-import { meteredCompletion, type AssistantBilling } from "./billing";
+import { meteredCompletion, type AssistantBilling } from "./billing.ts";
 
 const PROMPT = `You write the next message a Roblox developer is most likely to send after reading an assistant's answer.
 - Write it the way they would type it: plain, specific, under 10 words.
