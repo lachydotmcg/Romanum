@@ -69,6 +69,14 @@ Each model step, including the optional follow-up suggestion, reserves its maxim
 
 `usage_holds` records reservations without prompts or image bytes; `usage_charges` records settled usage. Explicit provider rejections release their hold. Disconnections, timeouts, missing usage and server failures retain it for reconciliation, because a provider may still have processed the request. Failed settlements stop further model steps. Operators should inspect open holds and reconcile against provider usage; never release or charge an ambiguous call solely because a timer elapsed. This does not change model pricing or enable payments.
 
+## Project briefs
+
+Signed-in users create private game briefs at `/projects`: a name, core loop, audience, visual style and constraints. Only the name is required. Briefs use the same `creative_projects` storage as the creation services; apply migration `015_project_briefs.sql` before deployment. Each owner can keep 100 projects, including archived ones. Updates require the last-read revision and return a conflict when another edit has won.
+
+Starting a chat from a project saves that association. Each question reads the latest owner-scoped brief and includes it as user-level context, without adding another copy to saved chat history. The client cannot reassign an existing chat or select someone else's brief. A composite database foreign key enforces matching project/chat ownership. Archiving preserves the brief and existing chats but prevents starting new chats until restored. Project context grants no access to private linked-game analytics and is not shared through public MCP.
+
+The current assistant can discuss and suggest edits to a brief; saving those edits remains a developer action. Projects do not enable image generation or hosted development agents.
+
 ## Sign-in and linked games
 
 Sign in with Roblox uses OAuth 2.0 with PKCE and asks only for `openid profile`. Register an app under Creator Dashboard → OAuth 2.0 Apps with the redirect URL `http://localhost:3000/auth/roblox/callback`, then set `ROBLOX_CLIENT_ID` and `ROBLOX_CLIENT_SECRET` in `.env.local` (`ROBLOX_REDIRECT_URI` overrides the callback). Until Roblox reviews the app, it allows 10 users. A new account adopts the browser's guest credits and chats and receives 150 extra credits once per Roblox user, in addition to the 50 welcome credits. Existing accounts receive any missing bonus on their next sign-in or balance refresh; spending is preserved. Romanum keeps no Roblox tokens, and stores only a hash of each session's cookie.

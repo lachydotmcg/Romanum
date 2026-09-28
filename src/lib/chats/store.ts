@@ -4,6 +4,7 @@ import type { Database } from "../history/database.ts";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, MAX_QUESTION_CHARS, type ImageType } from "./limits.ts";
 import { ImageInputError, normalizeChatImage } from "./image-input.ts";
 import { messageText } from "../assistant/message-text.ts";
+import { chatProject, type ChatProject } from "../projects/chat-context.ts";
 
 // Saved chats: each question with its reference images, each answer as the events that drew it, and the
 // conversation in the model's format for later questions. Every read and write is scoped to an owner.
@@ -18,7 +19,7 @@ export type TimedEvent = { t: number; e: AssistantEvent };
 export type ChatSummary = { id: string; title: string; updatedAt: string };
 export type StoredAttachment = { id: string; name: string };
 export type StoredMessage = { id: string; role: "user" | "assistant"; content: string; events: TimedEvent[]; attachments: StoredAttachment[] };
-export type Chat = { id: string; title: string; messages: StoredMessage[] };
+export type Chat = { id: string; title: string; projectId: string | null; messages: StoredMessage[] };
 
 export class ChatError extends Error {
   readonly code: "invalid_input" | "not_found";
@@ -91,17 +92,18 @@ export function recordEvent(events: TimedEvent[], event: AssistantEvent, t: numb
   events.push({ t, e: event.type === "done" ? { type: "done", messages: [] } : { ...event } });
 }
 
-export async function listChats(database: Database, ownerId: string): Promise<ChatSummary[]> {
+export async function listChats(database: Database, ownerId: string, projectId?: string): Promise<ChatSummary[]> {
+  if (projectId !== undefined && !isChatId(projectId)) return [];
   const { rows } = await database.query<{ id: string; title: string; updated_at: Date | string }>(
-    "SELECT id, title, updated_at FROM chats WHERE owner_id=$1 ORDER BY updated_at DESC, id LIMIT 50",
-    [ownerId],
+    `SELECT id, title, updated_at FROM chats WHERE owner_id=$1${projectId ? " AND project_id=$2" : ""} ORDER BY updated_at DESC, id LIMIT 50`,
+    projectId ? [ownerId, projectId] : [ownerId],
   );
   return rows.map((row) => ({ id: row.id, title: row.title, updatedAt: new Date(row.updated_at).toISOString() }));
 }
 
 export async function readChat(database: Database, ownerId: string, chatId: string): Promise<Chat | null> {
   if (!isChatId(chatId)) return null;
-  const { rows: chats } = await database.query<{ id: string; title: string }>("SELECT id, title FROM chats WHERE id=$1 AND owner_id=$2", [chatId, ownerId]);
+  const { rows: chats } = await database.query<{ id: string; title: string; project_id: string | null }>("SELECT id, title, project_id FROM chats WHERE id=$1 AND owner_id=$2", [chatId, ownerId]);
   if (!chats[0]) return null;
   const { rows: messages } = await database.query<Omit<StoredMessage, "attachments">>(
     "SELECT id, role, content, events FROM chat_messages WHERE chat_id=$1 ORDER BY seq",
@@ -114,6 +116,7 @@ export async function readChat(database: Database, ownerId: string, chatId: stri
   return {
     id: chats[0].id,
     title: chats[0].title,
+    projectId: chats[0].project_id,
     messages: messages.map((message) => ({
       ...message,
       attachments: files.filter((file) => file.message_id === message.id).map(({ id, name }) => ({ id, name })),
@@ -127,7 +130,7 @@ export async function readChat(database: Database, ownerId: string, chatId: stri
  */
 export async function saveQuestion(
   database: Database,
-  input: { ownerId: string; chatId: string | null; question: string; attachments: { name: string; bytes: Uint8Array }[] },
+  input: { ownerId: string; chatId: string | null; projectId?: string | null; question: string; attachments: { name: string; bytes: Uint8Array }[] },
 ) {
   const question = input.question.trim();
   if (!question || question.length > MAX_QUESTION_CHARS) throw new ChatError("invalid_input", "Write a message of up to 4,000 characters.");
@@ -143,18 +146,29 @@ export async function saveQuestion(
     }
   }
   if (input.chatId !== null && !isChatId(input.chatId)) throw new ChatError("not_found", "Chat not found.");
+  if (input.projectId !== undefined && input.projectId !== null && !isChatId(input.projectId)) throw new ChatError("not_found", "Project not found.");
 
   return database.transaction(async (sql) => {
     let chatId = input.chatId;
     let history: ApiMessage[] = [];
+    let projectId = input.projectId ?? null;
+    let project: ChatProject | null = null;
     if (chatId) {
-      const { rows } = await sql.query<{ history: ApiMessage[] }>("SELECT history FROM chats WHERE id=$1 AND owner_id=$2 FOR UPDATE", [chatId, input.ownerId]);
+      const { rows } = await sql.query<{ history: ApiMessage[]; project_id: string | null }>("SELECT history, project_id FROM chats WHERE id=$1 AND owner_id=$2 FOR UPDATE", [chatId, input.ownerId]);
       if (!rows[0]) throw new ChatError("not_found", "Chat not found.");
+      if (input.projectId && input.projectId !== rows[0].project_id) throw new ChatError("not_found", "Chat not found in this project.");
+      projectId = rows[0].project_id;
       history = rows[0].history;
-      await sql.query("UPDATE chats SET updated_at=now() WHERE id=$1", [chatId]);
-    } else {
+    }
+    if (projectId) {
+      project = await chatProject(sql, input.ownerId, projectId);
+      if (!project) throw new ChatError("not_found", "Project not found.");
+      if (!chatId && project.archived) throw new ChatError("invalid_input", "Restore this project to start a chat.");
+    }
+    if (chatId) await sql.query("UPDATE chats SET updated_at=now() WHERE id=$1", [chatId]);
+    else {
       chatId = randomUUID();
-      await sql.query("INSERT INTO chats(id, owner_id, title) VALUES ($1,$2,$3)", [chatId, input.ownerId, chatTitle(question)]);
+      await sql.query("INSERT INTO chats(id, owner_id, title, project_id) VALUES ($1,$2,$3,$4)", [chatId, input.ownerId, chatTitle(question), projectId]);
     }
     const messageId = randomUUID();
     await sql.query("INSERT INTO chat_messages(id, chat_id, role, content) VALUES ($1,$2,'user',$3)", [messageId, chatId, question]);
@@ -167,7 +181,7 @@ export async function saveQuestion(
       );
       attachments.push({ id, name: file.name });
     }
-    return { chatId, question, history, attachments, images: files };
+    return { chatId, question, history, attachments, images: files, project };
   });
 }
 

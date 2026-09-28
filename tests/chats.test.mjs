@@ -1,10 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import sharp from "sharp";
 import { withReferenceImages } from "../src/lib/chats/vision.ts";
+import { migrateHistory } from "../src/lib/history/migrate.ts";
 import {
   ChatError,
   chatTitle,
@@ -27,7 +26,7 @@ async function database(t) {
   t.after(() => engine.close());
   const sql = (client) => ({ query: (text, values) => client.query(text, values), exec: async (text) => { await client.exec(text); } });
   const db = { ...sql(engine), transaction: (operation) => engine.transaction((client) => operation(sql(client))), close: () => engine.close() };
-  await db.exec(await readFile(path.join(process.cwd(), "db", "migrations", "009_chats.sql"), "utf8"));
+  await migrateHistory(db);
   return db;
 }
 

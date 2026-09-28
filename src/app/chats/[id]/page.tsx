@@ -6,6 +6,7 @@ import { ChatView } from "@/components/chats/chat-view";
 import { readChat } from "@/lib/chats/store";
 import { readOwner } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
+import { readProject } from "@/lib/projects/store";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -27,5 +28,8 @@ export default async function ChatPage({ params }: Props) {
   await connection();
   const chat = await getChat((await params).id);
   if (!chat) notFound();
-  return <ChatView key={chat.id} chatId={chat.id} initialMessages={chat.messages} recent={null} connected={Boolean(process.env.DEEPSEEK_API_KEY)} />;
+  const owner = await readOwner();
+  const db = await historyDatabase();
+  const project = chat.projectId && owner && db ? await readProject(db, owner, chat.projectId) : null;
+  return <ChatView key={chat.id} chatId={chat.id} initialMessages={chat.messages} recent={null} connected={Boolean(process.env.DEEPSEEK_API_KEY)} project={project ? { id: project.id, name: project.name, archived: project.archived } : null} />;
 }

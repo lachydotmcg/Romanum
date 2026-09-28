@@ -5,6 +5,7 @@ import { welcomeGuest } from "@/lib/credits/guest";
 import { assistantBilling } from "@/lib/assistant/billing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
 import { withReferenceImages } from "@/lib/chats/vision";
+import { withProjectContext } from "@/lib/projects/chat-context";
 import {
   ChatError,
   isChatId,
@@ -69,8 +70,9 @@ export async function POST(request: Request) {
   }
   const text = form.get("text");
   const chatId = form.get("chatId");
+  const projectId = form.get("projectId");
   const files = form.getAll("files");
-  if (typeof text !== "string" || (chatId !== null && !isChatId(chatId)) || !files.every((file) => file instanceof File)) {
+  if (typeof text !== "string" || (chatId !== null && !isChatId(chatId)) || (projectId !== null && !isChatId(projectId)) || !files.every((file) => file instanceof File)) {
     return failure(400, "Invalid message.");
   }
   if (files.length > MAX_ATTACHMENTS) return failure(400, "Attach up to 3 images.");
@@ -90,14 +92,14 @@ export async function POST(request: Request) {
   let saved: Awaited<ReturnType<typeof saveQuestion>>;
   try {
     const attachments = await Promise.all(files.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })));
-    saved = await saveQuestion(db, { ownerId: owner, chatId, question: text, attachments });
+    saved = await saveQuestion(db, { ownerId: owner, chatId, projectId, question: text, attachments });
   } catch (error) {
     if (error instanceof ChatError) return failure(error.code === "not_found" ? 404 : 400, error.message);
     return failure(503, "Chats unavailable.");
   }
 
   const question = questionForModel(saved.question, saved.attachments.map((file) => file.name));
-  const conversation = modelConversation(saved.history, withReferenceImages(question, saved.images));
+  const conversation = withProjectContext(modelConversation(saved.history, withReferenceImages(question, saved.images)), saved.project);
   const client = assistantClient(apiKey);
   const abort = new AbortController();
   request.signal.addEventListener("abort", () => abort.abort());

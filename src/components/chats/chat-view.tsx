@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Folder } from "lucide-react";
 import { Transcript } from "@/components/assistant/transcript";
 import { applyEvent, finishTurn, newTurn, type Turn } from "@/components/assistant/turns";
 import type { AssistantEvent } from "@/lib/assistant/types";
@@ -37,11 +39,13 @@ export function ChatView({
   initialMessages,
   recent,
   connected,
+  project = null,
 }: {
   chatId: string | null;
   initialMessages: StoredMessage[];
   recent: ChatSummary[] | null;
   connected: boolean;
+  project?: { id: string; name: string; archived: boolean } | null;
 }) {
   const verifiedFetch = useVerifiedFetch();
   const [turns, setTurns] = useState<Turn[]>(() => replay(initialMessages));
@@ -97,6 +101,7 @@ export function ChatView({
 
     const body = new FormData();
     if (chatRef.current) body.set("chatId", chatRef.current);
+    if (project) body.set("projectId", project.id);
     body.set("text", question);
     for (const image of images) body.append("files", image.file, image.file.name);
 
@@ -157,6 +162,7 @@ export function ChatView({
         empty ? "justify-center pb-6 sm:pb-8" : ""
       }`}
     >
+      {project && <Link href={`/projects/${project.id}`} className={`mb-5 inline-flex max-w-full items-center gap-2 rounded text-sm text-fg-muted outline-offset-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-fg/70 ${empty ? "self-center" : "self-start"}`}><Folder className="size-4 shrink-0 text-white" /><span className="truncate">{project.name}</span>{project.archived && <span className="text-xs">· Archived</span>}</Link>}
       {empty ? (
         <h1 key="heading" className="mb-6 text-center text-2xl font-semibold tracking-tight">
           What are we making?

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartColumn, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plug } from "lucide-react";
+import { ChartColumn, Folder, Gamepad2, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plug } from "lucide-react";
 import type { ChatSummary } from "@/lib/chats/store";
 import { compactCredits, creditsInDollars } from "@/lib/credits/value";
 import { Avatar } from "./account/avatar";
@@ -17,6 +17,7 @@ import { Wordmark } from "./wordmark";
 const NAV = [
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
   { href: "/chats", label: "Chats", icon: MessagesSquare },
+  { href: "/projects", label: "Projects", icon: Folder },
   { href: "/profile", label: "Your games", icon: Gamepad2 },
 ];
 /** Recent chats listed in the open sidebar; the rest are on the Chats page. */

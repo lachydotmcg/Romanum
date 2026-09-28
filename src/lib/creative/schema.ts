@@ -3,13 +3,16 @@ import { z } from "zod";
 export const ownerIdSchema = z.string().trim().min(1).max(200).refine((value) => !value.includes("\0"));
 export const idSchema = z.uuid();
 const text = (max: number) => z.string().trim().min(1).max(max);
+// Draft project context: the game is required, while the rest of the brief may
+// still be unwritten. Empty strings are bounded the same way as filled ones.
+const draftText = (max: number) => z.string().trim().max(max).default("");
 const key = z.string().regex(/^[a-z0-9][a-z0-9-]{0,47}$/);
 export const imageSizeSchema = z.enum(["1024x1024", "1536x1024", "1024x1536"]);
 export const contextSchema = z.object({
   game: text(100),
-  gameplay: text(2000),
-  audience: text(500),
-  artDirection: text(1000),
+  gameplay: draftText(2000),
+  audience: draftText(500),
+  artDirection: draftText(1000),
   constraints: z.array(text(300)).max(12).default([]),
 }).strict();
 export const briefSchema = z.object({
