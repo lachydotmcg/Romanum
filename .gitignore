@@ -54,4 +54,5 @@ next-env.d.ts
 !/docs/mcp.md
 !/docs/README.md
 !/docs/development.md
+!/docs/privacy-operations.md
 !/docs/THIRD_PARTY_NOTICES.md

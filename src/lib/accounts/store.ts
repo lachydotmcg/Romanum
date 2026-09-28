@@ -59,7 +59,7 @@ export async function signInAccount(
     const adoptable =
       guestOwnerId !== null &&
       guestOwnerId.startsWith("guest:") &&
-      (await sql.query("SELECT 1 FROM accounts WHERE owner_id=$1", [guestOwnerId])).rows.length === 0;
+      (await sql.query("SELECT 1 FROM accounts WHERE owner_id=$1 UNION ALL SELECT 1 FROM account_closures WHERE owner_id=$1", [guestOwnerId])).rows.length === 0;
     const id = randomUUID();
     const ownerId = adoptable ? guestOwnerId : `account:${id}`;
     // A concurrent first sign-in by the same person may have created the account a moment ago; use theirs.

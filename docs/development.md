@@ -119,6 +119,8 @@ The local Studio connector uses Roblox's [built-in MCP server](https://create.ro
 
 ## Checks
 
+Privacy controls, account closure and release-review items are documented in [privacy operations](privacy-operations.md).
+
 ```sh
 npm test
 npm run lint

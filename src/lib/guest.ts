@@ -12,7 +12,7 @@ async function unclaimed(id: string): Promise<boolean> {
   const database = await historyDatabase();
   if (!database) throw new Error("Guest storage unavailable");
   // An adopted guest cookie, even a signed copy, must not reopen an account after sign-out.
-  return (await database.query("SELECT 1 FROM accounts WHERE owner_id=$1", [`guest:${id}`])).rows.length === 0;
+  return (await database.query("SELECT 1 FROM accounts WHERE owner_id=$1 UNION ALL SELECT 1 FROM account_closures WHERE owner_id=$1", [`guest:${id}`])).rows.length === 0;
 }
 
 async function currentGuest(): Promise<{ id: string; verified: boolean } | null> {

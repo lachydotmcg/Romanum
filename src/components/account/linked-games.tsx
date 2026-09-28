@@ -271,6 +271,7 @@ export function LinkedGames({ initial }: { initial: LinkedGameView[] }) {
         >
           {linking ? "Checking the key…" : "Link game"}
         </button>
+        <Link href="/privacy#games" className={`ml-4 inline-flex min-h-11 items-center rounded-sm text-xs text-fg-muted hover:text-fg ${FOCUS}`}>Data use</Link>
       </form>
     </>
   );

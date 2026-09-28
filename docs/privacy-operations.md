@@ -1,0 +1,32 @@
+# Privacy operations
+
+The public policy is served at `/privacy` from `src/app/privacy/page.tsx`. Keep its data flows and provider list aligned with the deployed configuration. Policy links sit beside sign-in, AI inputs, game linking and account settings. The page describes current behaviour; it is not a claim of legal compliance.
+
+## Account closure
+
+`POST /api/account/delete` requires an authenticated session, an exact same-origin JSON request, the current account ID and `confirmation: "DELETE"`. The client asks for confirmation before sending it. No account identifier supplied by a client can override session ownership.
+
+Migration 017 and `src/lib/accounts/closure.ts` remove the account's private records atomically. Sessions, game keys, private metrics and consent records cascade from the account. Chats, image attachments, project briefs, plans, private assets and internal creation records are also removed. Public Roblox observations and other accounts are untouched.
+
+Writes to owner-scoped content take an advisory transaction lock and reject a closed owner. This prevents a request authorised before closure from restoring content afterward. Child rows remain protected by parent foreign keys. New credit grants and reservations are rejected for closed owners; previously reserved usage can still settle. Apply migration 017 before deploying callers that query `account_closures`.
+
+The retained credit ledger includes the Roblox user ID in a sign-up grant's idempotency key. The closure marker and financial records are pseudonymous, not anonymous. Returning creates a new owner and does not transfer the previous balance or issue another Roblox sign-up bonus. Old adopted-guest cookies cannot recover the former owner.
+
+## Requests requiring support
+
+- Verify control of the account or guest identity without requesting passwords or API keys by email. Scope every query and mutation to that verified owner.
+- If unresolved generation jobs, reviews or agent runs block closure, reconcile them before retrying. Do not bypass uncertain billing outcomes.
+- If another owner's library entry depends on an asset being removed, review the rights and deletion request before changing lineage. Do not delete another owner's licensed copy automatically. Marketplace sharing is not exposed by the current website.
+- Deleting a linked game removes its key and metrics. Its consent log remains until account closure. Collection-off and sharing-off have separate meanings and are not deletion requests.
+- Review requests about retained credit records separately. Preserve necessary settlement and anti-abuse records only where there is a justified continuing need; do not describe an indefinite database default as a legal requirement.
+- Application deletion does not recall provider requests or erase provider logs and backups. Check the relevant provider arrangements before promising a deadline. A database restore must preserve/reapply closure records and completed deletions before reopening the service.
+
+## Release review
+
+Confirm the legal operator identity and any required public identification, the privacy laws that apply, age-related requirements, provider contracts and AI retention/training terms. Establish retention periods and a workable purge/backup process; inactive and retained accounting records currently have no automatic expiry. Confirm the support mailbox works and assign responsibility for access, correction, deletion, complaints and incidents. Update collection notices before private analytics enter an AI request or platform-improvement feature.
+
+Australian reference: OAIC guidance on [privacy policies](https://www.oaic.gov.au/privacy/australian-privacy-principles/australian-privacy-principles-guidelines/chapter-1-app-1-open-and-transparent-management-of-personal-information), [collection notices](https://www.oaic.gov.au/privacy/australian-privacy-principles/australian-privacy-principles-guidelines/chapter-5-app-5-notification-of-the-collection-of-personal-information) and [small-business coverage](https://www.oaic.gov.au/privacy/privacy-guidance-for-organisations-and-government-agencies/organisations/small-business). Applicability must be assessed rather than inferred from the platform's size.
+
+## Validation
+
+Account-closure tests exercise the full migrated schema, ownership, deletion rollback, active-work restrictions, licensed-copy dependencies, retained settlements and stale-write rejection. HTTP tests cover CSRF, request limits, account switches, session revocation and repeat Roblox sign-in. Use only isolated test accounts for end-to-end deletion checks. Never delete a production account as a deployment smoke test.

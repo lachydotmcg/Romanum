@@ -25,10 +25,10 @@ const NOTICES: Record<string, string> = {
   expired: "Sign-in timed out. Try again.",
 };
 
-export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ signin?: string }> }) {
-  const { signin } = await searchParams;
-  const notice = signin ? NOTICES[signin] : undefined;
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ signin?: string; deleted?: string }> }) {
+  const { signin, deleted } = await searchParams;
   const account = await readAccount();
+  const notice = deleted === "1" && !account ? "Your account was deleted." : signin ? NOTICES[signin] : undefined;
   const signInAvailable = oauthClient() !== null;
 
   let games: LinkedGameView[] | null = null;

@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { migrateHistory } from "../src/lib/history/migrate.ts";
 import { PGlite } from "@electric-sql/pglite";
 import {
   authorizationUrl,
@@ -25,7 +24,7 @@ async function database(t) {
   t.after(() => engine.close());
   const sql = (client) => ({ query: (text, values) => client.query(text, values), exec: async (text) => { await client.exec(text); } });
   const db = { ...sql(engine), transaction: (operation) => engine.transaction((client) => operation(sql(client))), close: () => engine.close() };
-  for (const file of ["002_credits.sql", "012_accounts.sql"]) await db.exec(await readFile(path.join(process.cwd(), "db", "migrations", file), "utf8"));
+  await migrateHistory(db);
   return db;
 }
 
