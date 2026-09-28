@@ -4,6 +4,7 @@ import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@/lib/chats/limits";
 import { welcomeGuest } from "@/lib/credits/guest";
 import { assistantBilling } from "@/lib/assistant/billing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
+import { withReferenceImages } from "@/lib/chats/vision";
 import {
   ChatError,
   isChatId,
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
   }
 
   const question = questionForModel(saved.question, saved.attachments.map((file) => file.name));
-  const conversation = modelConversation(saved.history, question);
+  const conversation = modelConversation(saved.history, withReferenceImages(question, saved.images));
   const client = assistantClient(apiKey);
   const abort = new AbortController();
   request.signal.addEventListener("abort", () => abort.abort());

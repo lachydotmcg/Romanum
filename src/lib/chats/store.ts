@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { ApiMessage, AssistantEvent } from "../assistant/types.ts";
 import type { Database } from "../history/database.ts";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, MAX_QUESTION_CHARS, type ImageType } from "./limits.ts";
+import { ImageInputError, normalizeChatImage } from "./image-input.ts";
+import { messageText } from "../assistant/message-text.ts";
 
 // Saved chats: each question with its reference images, each answer as the events that drew it, and the
 // conversation in the model's format for later questions. Every read and write is scoped to an owner.
@@ -34,7 +36,7 @@ const ascii = (bytes: Uint8Array, from: number, to: number) => String.fromCharCo
 
 /**
  * Identifies PNG, JPEG and WebP images by their first bytes; anything else, SVG included, is refused. This is
- * not a decoder or a moderation check: public uploads need both before release.
+ * not a decoder or a moderation check. saveQuestion also fully decodes and normalizes uploads.
  */
 export function imageType(bytes: Uint8Array): ImageType | null {
   const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -56,7 +58,7 @@ export function chatTitle(question: string): string {
   return line.length <= 60 ? line : `${line.slice(0, 59).trimEnd()}…`;
 }
 
-/** The question as the model receives it. The model can't see images, so it's told only their names. */
+/** Text-only history; current images are added separately to the outbound model request. */
 export function questionForModel(question: string, attachmentNames: string[]): ApiMessage {
   const note = attachmentNames.length ? `\n\n[Attached reference images: ${attachmentNames.join(", ")}]` : "";
   return { role: "user", content: question + note };
@@ -130,11 +132,16 @@ export async function saveQuestion(
   const question = input.question.trim();
   if (!question || question.length > MAX_QUESTION_CHARS) throw new ChatError("invalid_input", "Write a message of up to 4,000 characters.");
   if (input.attachments.length > MAX_ATTACHMENTS) throw new ChatError("invalid_input", "Attach up to 3 images.");
-  const files = input.attachments.map((file) => {
-    const mimeType = imageType(file.bytes);
-    if (!mimeType || file.bytes.length > MAX_ATTACHMENT_BYTES) throw new ChatError("invalid_input", "Images must be PNG, JPEG or WebP, up to 5 MB.");
-    return { name: attachmentName(file.name), mimeType, bytes: file.bytes };
-  });
+  const files: { name: string; mimeType: "image/webp"; bytes: Uint8Array }[] = [];
+  // Decode sequentially to bound peak memory per request. Nothing is persisted if any file fails.
+  for (const file of input.attachments) {
+    if (!imageType(file.bytes) || file.bytes.length > MAX_ATTACHMENT_BYTES) throw new ChatError("invalid_input", "Images must be PNG, JPEG or WebP, up to 5 MB.");
+    try { files.push({ name: attachmentName(file.name), ...await normalizeChatImage(file.bytes) }); }
+    catch (error) {
+      if (error instanceof ImageInputError) throw new ChatError("invalid_input", error.message);
+      throw error;
+    }
+  }
   if (input.chatId !== null && !isChatId(input.chatId)) throw new ChatError("not_found", "Chat not found.");
 
   return database.transaction(async (sql) => {
@@ -160,7 +167,7 @@ export async function saveQuestion(
       );
       attachments.push({ id, name: file.name });
     }
-    return { chatId, question, history, attachments };
+    return { chatId, question, history, attachments, images: files };
   });
 }
 
@@ -174,7 +181,8 @@ export async function saveAnswer(
     // The chat was deleted while the answer streamed.
     if (!rows[0]) return;
     // An unfinished answer can stop mid tool call, which the model can't be shown again, so only its question stays.
-    const history = recentHistory([...rows[0].history, input.question, ...(input.turn ?? [])], MAX_STORED_HISTORY);
+    const question: ApiMessage = { role: "user", content: messageText(input.question) };
+    const history = recentHistory([...rows[0].history, question, ...(input.turn ?? [])], MAX_STORED_HISTORY);
     await sql.query("INSERT INTO chat_messages(id, chat_id, role, events) VALUES ($1,$2,'assistant',$3)", [randomUUID(), input.chatId, JSON.stringify(input.events)]);
     await sql.query("UPDATE chats SET history=$2, updated_at=now() WHERE id=$1", [input.chatId, JSON.stringify(history)]);
   });

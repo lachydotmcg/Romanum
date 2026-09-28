@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import sharp from "sharp";
+import { withReferenceImages } from "../src/lib/chats/vision.ts";
 import {
   ChatError,
   chatTitle,
@@ -29,9 +31,10 @@ async function database(t) {
   return db;
 }
 
-const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=", "base64");
-const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46]);
-const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.from([0, 0, 0, 0]), Buffer.from("WEBPVP8 ")]);
+const fixture = () => sharp({ create: { width: 20, height: 10, channels: 4, background: "red" } });
+const png = await fixture().png().toBuffer();
+const jpeg = await fixture().jpeg().toBuffer();
+const webp = await fixture().webp().toBuffer();
 const rejection = async (promise, code) => {
   const error = await promise.then(() => assert.fail("expected a ChatError"), (thrown) => thrown);
   assert.ok(error instanceof ChatError, `expected ChatError, received ${error?.name}: ${error?.message}`);
@@ -62,8 +65,9 @@ test("a first question starts a chat titled after it, with its images stored pri
   assert.equal(chat.messages[0].content, question);
   assert.deepEqual(chat.messages[0].attachments, saved.attachments);
   const file = await readAttachment(db, "guest:a", saved.attachments[0].id);
-  assert.equal(file.mimeType, "image/png");
-  assert.deepEqual(Buffer.from(file.bytes), png);
+  assert.equal(file.mimeType, "image/webp");
+  assert.equal((await sharp(file.bytes).metadata()).format, "webp");
+  assert.deepEqual(Buffer.from(file.bytes), Buffer.from(saved.images[0].bytes));
 
   // Another guest can't see the chat, its images or add to it.
   assert.deepEqual(await listChats(db, "guest:b"), []);
@@ -80,10 +84,26 @@ test("questions and attachments outside the limits are refused before anything i
   await rejection(ask({ question: "x".repeat(4001) }), "invalid_input");
   await rejection(ask({ attachments: Array.from({ length: 4 }, (_, index) => ({ name: `${index}.png`, bytes: png })) }), "invalid_input");
   await rejection(ask({ attachments: [{ name: "logo.svg", bytes: Buffer.from("<svg></svg>") }] }), "invalid_input");
+  await rejection(ask({ attachments: [{ name: "broken.png", bytes: png.subarray(0, 24) }] }), "invalid_input");
   await rejection(ask({ attachments: [{ name: "huge.png", bytes: Buffer.concat([png, Buffer.alloc(5 * 1024 * 1024)]) }] }), "invalid_input");
   await rejection(ask({ chatId: "not-a-chat" }), "not_found");
   await rejection(ask({ chatId: crypto.randomUUID() }), "not_found");
   assert.equal((await db.query("SELECT count(*)::int AS count FROM chats")).rows[0].count, 0);
+});
+
+test("inline image inputs never enter saved model history or replayed events", async (t) => {
+  const db = await database(t);
+  const first = await saveQuestion(db, { ownerId: "guest:a", chatId: null, question: "Review this UI", attachments: [{ name: "ui.png", bytes: png }] });
+  const question = questionForModel(first.question, first.attachments.map((file) => file.name));
+  const vision = withReferenceImages(question, first.images);
+  assert.equal(vision.content[1].type, "image_url");
+  await saveAnswer(db, { ownerId: "guest:a", chatId: first.chatId, question: vision, turn: [{ role: "assistant", content: "The red panel is small." }], events: [] });
+  const { rows } = await db.query("SELECT history FROM chats WHERE id=$1", [first.chatId]);
+  assert.equal(rows[0].history[0].content, question.content);
+  assert.ok(!JSON.stringify(rows).includes("base64"));
+  const replay = await readChat(db, "guest:a", first.chatId);
+  assert.ok(!JSON.stringify(replay).includes("base64"));
+  assert.equal(await readChat(db, "guest:b", first.chatId), null);
 });
 
 test("answers are saved with the history the next question needs, and an unfinished answer keeps only its question", async (t) => {

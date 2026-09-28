@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { CallUsage } from "@/lib/credits/pricing";
 import { CreditsError } from "@/lib/credits/ledger";
 import { meteredStream, reportedCallUsage, type AssistantBilling } from "./billing";
+import { messageText } from "./message-text";
 import { SYSTEM_PROMPT } from "./prompt";
 import { FetchedData } from "./fetched-data";
 import { suggestFollowUp } from "./follow-up";
@@ -120,8 +121,8 @@ export async function runAssistant({
       if (!toolCalls.length) {
         send({ type: "done", messages: turn });
         // The answer is complete above; the suggestion follows on the same stream when it's ready.
-        const question = conversation.at(-1)?.content;
-        const followUp = await suggestFollowUp(client, ASSISTANT_MODEL, typeof question === "string" ? question : "", content, signal, billing);
+        const question = messageText(conversation.at(-1));
+        const followUp = await suggestFollowUp(client, ASSISTANT_MODEL, question, content, signal, billing);
         if (followUp.text) send({ type: "suggestion", text: followUp.text });
         return;
       }

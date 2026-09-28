@@ -55,9 +55,13 @@ For `npm run dev` on localhost, use Cloudflare's [official test keys](https://de
 
 ## Chats and credits
 
-Chats (`/chats`) are saved conversations with the same assistant. A message can carry up to three PNG, JPEG or WebP reference images, up to 5 MB each. The model can't see images; it gets their names, and image generation isn't connected yet, so thumbnail requests get a written concept. Chats and attachments use the configured PostgreSQL database. For a separate development database, use `npm run history:db` and run `npm run history:migrate` after pulling new migrations.
+Chats (`/chats`) are saved conversations with the same assistant. A message can carry up to three still PNG, JPEG or WebP reference images, up to 5 MB and 16 megapixels each (maximum 8192 pixels per side). Uploads are fully decoded, oriented, resized to fit 1600 × 1600 and converted to WebP with metadata stripped before private storage. Animated and malformed images are rejected.
 
-A browser that isn't signed in is an anonymous guest identified by a signed cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Signing in keeps a guest's credits and chats, but anyone can still start a new guest, so grants and uploads need abuse limits, image decoding and moderation before public release.
+Current-message images are sent as inline image inputs to `deepseek-flash` for thumbnail, UI and screenshot review. No public image URL or provider file store is used. Image tokens are included in the same metered call as text. Only text and attachment names enter saved model history; later visual inspections need reattachment. Deleting a chat removes its stored attachments. Image generation is still disabled, so generation requests produce written concepts. See [DeepSeek's vision guide](https://api-docs.deepseek.com/guides/vision) for provider limits and behavior.
+
+Chats and attachments use the configured PostgreSQL database. For a separate development database, use `npm run history:db` and run `npm run history:migrate` after pulling new migrations.
+
+A browser that isn't signed in is an anonymous guest identified by a signed cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Signing in keeps a guest's credits and chats, but anyone can still start a new guest, so grants and uploads need abuse limits and moderation before public release.
 
 Ask Romanum and Chats answers spend credits: the tokens each model call reports, priced from `src/lib/credits/pricing.ts` (copied from the providers' official pricing pages, with the date checked), times a 1.65× markup. Each answer shows its cost. Credits are whole numbers, so each account's fractions carry over until they make a whole credit, which the ledger takes. Public data, charts, game pages and MCP stay free.
 
