@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 import { IMAGE_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, MAX_QUESTION_CHARS } from "@/lib/chats/limits";
+import { ReferencePicker } from "@/components/projects/reference-picker";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 /** The prompt grows with its text up to this height, then scrolls. */
@@ -24,6 +25,7 @@ export function Composer({
   onStop,
   onDismissSuggestion,
   starters = [],
+  projectId,
 }: {
   connected: boolean;
   running: boolean;
@@ -33,9 +35,12 @@ export function Composer({
   onStop: () => void;
   onDismissSuggestion: () => void;
   starters?: { label: string; prompt: string }[];
+  projectId?: string;
 }) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PendingImage[]>([]);
+  const imagesRef = useRef<PendingImage[]>([]);
+  const [referencePending, setReferencePending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -58,13 +63,13 @@ export function Composer({
   function addFiles(files: File[]) {
     if (!files.length) return;
     const usable = files.filter((file) => isImage(file) && file.size <= MAX_ATTACHMENT_BYTES);
-    const room = Math.max(0, MAX_ATTACHMENTS - images.length);
+    const room = Math.max(0, MAX_ATTACHMENTS - imagesRef.current.length);
     const added = usable.slice(0, room).map((file) => {
       const url = URL.createObjectURL(file);
       previews.current.add(url);
       return { id: crypto.randomUUID(), file, url };
     });
-    if (added.length) setImages((prev) => [...prev, ...added]);
+    if (added.length) { imagesRef.current = [...imagesRef.current, ...added]; setImages(imagesRef.current); }
     setNotice(
       usable.length < files.length
         ? "Images must be PNG, JPEG or WebP, up to 5 MB."
@@ -77,18 +82,20 @@ export function Composer({
   function remove(image: PendingImage) {
     previews.current.delete(image.url);
     URL.revokeObjectURL(image.url);
-    setImages((prev) => prev.filter((item) => item.id !== image.id));
+    imagesRef.current = imagesRef.current.filter((item) => item.id !== image.id);
+    setImages(imagesRef.current);
     setNotice(null);
   }
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
     const question = text.trim();
-    if (!question || running || !connected) return;
-    for (const image of images) previews.current.delete(image.url);
-    onSend(question, images);
+    if (!question || running || !connected || referencePending) return;
+    for (const image of imagesRef.current) previews.current.delete(image.url);
+    onSend(question, imagesRef.current);
     setText("");
     setImages([]);
+    imagesRef.current = [];
     setNotice(null);
   }
 
@@ -208,6 +215,7 @@ export function Composer({
               event.target.value = "";
             }}
           />
+          {projectId && <ReferencePicker projectId={projectId} disabled={!connected || images.length >= MAX_ATTACHMENTS} onPick={file => addFiles([file])} onPendingChange={setReferencePending} />}
           {!connected && (
             <span className="rounded-full border border-line-strong px-2 py-0.5 text-xs text-fg-muted">Not connected</span>
           )}
@@ -238,7 +246,7 @@ export function Composer({
           ) : (
             <button
               type="submit"
-              disabled={!connected || !text.trim()}
+              disabled={!connected || !text.trim() || referencePending}
               aria-label="Send"
               className={`grid size-8 shrink-0 place-items-center rounded-full bg-white text-black disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${FOCUS}`}
             >

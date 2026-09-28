@@ -32,7 +32,8 @@ export function ProjectEditor({ initial }: { initial: ProjectBrief | null }) {
       if (!response.ok) { setConflict(response.status === 409 && !!project); throw new Error(result.error ?? "Couldn't save the project."); }
       const next = result.project as ProjectBrief;
       setProject(next); setFields(values(next)); setSaved(true);
-      if (!project) { router.replace(`/projects/${next.id}`); router.refresh(); }
+      if (!project) router.replace(`/projects/${next.id}`);
+      router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : "Couldn't save the project."); }
     finally { setBusy(false); }
   }

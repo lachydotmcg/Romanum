@@ -178,6 +178,7 @@ export function ChatView({
           <div className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10 backdrop-blur-xl [mask-image:linear-gradient(to_top,black_calc(100%_-_2.5rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:bg-canvas" />
         )}
         <Composer
+          projectId={project?.id}
           connected={connected}
           running={running}
           suggestion={suggestion}

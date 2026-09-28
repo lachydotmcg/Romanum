@@ -50,11 +50,14 @@ function validateMapping(layout: UiLayout, assets: Record<string, string>) {
 export async function createUiEntry(database: Database, ownerId: string, projectId: string, input: unknown) {
   const data = draftSchema.parse(input);
   validateMapping(data.layout, data.assets);
-  await requireProject(database, ownerId, projectId);
-  for (const id of Object.values(data.assets)) await readCreativeAsset(database, ownerId, projectId, id);
-  const id = randomUUID();
-  await database.query("INSERT INTO ui_library_entries(id,owner_id,project_id,state,title,description,tags,layout,assets) VALUES($1,$2,$3,'draft',$4,$5,$6,$7,$8)", [id, ownerId, projectId, data.title, data.description, [...new Set(data.tags)], JSON.stringify(data.layout), JSON.stringify(data.assets)]);
-  return ownerEntry(database, ownerId, id);
+  return database.transaction(async sql => {
+    await libraryLock(sql);
+    await requireProject(sql, ownerId, projectId);
+    for (const id of Object.values(data.assets)) await readCreativeAsset(sql, ownerId, projectId, id);
+    const id = randomUUID();
+    await sql.query("INSERT INTO ui_library_entries(id,owner_id,project_id,state,title,description,tags,layout,assets) VALUES($1,$2,$3,'draft',$4,$5,$6,$7,$8)", [id, ownerId, projectId, data.title, data.description, [...new Set(data.tags)], JSON.stringify(data.layout), JSON.stringify(data.assets)]);
+    return ownerEntry(sql, ownerId, id);
+  });
 }
 
 export async function readPrivateUiEntry(database: Database, ownerId: string, id: string) { return ownerEntry(database, ownerId, id); }

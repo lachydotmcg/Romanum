@@ -43,6 +43,8 @@ export async function createCreativeWorkflow(database: Database, input: { ownerI
   }).strict().parse(input);
   if (new Set(data.referenceIds).size !== data.referenceIds.length) throw new CreativeError("conflict");
   return database.transaction(async (sql) => {
+    // Same order as reference removal and account closure, before asset locks.
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [data.ownerId]);
     await requireProject(sql, data.ownerId, data.projectId);
     for (const id of data.referenceIds) await readCreativeAsset(sql, data.ownerId, data.projectId, id);
     const id = randomUUID();

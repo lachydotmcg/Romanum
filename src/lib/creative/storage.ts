@@ -40,7 +40,9 @@ export async function addCreativeReference(database: Database, input: { ownerId:
 }
 
 export async function readCreativeAsset(sql: Sql, ownerId: string, projectId: string, id: string) {
-  const { rows } = await sql.query<StoredAsset>("SELECT id, project_id, owner_id, bytes, mime_type, width, height, kind, metadata FROM creative_assets WHERE id=$1 AND project_id=$2 AND owner_id=$3", [idSchema.parse(id), idSchema.parse(projectId), ownerIdSchema.parse(ownerId)]);
+  // A transaction creating a workflow keeps its references alive until commit.
+  // Standalone reads release the lock with their implicit transaction.
+  const { rows } = await sql.query<StoredAsset>("SELECT id, project_id, owner_id, bytes, mime_type, width, height, kind, metadata FROM creative_assets WHERE id=$1 AND project_id=$2 AND owner_id=$3 FOR KEY SHARE", [idSchema.parse(id), idSchema.parse(projectId), ownerIdSchema.parse(ownerId)]);
   if (!rows[0]) throw new CreativeError("not_found");
   return rows[0];
 }

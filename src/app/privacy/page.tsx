@@ -36,6 +36,7 @@ export default function PrivacyPage() {
         <h2>AI requests</h2>
         <p>Ask Romanum and Chats currently use DeepSeek. Sending a message sends its text, relevant conversation history, retrieved information and any images attached to that message to DeepSeek. In a project chat, the project brief is also included. Images are resized and their embedded metadata is removed before they are stored and sent.</p>
         <p>Chats saves the conversation and its attachments. Ask Romanum does not create a saved chat, but provider processing and credit usage records still apply. Saved chat images are not automatically sent again in later messages.</p>
+        <p>Project reference images stay in your private library. Choosing one in a chat copies it into that message; sending the message sends that copy to DeepSeek. Removing the library image does not remove copies already saved in chats.</p>
         <p>Your linked game&apos;s private metrics are not currently available to the assistant. If you paste private metrics or other information into a message, that content is sent with the request. The game-sharing switch does not prevent this processing.</p>
         <p>DeepSeek handles requests under its applicable terms. Romanum has not established a zero-retention or no-training arrangement with DeepSeek, so we do not make either promise. Avoid sending passwords, API keys, sensitive personal information or personal information about children in chats.</p>
       </section>

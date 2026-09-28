@@ -13,7 +13,7 @@ export class ImageInputError extends Error {
 }
 
 /** Decode untrusted uploads before storage or model input; never forward originals or metadata. */
-export async function normalizeChatImage(bytes: Uint8Array): Promise<{ bytes: Uint8Array; mimeType: "image/webp" }> {
+async function normalizeImage(bytes: Uint8Array, format: "webp" | "png"): Promise<Uint8Array> {
   if (!bytes.length || bytes.length > MAX_ATTACHMENT_BYTES) throw new ImageInputError();
   const prefix = Buffer.from(bytes.subarray(0, 12));
   const raster = prefix.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
@@ -29,12 +29,21 @@ export async function normalizeChatImage(bytes: Uint8Array): Promise<{ bytes: Ui
     }
     // Sharp drops EXIF/XMP/ICC by default. Auto-orient before discarding EXIF;
     // bound the output size while preserving transparency for UI references.
-    const output = await image.rotate().resize(MAX_OUTPUT_DIMENSION, MAX_OUTPUT_DIMENSION, { fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 90, effort: 2 }).timeout({ seconds: 5 }).toBuffer();
+    const resized = image.rotate().resize(MAX_OUTPUT_DIMENSION, MAX_OUTPUT_DIMENSION, { fit: "inside", withoutEnlargement: true });
+    const output = await (format === "png" ? resized.png() : resized.webp({ quality: 90, effort: 2 })).timeout({ seconds: 5 }).toBuffer();
     if (output.length > MAX_ATTACHMENT_BYTES) throw new ImageInputError();
-    return { bytes: output, mimeType: "image/webp" };
+    return output;
   } catch {
     // Decoder messages may contain metadata from the upload. Don't expose them.
     throw new ImageInputError();
   }
+}
+
+export async function normalizeChatImage(bytes: Uint8Array): Promise<{ bytes: Uint8Array; mimeType: "image/webp" }> {
+  return { bytes: await normalizeImage(bytes, "webp"), mimeType: "image/webp" };
+}
+
+/** Private project references retain a lossless PNG for later creative work. */
+export async function normalizeProjectImage(bytes: Uint8Array): Promise<Uint8Array> {
+  return normalizeImage(bytes, "png");
 }
