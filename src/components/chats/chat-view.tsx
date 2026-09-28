@@ -16,6 +16,11 @@ import { ProjectPanel } from "./project-panel";
 import { WorkspaceList } from "./workspace-list";
 
 const attachmentUrl = (id: string) => `/api/chat-attachments/${id}`;
+const STARTERS = [
+  { label: "Give me ideas", prompt: "Give me a few Roblox game ideas grounded in current data and existing games. Help me choose one before we work through its hooks, game design, roadmap and implementation." },
+  { label: "I have an idea", prompt: "I have a Roblox game idea. Ask me about it, then help me work through its hooks and game design before we plan the roadmap and implementation." },
+  { label: "I have a game already", prompt: "Help me work out the next steps for my existing Roblox game. Start by asking what I've built so far." },
+];
 
 /** Redraws saved messages: each question starts a turn, and its answer's recorded events replay onto it. */
 function replay(messages: StoredMessage[]): Turn[] {
@@ -44,7 +49,6 @@ export function ChatView({
   connected,
   project: initialProject = null,
   canPlan = false,
-  onboarding = false,
   projects = [],
   archived = false,
   contextTab,
@@ -55,7 +59,6 @@ export function ChatView({
   connected: boolean;
   project?: ProjectBrief | null;
   canPlan?: boolean;
-  onboarding?: boolean;
   projects?: ProjectSummary[];
   archived?: boolean;
   contextTab?: string;
@@ -181,7 +184,7 @@ export function ChatView({
       {project ? <header className="mb-6 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 flex-1 items-center gap-2 text-sm"><Folder className="size-4 shrink-0" /><span className="truncate">{project.name}</span>{project.archived && <span className="text-xs text-fg-muted">Archived</span>}</div><div className="flex items-center gap-3">{!project.archived && <Link href={`/chats?project=${project.id}`} className="rounded text-xs text-fg-muted hover:text-fg focus-visible:outline-2">New chat</Link>}<ProjectPanel project={project} onSaved={projectSaved} initialTab={contextTab} /></div></header> : !empty && canPlan ? <div className="mb-4 flex justify-end"><button type="button" disabled={running} onClick={() => void ask("Help me turn this conversation into a game plan. Ask about anything important that's missing, then save our agreed plan, roadmap and to-dos as project context.", [])} className="min-h-10 rounded-lg border border-line px-3 text-xs text-fg-muted hover:text-fg disabled:opacity-40">Plan this game</button></div> : null}
       {empty ? (
         <h1 key="heading" className="mb-6 text-center text-2xl font-semibold tracking-tight">
-          {project?.archived ? "This project is archived" : onboarding ? "Tell me about your game" : "What are we making?"}
+          {project?.archived ? "This project is archived" : "What are we making?"}
         </h1>
       ) : (
         <div key="transcript" className="flex-1 pb-6" aria-busy={running}>
@@ -201,12 +204,11 @@ export function ChatView({
           onSend={ask}
           onStop={() => abortRef.current?.abort()}
           onDismissSuggestion={() => setSuggestion(null)}
-          starters={empty && onboarding ? [{ label: "I have an idea", prompt: "I'd like to plan a Roblox game. Help me shape my idea, one question at a time." }, { label: "Help me find one", prompt: "Help me find a Roblox game idea that fits my skills and time. Ask me one question at a time before researching options." }, { label: "I have a game already", prompt: "Help me plan the next steps for my existing Roblox game. Start by asking what I've built so far." }] : empty && project && !project.archived ? [{ label: "Plan next steps", prompt: "Help me review this game's plan and work out the next steps. Save the agreed roadmap and to-dos in context." }, { label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
+          starters={!empty ? [] : !project ? STARTERS : !project.archived ? [{ label: "Plan next steps", prompt: "Help me review this game's plan and work out the next steps. Save the agreed roadmap and to-dos in context." }, { label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
         />
       </div>}
-      {empty && !project && !onboarding && canPlan && <Link href="/chats?onboarding=true" className="mt-5 self-center rounded text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline focus-visible:outline-2">Plan a game</Link>}
-      {empty && !project && !onboarding && canPlan && (projects.length > 0 || archived) && <WorkspaceList projects={projects} archived={archived} />}
-      {empty && !onboarding && recent && <RecentChats key="recent" initial={recent} />}
+      {empty && !project && canPlan && (projects.length > 0 || archived) && <WorkspaceList projects={projects} archived={archived} />}
+      {empty && recent && <RecentChats key="recent" initial={recent} />}
       <p role="status" className="sr-only">
         {running ? "The assistant is responding." : ""}
       </p>
