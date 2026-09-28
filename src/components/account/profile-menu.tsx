@@ -5,6 +5,7 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Gamepad2, LogIn, LogOut, Settings, X } from "lucide-react";
 import { Avatar } from "./avatar";
 import { Coin } from "../coin";
+import { TOOL_FEE_CREDITS } from "@/lib/credits/tool-pricing";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 const ITEM = `flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-fg hover:bg-surface-hover focus-visible:bg-surface-hover ${FOCUS}`;
@@ -167,6 +168,7 @@ export function ProfileMenu({ account, credits, signInAvailable, children, class
             <dd className="flex items-center gap-2 tabular-nums"><Coin className="size-4 text-white" />{balance}</dd>
           </div>
         </dl>
+        <p className="mb-4 text-xs leading-relaxed text-fg-muted">AI skill and stats calls: {TOOL_FEE_CREDITS} credits each, plus model usage.</p>
         <Link href="/profile#games" onClick={navigate} className={`flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-3 text-sm hover:bg-surface-hover ${FOCUS}`}>
           <span>Game data & sharing</span><span className="text-fg-muted">Manage</span>
         </Link>

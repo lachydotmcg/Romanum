@@ -2,8 +2,9 @@ import type OpenAI from "openai";
 import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { welcomeGuest } from "@/lib/credits/guest";
+import { welcomeAccount } from "@/lib/credits/account";
 import { assistantBilling } from "@/lib/assistant/billing";
-import { ensureOwner } from "@/lib/accounts/session";
+import { ensureOwner, readAccount } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase, type Database } from "@/lib/history/database";
 import { verificationResponse } from "@/lib/turnstile";
@@ -79,7 +80,9 @@ export async function POST(request: Request) {
     if (!database) throw new Error("No database is configured.");
     db = database;
     owner = await ensureOwner(request);
-    if ((await welcomeGuest(db, owner)).available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
+    const account = await readAccount();
+    const balance = account?.ownerId === owner ? await welcomeAccount(db, account.id) : await welcomeGuest(db, owner);
+    if (balance.available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
   } catch (error) {
     const verification = verificationResponse(error);
     if (verification) return verification;

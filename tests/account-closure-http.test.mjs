@@ -51,7 +51,7 @@ test("HTTP closure revokes all sessions and repeat Roblox sign-in cannot reopen 
   const guest = `guest:${randomUUID()}`;
   const { account: original } = await signInAccount(db, profile, guest);
   assert.equal(original.ownerId, guest);
-  assert.equal((await getBalance(db, { ownerId: guest })).available, 200);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 110);
   const sessions = [await startSession(db, original.id), await startSession(db, original.id)];
   const chatId = randomUUID();
   await db.query("INSERT INTO chats(id,owner_id,title) VALUES($1,$2,'Private before deletion')", [chatId, guest]);
@@ -72,9 +72,9 @@ test("HTTP closure revokes all sessions and repeat Roblox sign-in cannot reopen 
   assert.notEqual(returned.account.id, original.id);
   assert.notEqual(returned.account.ownerId, guest);
   assert.equal(returned.adoptedGuest, false);
-  assert.equal((await welcomeAccount(db, returned.account.id)).available, 50);
+  assert.equal((await welcomeAccount(db, returned.account.id)).available, 10);
   assert.equal((await signInAccount(db, profile, guest)).account.id, returned.account.id);
-  assert.equal((await getBalance(db, { ownerId: returned.account.ownerId })).available, 50);
+  assert.equal((await getBalance(db, { ownerId: returned.account.ownerId })).available, 10);
   const grants = await db.query("SELECT owner_id FROM credits_operations WHERE operation_id=$1", [`signup:roblox:${profile.userId}`]);
   assert.deepEqual(grants.rows, [{ owner_id: guest }]);
   // Even a different Roblox account cannot adopt a deleted guest's signed cookie.

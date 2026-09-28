@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-// POST rather than GET: applies any missing guest welcome or account sign-up
-// grant. Browsing establishes an identity without a challenge; AI routes verify it before spending.
+// POST rather than GET: applies missing welcome grants and the current weekly
+// floor. Browsing establishes an identity; AI routes verify it before spending.
 export async function POST(request: Request) {
   if (isCrossSite(request)) return Response.json({ error: "Request rejected." }, { status: 403, headers: NO_STORE });
   try {

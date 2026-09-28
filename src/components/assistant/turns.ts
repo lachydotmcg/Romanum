@@ -67,7 +67,7 @@ export function finishTurn(turn: Turn, now: number, error: string | null = null)
       ? { ...step, status: "error" as const, summary: "Stopped", endedAt: now }
       : step,
   );
-  return { ...settled, steps, error: error ?? settled.error, done: true };
+  return { ...settled, steps, error: settled.error ?? error, done: true };
 }
 
 /** Folds one streamed event into the turn. */

@@ -27,6 +27,8 @@ export const EXPORT_SECTIONS = [
   "usage_charges",
   "usage_carry",
   "usage_holds",
+  "tool_usage",
+  "weekly_credit_claims",
   "chats",
   "chat_messages",
   "chat_attachments",
@@ -97,7 +99,7 @@ type SectionSpec = { columns: string; from: string; scope: string; key: string }
 const SPECS: Record<ExportSection, SectionSpec> = {
   // Account profile only: names and the Roblox user id, never session material.
   profile: {
-    columns: "a.id, a.owner_id, a.roblox_user_id::text AS roblox_user_id, a.username, a.display_name, a.picture_url, a.created_at, a.signed_in_at",
+    columns: "a.id, a.owner_id, a.roblox_user_id::text AS roblox_user_id, a.username, a.display_name, a.picture_url, a.credit_plan, a.created_at, a.signed_in_at",
     from: "accounts a",
     scope: "a.id = $2::uuid AND a.owner_id = $1",
     key: "a.id::text",
@@ -121,7 +123,7 @@ const SPECS: Record<ExportSection, SectionSpec> = {
     key: "l.id::text",
   },
   usage_charges: {
-    columns: "u.id, u.owner_id, u.feature, u.calls, u.cost_nano_usd::text AS cost_nano_usd, u.price_nano_usd::text AS price_nano_usd, u.credits_charged::text AS credits_charged, u.unpaid_nano_usd::text AS unpaid_nano_usd, u.created_at",
+    columns: "u.id, u.owner_id, u.feature, u.calls, u.tools, u.cost_nano_usd::text AS cost_nano_usd, u.price_nano_usd::text AS price_nano_usd, u.credits_charged::text AS credits_charged, u.unpaid_nano_usd::text AS unpaid_nano_usd, u.created_at",
     from: "usage_charges u",
     scope: "u.owner_id = $1",
     key: "u.id::text",
@@ -139,6 +141,18 @@ const SPECS: Record<ExportSection, SectionSpec> = {
     from: "usage_holds h",
     scope: "h.owner_id = $1",
     key: "h.id::text",
+  },
+  tool_usage: {
+    columns: "t.id, t.owner_id, t.feature, t.tool_name, t.price_nano_usd::text AS price_nano_usd, t.status, t.credits_charged, t.charge_id, t.created_at, t.updated_at",
+    from: "tool_usage t",
+    scope: "t.owner_id = $1",
+    key: "t.id::text",
+  },
+  weekly_credit_claims: {
+    columns: "w.week_start, w.owner_id, w.amount, w.created_at",
+    from: "weekly_credit_claims w",
+    scope: "w.owner_id = $1",
+    key: "w.week_start::text",
   },
   chats: {
     columns: "c.id, c.owner_id, c.project_id, c.title, c.history, c.created_at, c.updated_at",

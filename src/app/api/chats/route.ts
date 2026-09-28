@@ -2,6 +2,7 @@ import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@/lib/chats/limits";
 import { welcomeGuest } from "@/lib/credits/guest";
+import { welcomeAccount } from "@/lib/credits/account";
 import { assistantBilling } from "@/lib/assistant/billing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
 import { withReferenceImages } from "@/lib/chats/vision";
@@ -84,7 +85,9 @@ export async function POST(request: Request) {
   // Answers spend credits, so the owner needs some before anything is saved or the model is called.
   try {
     owner = await ensureOwner(request);
-    if ((await welcomeGuest(db, owner)).available < 1) return failure(402, "You're out of credits.");
+    const account = await readAccount();
+    const balance = account?.ownerId === owner ? await welcomeAccount(db, account.id) : await welcomeGuest(db, owner);
+    if (balance.available < 1) return failure(402, "You're out of credits.");
   } catch (error) {
     const verification = verificationResponse(error);
     if (verification) return verification;

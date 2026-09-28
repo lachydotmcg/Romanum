@@ -2,6 +2,9 @@ import type OpenAI from "openai";
 import type { Database } from "../history/database.ts";
 import { CREDIT_MARKUP, modelPricing, type CallUsage } from "../credits/pricing.ts";
 import { finishUnreportedUsage, reserveUsage, settleUsage } from "../credits/usage-holds.ts";
+import { isBilledTool } from "../credits/tool-pricing.ts";
+import { finishToolUsage, reserveToolUsage } from "../credits/tool-usage.ts";
+import type { ToolOutcome } from "./tools.ts";
 
 type Request = Pick<OpenAI.Chat.ChatCompletionCreateParams, "model" | "messages" | "tools" | "max_tokens">;
 type ReportedUsage = OpenAI.CompletionUsage & { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number };
@@ -10,6 +13,7 @@ export interface AssistantBilling {
   reserve(maxPriceNanoUsd: number): Promise<string>;
   settle(id: string, call: CallUsage): Promise<void>;
   finish(id: string, uncertain: boolean): Promise<void>;
+  tool(name: string, execute: () => Promise<ToolOutcome>, signal: AbortSignal): Promise<ToolOutcome>;
   readonly credits: number;
 }
 
@@ -20,6 +24,24 @@ export function assistantBilling(db: Database, ownerId: string, feature: "ask" |
     async reserve(maxPriceNanoUsd) { return (await reserveUsage(db, { ownerId, feature, maxPriceNanoUsd })).id; },
     async settle(id, call) { credits += (await settleUsage(db, { ownerId, id, call })).credits; },
     async finish(id, uncertain) { await finishUnreportedUsage(db, { ownerId, id, uncertain }); },
+    async tool(name, execute, signal) {
+      signal.throwIfAborted();
+      if (!isBilledTool(name)) return execute();
+      const id = await reserveToolUsage(db, { ownerId, feature, tool: name });
+      let outcome: ToolOutcome;
+      try {
+        signal.throwIfAborted();
+        outcome = await execute();
+      } catch (error) {
+        await finishToolUsage(db, { ownerId, id, success: false });
+        throw error;
+      }
+      const unavailable = outcome.ok && outcome.result && typeof outcome.result === "object"
+        && "status" in outcome.result && outcome.result.status === "unavailable";
+      const charged = await finishToolUsage(db, { ownerId, id, success: outcome.ok && !unavailable && !signal.aborted });
+      credits += charged;
+      return outcome;
+    },
   };
 }
 

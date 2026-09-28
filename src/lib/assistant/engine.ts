@@ -137,7 +137,8 @@ export async function runAssistant({
         const started = Date.now();
         const privateCall = projectTools?.definitions.some((tool) => tool.function.name === call.name);
         const outcome = signal.aborted ? { ok: false as const, error: "Stopped." }
-          : privateCall ? await projectTools!.execute(prepared, call.id) : await runTool(prepared, fetched);
+          : privateCall ? await projectTools!.execute(prepared, call.id)
+          : await billing.tool(call.name, () => runTool(prepared, fetched), signal);
         if (outcome.ok) fetched.add(outcome.result);
         send({
           type: "tool_end",
@@ -162,7 +163,13 @@ export async function runAssistant({
       const lookups = toolCalls.filter((call) => call.name !== "create_chart" && !writes.includes(call));
       const charts = toolCalls.filter((call) => call.name === "create_chart");
       const results = new Map<string, ApiMessage>();
-      for (const message of await Promise.all(lookups.map(execute))) results.set(message.tool_call_id, message);
+      // Let every started lookup settle before ending the stream on a billing failure.
+      const lookupsFinished = await Promise.allSettled(lookups.map(execute));
+      const failure = lookupsFinished.find(result => result.status === "rejected");
+      if (failure?.status === "rejected") throw failure.reason;
+      for (const result of lookupsFinished) {
+        if (result.status === "fulfilled") results.set(result.value.tool_call_id, result.value);
+      }
       // Private mutations are ordered so a context save cannot race an asset plan.
       for (const call of writes) { const message = await execute(call); results.set(message.tool_call_id, message); }
       for (const call of charts) {

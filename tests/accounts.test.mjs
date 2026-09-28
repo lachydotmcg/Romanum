@@ -129,33 +129,33 @@ test("sign-in refuses tokens for another app, user, issuer or attempt, and expir
 
 const profile = (overrides = {}) => ({ userId: 2067243959, username: "linksgoat", displayName: "Links Goat", pictureUrl: null, ...overrides });
 
-test("sign-up adds 150 to the guest's remaining credits and never replenishes spending on repeat sign-ins", async t => {
+test("sign-up adds 100 to the guest's remaining credits and never replenishes spending on repeat sign-ins", async t => {
   const db = await database(t), guest = `guest:${randomUUID()}`, other = `guest:${randomUUID()}`;
-  assert.equal(ACCOUNT_SIGNUP_CREDITS, 150);
+  assert.equal(ACCOUNT_SIGNUP_CREDITS, 100);
   await welcomeGuest(db, guest); await welcomeGuest(db, other);
   const operationId = randomUUID();
-  await reserveCredits(db, { ownerId: guest, operationId, amount: 12 });
-  await settleReservation(db, { ownerId: guest, operationId, actualCost: 12 });
+  await reserveCredits(db, { ownerId: guest, operationId, amount: 2 });
+  await settleReservation(db, { ownerId: guest, operationId, actualCost: 2 });
   const { account } = await signInAccount(db, profile(), guest);
-  assert.equal((await getBalance(db, { ownerId: guest })).available, 188);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 108);
   for (const guestOwnerId of [guest, other, null]) {
     await signInAccount(db, profile({ username: 'renamed' }), guestOwnerId);
-    assert.equal((await welcomeAccount(db, account.id)).available, 188);
+    assert.equal((await welcomeAccount(db, account.id)).available, 108);
   }
-  assert.equal((await getBalance(db, { ownerId: other })).available, 50);
+  assert.equal((await getBalance(db, { ownerId: other })).available, 10);
   const grants = await db.query("SELECT amount FROM credits_operations WHERE operation_id=$1", [`signup:roblox:${profile().userId}`]);
-  assert.deepEqual(grants.rows.map(row => Number(row.amount)), [150]);
+  assert.deepEqual(grants.rows.map(row => Number(row.amount)), [100]);
 });
 
-test("direct sign-up receives 200 total; concurrent sign-ins share one account and bonus", async t => {
+test("direct sign-up receives 110 total; concurrent sign-ins share one account and bonus", async t => {
   const db = await database(t);
   const results = await Promise.all(Array.from({ length: 8 }, () => signInAccount(db, profile(), null)));
   assert.equal(new Set(results.map(r => r.account.id)).size, 1);
   const { account } = results[0];
-  assert.equal((await getBalance(db, { ownerId: account.ownerId })).available, 200);
-  assert.equal((await db.query("SELECT count(*)::int AS n FROM credits_ledger WHERE owner_id=$1 AND amount=150", [account.ownerId])).rows[0].n, 1);
+  assert.equal((await getBalance(db, { ownerId: account.ownerId })).available, 110);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM credits_ledger WHERE owner_id=$1 AND amount=100", [account.ownerId])).rows[0].n, 1);
   const second = await signInAccount(db, profile({ userId: 42, username: 'other' }), null);
-  assert.equal((await getBalance(db, { ownerId: second.account.ownerId })).available, 200);
+  assert.equal((await getBalance(db, { ownerId: second.account.ownerId })).available, 110);
 });
 
 test("existing accounts receive a missing sign-up bonus once on balance refresh, preserving active holds", async t => {
@@ -164,7 +164,7 @@ test("existing accounts receive a missing sign-up bonus once on balance refresh,
   await welcomeGuest(db, ownerId);
   await reserveCredits(db, { ownerId, operationId: randomUUID(), amount: 7 });
   await Promise.all(Array.from({ length: 8 }, () => welcomeAccount(db, id)));
-  assert.deepEqual(await getBalance(db, { ownerId }), { ownerId, balance: 200, reserved: 7, available: 193 });
+  assert.deepEqual(await getBalance(db, { ownerId }), { ownerId, balance: 110, reserved: 7, available: 103 });
   assert.equal((await db.query("SELECT count(*)::int AS n FROM credits_operations WHERE operation_id='signup:roblox:42'")).rows[0].n, 1);
   await assert.rejects(welcomeAccount(db, randomUUID()), /Account not found/);
 });
@@ -178,9 +178,9 @@ test("a failed sign-up grant rolls back the account and guest changes before a s
   } })) };
   await assert.rejects(signInAccount(failing, profile(), guest), /Injected grant failure/);
   assert.equal((await db.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, 0);
-  assert.equal((await getBalance(db, { ownerId: guest })).available, 50);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 10);
   await signInAccount(db, profile(), guest);
-  assert.equal((await getBalance(db, { ownerId: guest })).available, 200);
+  assert.equal((await getBalance(db, { ownerId: guest })).available, 110);
 });
 
 test("a new account adopts the signing-in guest's credits and chats; later sign-ins leave other guests alone", async (t) => {

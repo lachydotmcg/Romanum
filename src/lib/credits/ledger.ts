@@ -168,6 +168,9 @@ export async function reserveCredits(database: Database, input: { ownerId: unkno
   return runKeyed(database, operationId, async (sql) => {
     // Lock the account first, then re-check the key under that lock. A retry that
     // lost the race still replays here instead of seeing a depleted balance.
+    // New operations also invoke the closed-owner guard. Take its advisory lock
+    // before the credit row, matching grants, weekly refills and account closure.
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [ownerId]);
     const account = await lockAccount(sql, ownerId);
     const existing = await readOperation(sql, operationId);
     if (existing) return replay(sql, existing);

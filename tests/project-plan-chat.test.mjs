@@ -80,7 +80,7 @@ function modelFixture(onRequest) {
     })();
   } } } };
   const charges = [];
-  const billing = { credits: 0, reserve: async (quote) => { charges.push(["reserve", quote]); return crypto.randomUUID(); }, settle: async () => { charges.push(["settle"]); }, finish: async () => assert.fail("complete mock calls must settle") };
+  const billing = { credits: 0, reserve: async (quote) => { charges.push(["reserve", quote]); return crypto.randomUUID(); }, settle: async () => { charges.push(["settle"]); }, finish: async () => assert.fail("complete mock calls must settle"), tool: async (_, execute) => execute() };
   return { client, billing, requests, charges };
 }
 
