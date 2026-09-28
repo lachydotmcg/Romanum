@@ -1,0 +1,106 @@
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.rail {
+  position: sticky;
+  top: 1rem;
+  z-index: 30;
+  grid-row: 1;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.preview {
+  width: min(100%, 19rem);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: .875rem;
+  background: var(--color-canvas);
+}
+
+.previewHeading {
+  display: flex;
+  min-height: 3.5rem;
+  width: 100%;
+  cursor: pointer;
+  align-items: center;
+  gap: .75rem;
+  padding: .625rem .875rem;
+  transition: background-color 180ms ease-out;
+}
+
+.previewHeading:hover, .previewSection:hover { background: var(--color-surface); }
+.previewHeading:focus-visible, .previewSection:focus-visible { outline: 2px solid var(--color-fg); outline-offset: -3px; }
+.previewSections { display: none; }
+.previewSection { display: block; width: 100%; cursor: pointer; padding: .875rem 1rem; text-align: left; transition: background-color 180ms ease-out; }
+.previewSection:hover svg { opacity: 1; }
+.summary { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+.fragments { display: grid; }
+.fragments > span { grid-area: 1 / 1; }
+.fragments > span:nth-child(1) { clip-path: inset(0 0 66.666%); --fragment-x: -9px; --fragment-y: -5px; }
+.fragments > span:nth-child(2) { clip-path: inset(33.333% 0 33.333%); --fragment-x: 10px; --fragment-y: 2px; }
+.fragments > span:nth-child(3) { clip-path: inset(66.666% 0 0); --fragment-x: -4px; --fragment-y: 8px; }
+
+.drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(100%, 32rem);
+  height: 100dvh;
+  max-width: 100%;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--color-line);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+}
+.drawer::backdrop { background: rgb(0 0 0 / .6); }
+.drawer[open] { display: flex; flex-direction: column; }
+.drawerHeader { flex-shrink: 0; padding: 1rem 1.25rem 0; }
+.drawerBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.25rem; }
+
+@media (min-width: 1280px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 18rem; gap: 2rem; }
+  .workspaceExpanded { grid-template-columns: minmax(0, 1fr) 26rem; }
+  .rail { top: 2rem; grid-column: 2; grid-row: 1; display: block; }
+  .preview { width: 100%; }
+  .previewSections { display: block; max-height: calc(100dvh - 10rem); overflow-y: auto; padding-bottom: .25rem; }
+  .previewHeading { min-height: 4.5rem; padding: .875rem 1rem; border-bottom: 1px solid var(--color-line); }
+  .rail[data-expanded="true"] .preview { display: none; }
+  .drawer {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: calc(100dvh - 4rem);
+    border: 1px solid var(--color-line);
+    border-radius: .875rem;
+  }
+}
+
+/* One assembly on a saved change. Loading an existing project stays still. */
+@media (prefers-reduced-motion: no-preference) {
+  .previewAssembling { animation: preview-arrive 280ms ease-out both; }
+  .fragments > span { animation: fragment-assemble 540ms cubic-bezier(.2,.7,.2,1) var(--assemble-delay, 0ms) both; }
+  .markAssembling > path { animation: fragment-assemble 500ms ease-out both; }
+  .markAssembling > path:nth-child(1) { --fragment-x: 5px; --fragment-y: -4px; }
+  .markAssembling > path:nth-child(2) { --fragment-x: -8px; --fragment-y: -6px; animation-delay: 80ms; }
+  .markAssembling > path:nth-child(3) { --fragment-x: -5px; --fragment-y: 7px; animation-delay: 140ms; }
+  .markAssembling > path:nth-child(4) { --fragment-x: 6px; --fragment-y: 3px; animation-delay: 180ms; }
+  .drawer[open] { animation: drawer-arrive 220ms ease-out; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fragments > span:first-child { clip-path: none; }
+  .fragments > span:not(:first-child) { display: none; }
+}
+
+@keyframes preview-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fragment-assemble { from { opacity: 0; transform: translate(var(--fragment-x, 0px), var(--fragment-y, 0px)); } to { opacity: 1; transform: none; } }
+@keyframes drawer-arrive { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }

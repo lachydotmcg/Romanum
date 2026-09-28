@@ -62,7 +62,7 @@ export async function projectResponse(request: Request, deps: Dependencies, id?:
   } catch (error) {
     if (error instanceof ProjectError) {
       if (error.code === "not_found") return fail(404, "Project not found.");
-      if (error.code === "conflict") return fail(409, "This brief changed in another tab. Reload it to edit.");
+      if (error.code === "conflict") return fail(409, "This context has changed. Reload it to edit.");
       if (error.code === "limit") return fail(409, "You've reached the project limit.");
       return fail(400, "Check the project details.");
     }

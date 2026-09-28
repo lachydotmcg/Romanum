@@ -20,6 +20,13 @@ export function ProjectEditor({ initial, embedded = false, onSaved }: { initial:
   const [conflict, setConflict] = useState(false);
   const [saved, setSaved] = useState(false);
   const dirty = JSON.stringify(fields) !== JSON.stringify(values(project));
+  // A live sidebar follows saved AI updates only while pristine. Dirty edits keep
+  // their original revision, so a concurrent save still gets the existing conflict check.
+  if (initial && project?.id === initial.id && initial.revision > project.revision && !dirty && !busy) {
+    setProject(initial);
+    setFields(values(initial));
+    setSaved(false);
+  }
   const change = (key: keyof typeof fields, value: string) => { setFields((before) => ({ ...before, [key]: value })); setSaved(false); };
 
   async function save(archived = project?.archived ?? false) {

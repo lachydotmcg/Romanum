@@ -14,6 +14,7 @@ import { useVerifiedFetch } from "../verification";
 import type { ProjectBrief, ProjectSummary } from "@/lib/projects/store";
 import { ProjectPanel } from "./project-panel";
 import { WorkspaceList } from "./workspace-list";
+import contextStyles from "./project-context.module.css";
 
 const attachmentUrl = (id: string) => `/api/chat-attachments/${id}`;
 const STARTERS = [
@@ -67,6 +68,8 @@ export function ChatView({
   const [turns, setTurns] = useState<Turn[]>(() => replay(initialMessages));
   const [running, setRunning] = useState(false);
   const [project, setProject] = useState(initialProject);
+  const [contextExpanded, setContextExpanded] = useState(Boolean(contextTab));
+  const [contextAnimation, setContextAnimation] = useState(0);
   const projectSaved = useCallback((next: ProjectBrief) => setProject(current => current?.id === next.id && current.revision > next.revision ? current : next), []);
   // The model's guess at the next question: shown in the empty prompt bar and accepted with Tab.
   const [suggestion, setSuggestion] = useState<string | null>(null);
@@ -150,7 +153,7 @@ export function ChatView({
           buffer = buffer.slice(newline + 1);
           if (!line) continue;
           const event = JSON.parse(line) as AssistantEvent;
-          if (event.type === "project_context") { projectSaved(event.project); window.dispatchEvent(new Event(CHATS_CHANGED)); }
+          if (event.type === "project_context") { projectSaved(event.project); setContextAnimation(version => version + 1); window.dispatchEvent(new Event(CHATS_CHANGED)); }
           if (event.type === "suggestion") {
             if (request === requestRef.current) setSuggestion(event.text);
             continue;
@@ -175,13 +178,14 @@ export function ChatView({
 
   const empty = turns.length === 0;
   return (
-    // The negative margin cancels the page's bottom padding, so the prompt bar can sit at the very bottom.
+    <div className={project ? `${contextStyles.workspace} ${contextExpanded ? contextStyles.workspaceExpanded : ""}` : undefined}>
+    {/* The negative margin cancels the page's bottom padding, so the prompt bar can sit at the very bottom. */}
     <div
-      className={`mx-auto -mb-6 flex min-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col sm:-mb-8 sm:min-h-[calc(100dvh-2rem)] ${
+      className={`mx-auto -mb-6 flex min-h-[calc(100dvh-1.5rem)] w-full min-w-0 max-w-3xl flex-col sm:-mb-8 sm:min-h-[calc(100dvh-2rem)] ${
         empty ? "justify-center pb-6 sm:pb-8" : ""
       }`}
     >
-      {project ? <header className="mb-6 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 flex-1 items-center gap-2 text-sm"><Folder className="size-4 shrink-0" /><span className="truncate">{project.name}</span>{project.archived && <span className="text-xs text-fg-muted">Archived</span>}</div><div className="flex items-center gap-3">{!project.archived && <Link href={`/chats?project=${project.id}`} className="rounded text-xs text-fg-muted hover:text-fg focus-visible:outline-2">New chat</Link>}<ProjectPanel project={project} onSaved={projectSaved} initialTab={contextTab} /></div></header> : !empty && canPlan ? <div className="mb-4 flex justify-end"><button type="button" disabled={running} onClick={() => void ask("Help me turn this conversation into a game plan. Ask about anything important that's missing, then save our agreed plan, roadmap and to-dos as project context.", [])} className="min-h-10 rounded-lg border border-line px-3 text-xs text-fg-muted hover:text-fg disabled:opacity-40">Plan this game</button></div> : null}
+      {project ? <header className="mb-6 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 flex-1 items-center gap-2 text-sm"><Folder className="size-4 shrink-0" /><span className="truncate">{project.name}</span>{project.archived && <span className="text-xs text-fg-muted">Archived</span>}</div>{!project.archived && <Link href={`/chats?project=${project.id}`} className="rounded text-xs text-fg-muted hover:text-fg focus-visible:outline-2">New chat</Link>}</header> : !empty && canPlan ? <div className="mb-4 flex justify-end"><button type="button" disabled={running} onClick={() => void ask("Help me turn this conversation into a game plan. Ask about anything important that's missing, then save our agreed plan, roadmap and to-dos as project context.", [])} className="min-h-10 rounded-lg border border-line px-3 text-xs text-fg-muted hover:text-fg disabled:opacity-40">Plan this game</button></div> : null}
       {empty ? (
         <h1 key="heading" className="mb-6 text-center text-2xl font-semibold tracking-tight">
           {project?.archived ? "This project is archived" : "What are we making?"}
@@ -212,6 +216,8 @@ export function ChatView({
       <p role="status" className="sr-only">
         {running ? "The assistant is responding." : ""}
       </p>
+    </div>
+    {project && <ProjectPanel project={project} onSaved={projectSaved} initialTab={contextTab} expanded={contextExpanded} onExpandedChange={setContextExpanded} animationVersion={contextAnimation} />}
     </div>
   );
 }
