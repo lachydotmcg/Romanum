@@ -1,4 +1,5 @@
 import type OpenAI from "openai";
+import { meteredCompletion, type AssistantBilling } from "./billing";
 
 const PROMPT = `You write the next message a Roblox developer is most likely to send after reading an assistant's answer.
 - Write it the way they would type it: plain, specific, under 10 words.
@@ -19,6 +20,7 @@ export async function suggestFollowUp(
   question: string,
   answer: string,
   signal: AbortSignal,
+  billing: AssistantBilling,
 ): Promise<{ text: string | null; usage: OpenAI.CompletionUsage | null }> {
   if (!answer.trim()) return { text: null, usage: null };
   // DeepSeek-specific: a one-line prediction doesn't need its reasoning mode.
@@ -33,7 +35,7 @@ export async function suggestFollowUp(
   } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming;
 
   try {
-    const completion = await client.chat.completions.create(params, { signal, timeout: 8000, maxRetries: 0 });
+    const completion = await meteredCompletion(client, params, billing, signal, 8000);
     const line = (completion.choices[0]?.message?.content ?? "").split("\n").map((part) => part.trim()).find(Boolean);
     const text = line?.replace(QUOTES, "").trim();
     return { text: text && text.length <= 90 ? text : null, usage: completion.usage ?? null };

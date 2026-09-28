@@ -2,8 +2,7 @@ import type OpenAI from "openai";
 import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { welcomeGuest } from "@/lib/credits/guest";
-import { chargeAnswer } from "@/lib/credits/metering";
-import type { CallUsage } from "@/lib/credits/pricing";
+import { assistantBilling } from "@/lib/assistant/billing";
 import { ensureOwner } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase, type Database } from "@/lib/history/database";
@@ -98,11 +97,11 @@ export async function POST(request: Request) {
       const send = (event: AssistantEvent) => {
         if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
-      let usage: CallUsage[] = [];
+      const billing = assistantBilling(db, owner, "ask");
       try {
-        usage = await runAssistant({ client, conversation, send, signal: abort.signal });
+        await runAssistant({ client, conversation, send, signal: abort.signal, billing });
       } finally {
-        await chargeAnswer(db, { ownerId: owner, feature: "ask", calls: usage, send });
+        if (billing.credits) send({ type: "usage", credits: billing.credits });
         if (!closed) {
           closed = true;
           controller.close();

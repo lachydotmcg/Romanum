@@ -59,7 +59,11 @@ Chats (`/chats`) are saved conversations with the same assistant. A message can 
 
 A browser that isn't signed in is an anonymous guest identified by a signed cookie. A new guest receives 50 welcome credits, shown beside Guest in the sidebar. One credit is worth one US cent. Signing in keeps a guest's credits and chats, but anyone can still start a new guest, so grants and uploads need abuse limits, image decoding and moderation before public release.
 
-Ask Romanum and Chats answers spend credits: the tokens each model call reports, priced from `src/lib/credits/pricing.ts` (copied from the providers' official pricing pages, with the date checked), times a 1.65× markup. Each answer shows its cost. Credits are whole numbers, so each guest's fractions carry over until they make a whole credit, which the ledger takes. Asking needs at least one available credit. Charges are recorded in `usage_charges`; public data, charts, game pages and MCP stay free.
+Ask Romanum and Chats answers spend credits: the tokens each model call reports, priced from `src/lib/credits/pricing.ts` (copied from the providers' official pricing pages, with the date checked), times a 1.65× markup. Each answer shows its cost. Credits are whole numbers, so each account's fractions carry over until they make a whole credit, which the ledger takes. Public data, charts, game pages and MCP stay free.
+
+Each model step, including the optional follow-up suggestion, reserves its maximum quoted cost before contacting the provider. Quotes use conservative input bounds, the output limit and peak uncached rates; settlement charges reported usage and releases the unused credits. Concurrent requests cannot spend the same balance. SDK retries are disabled. Apply migration `014_usage_holds.sql` before deploying this behavior.
+
+`usage_holds` records reservations without prompts or image bytes; `usage_charges` records settled usage. Explicit provider rejections release their hold. Disconnections, timeouts, missing usage and server failures retain it for reconciliation, because a provider may still have processed the request. Failed settlements stop further model steps. Operators should inspect open holds and reconcile against provider usage; never release or charge an ambiguous call solely because a timer elapsed. This does not change model pricing or enable payments.
 
 ## Sign-in and linked games
 

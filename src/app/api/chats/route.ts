@@ -2,8 +2,7 @@ import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@/lib/chats/limits";
 import { welcomeGuest } from "@/lib/credits/guest";
-import { chargeAnswer } from "@/lib/credits/metering";
-import type { CallUsage } from "@/lib/credits/pricing";
+import { assistantBilling } from "@/lib/assistant/billing";
 import { CHAT_PROMPT } from "@/lib/chats/prompt";
 import {
   ChatError,
@@ -114,11 +113,11 @@ export async function POST(request: Request) {
         recordEvent(events, event, Date.now() - began);
         if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
-      let usage: CallUsage[] = [];
+      const billing = assistantBilling(db, owner, "chat");
       try {
-        usage = await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT });
+        await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing });
       } finally {
-        await chargeAnswer(db, { ownerId: owner, feature: "chat", calls: usage, send });
+        if (billing.credits) send({ type: "usage", credits: billing.credits });
         // Saved even when the reader leaves early, so the chat keeps what was answered.
         if (!answer.turn && !events.some(({ e }) => e.type === "error")) {
           recordEvent(events, { type: "error", message: "Stopped." }, Date.now() - began);
