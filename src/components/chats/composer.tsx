@@ -23,6 +23,7 @@ export function Composer({
   onStop,
   starters = [],
   projectId,
+  initialText = "",
 }: {
   connected: boolean;
   running: boolean;
@@ -31,8 +32,9 @@ export function Composer({
   onStop: () => void;
   starters?: { label: string; prompt: string }[];
   projectId?: string;
+  initialText?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => initialText.slice(0, MAX_QUESTION_CHARS));
   const [images, setImages] = useState<PendingImage[]>([]);
   const imagesRef = useRef<PendingImage[]>([]);
   const [referencePending, setReferencePending] = useState(false);

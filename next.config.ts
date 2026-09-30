@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Public deploy address only: pin background dispatch to this build, including previews.
+  // DEPLOY_URL itself is build-only on Netlify; never inline provider or database secrets here.
+  env: { ROMANUM_CHAT_RUN_ORIGIN: process.env.DEPLOY_URL ?? "" },
   // Both loopback addresses are used for local OAuth and Turnstile checks.
   allowedDevOrigins: ["127.0.0.1"],
   // Turbopack's persistent build cache can serialize server environment values.

@@ -26,7 +26,7 @@ async function database(t) {
   t.after(() => engine.close());
   const sql = (client) => ({ query: (text, values) => client.query(text, values), exec: async (text) => { await client.exec(text); } });
   const db = { ...sql(engine), transaction: (operation) => engine.transaction((client) => operation(sql(client))), close: () => engine.close() };
-  for (const file of ["012_accounts.sql", "013_linked_games.sql"]) await db.exec(await readFile(path.join(process.cwd(), "db", "migrations", file), "utf8"));
+  for (const file of ["012_accounts.sql", "013_linked_games.sql", "020_private_analytics_ai.sql"]) await db.exec(await readFile(path.join(process.cwd(), "db", "migrations", file), "utf8"));
   return db;
 }
 
@@ -229,7 +229,7 @@ test("collection off stops syncing; disconnecting deletes the key and keeps the 
   assert.equal((await db.query("SELECT count(*)::int AS count FROM linked_game_metrics")).rows[0].count, 0);
   assert.deepEqual(
     (await db.query("SELECT setting, enabled, notice FROM linked_game_consents ORDER BY id")).rows,
-    [{ setting: "collect", enabled: true, notice: "2026-09-27" }, { setting: "collect", enabled: false, notice: "2026-09-27" }],
+    [{ setting: "collect", enabled: true, notice: "2026-09-30" }, { setting: "collect", enabled: false, notice: "2026-09-30" }],
   );
 });
 

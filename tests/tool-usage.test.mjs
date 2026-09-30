@@ -45,8 +45,8 @@ test("concurrent tools share model carry and all appear in the answer cost", asy
     ...BILLED_TOOLS.map(tool => billing.tool(tool, ok, signal())),
     settleUsage(db, { ownerId: "owner", id: model.id, call: { model: "deepseek-flash", at: new Date("2026-09-28T02:00:00Z"), input: 20000, cachedInput: 0, output: 0 } }),
   ]);
-  assert.ok(Math.abs(billing.credits - 0.48) < 1e-10);
-  assert.equal(await carry(db), 4_700_000); // .99 model + .48 tools = 1.47
+  assert.ok(Math.abs(billing.credits - BILLED_TOOLS.length * TOOL_FEE_CREDITS) < 1e-10);
+  assert.equal(await carry(db), (9_900_000 + BILLED_TOOLS.length * 600_000) % 10_000_000);
   assert.equal((await getBalance(db, { ownerId: "owner" })).available, 49);
 });
 

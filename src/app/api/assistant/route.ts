@@ -8,6 +8,8 @@ import { ensureOwner, readAccount } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase, type Database } from "@/lib/history/database";
 import { verificationResponse } from "@/lib/turnstile";
+import { privateAnalyticsTools } from "@/lib/linked-games/assistant-tools";
+import { usesBackgroundChatWorker } from "@/lib/chats/run-dispatch";
 
 const MAX_MESSAGES = 80;
 const MAX_USER_CHARS = 4000;
@@ -75,12 +77,14 @@ export async function POST(request: Request) {
   // Answers spend credits, so the owner needs some before the model is called.
   let db: Database;
   let owner: string;
+  let accountId: string | undefined;
   try {
     const database = await historyDatabase();
     if (!database) throw new Error("No database is configured.");
     db = database;
     owner = await ensureOwner(request);
     const account = await readAccount();
+    if (account?.ownerId === owner) accountId = account.id;
     const balance = account?.ownerId === owner ? await welcomeAccount(db, account.id) : await welcomeGuest(db, owner);
     if (balance.available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
   } catch (error) {
@@ -102,7 +106,9 @@ export async function POST(request: Request) {
       };
       const billing = assistantBilling(db, owner, "ask");
       try {
-        await runAssistant({ client, conversation, send, signal: abort.signal, billing });
+        const timeBudget = usesBackgroundChatWorker() ? 25_000 : undefined;
+        const analyticsTools = accountId ? privateAnalyticsTools(db, accountId, abort.signal, timeBudget ? { signal: AbortSignal.timeout(timeBudget) } : {}) : undefined;
+        await runAssistant({ client, conversation, send, signal: abort.signal, billing, analyticsTools, analysisTimeBudgetMs: timeBudget });
       } finally {
         if (billing.credits) send({ type: "usage", credits: billing.credits });
         if (!closed) {

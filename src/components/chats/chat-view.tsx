@@ -11,6 +11,19 @@ import { Composer, type PendingImage } from "./composer";
 import { CHATS_CHANGED, CREDITS_CHANGED } from "@/components/events";
 import { RecentChats } from "./recent-chats";
 import { useVerifiedFetch } from "../verification";
+import {
+  CHAT_RUN_PAGE_LIMIT,
+  CHAT_RUN_POLL_MS,
+  CHAT_RUN_MAX_RETRIES,
+  ChatRunPollError,
+  cancelChatRun,
+  chatRunFailureMessage,
+  chatRunRetryDelay,
+  isTerminalChatRun,
+  readChatRun,
+  waitForChatRun,
+  type ChatRunPage,
+} from "@/lib/chats/poll-run";
 import type { ProjectBrief, ProjectSummary } from "@/lib/projects/store";
 import { ProjectPanel } from "./project-panel";
 import { WorkspaceList } from "./workspace-list";
@@ -36,7 +49,24 @@ function replay(messages: StoredMessage[]): Turn[] {
       turns[turns.length - 1] = turn.done ? turn : finishTurn(turn, message.events.at(-1)?.t ?? 0);
     }
   }
+  return turns;
+}
+
+/** A saved question whose answer never arrived keeps a terminal note, unless a run is still filling it in. */
+function settle(turns: Turn[]): Turn[] {
   return turns.map((turn) => (turn.done ? turn : finishTurn(turn, 0, "No answer was saved.")));
+}
+
+/** A durable run's acknowledgement stream carries no answer; read it dry so its EOF is never mistaken for one. */
+async function drainAcknowledgement(body: NonNullable<Response["body"]>) {
+  try {
+    const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+    for (;;) {
+      if ((await reader.read()).done) break;
+    }
+  } catch {
+    // The acknowledgement may close early; the answer arrives through the run endpoint regardless.
+  }
 }
 
 /**
@@ -53,6 +83,8 @@ export function ChatView({
   projects = [],
   archived = false,
   contextTab,
+  initialPrompt,
+  activeRun,
 }: {
   chatId: string | null;
   initialMessages: StoredMessage[];
@@ -63,10 +95,19 @@ export function ChatView({
   projects?: ProjectSummary[];
   archived?: boolean;
   contextTab?: string;
+  initialPrompt?: string;
+  /** Set when a saved chat is reopened while its answer is still being produced server-side. */
+  activeRun?: { id: string } | null;
 }) {
   const verifiedFetch = useVerifiedFetch();
-  const [turns, setTurns] = useState<Turn[]>(() => replay(initialMessages));
-  const [running, setRunning] = useState(false);
+  const [turns, setTurns] = useState<Turn[]>(() => {
+    const saved = replay(initialMessages);
+    // A resumed run keeps its last turn open until the recorded events catch up to it.
+    return activeRun && saved.length ? [...settle(saved.slice(0, -1)), saved[saved.length - 1]] : settle(saved);
+  });
+  const [running, setRunning] = useState(Boolean(activeRun));
+  const [stopError, setStopError] = useState<string | null>(null);
+  const stoppingRef = useRef(false);
   const [project, setProject] = useState(initialProject);
   const [contextExpanded, setContextExpanded] = useState(Boolean(contextTab));
   const [contextAnimation, setContextAnimation] = useState(0);
@@ -79,10 +120,19 @@ export function ChatView({
   const followRef = useRef(true);
   // Preview URLs of images sent from this page, released when it closes.
   const previews = useRef(new Set<string>());
+  // Whether the page is still mounted, so an aborted poll never writes to a torn-down tree.
+  const mountedRef = useRef(true);
+  // The turn a run is filling in, and the durable run id to cancel if the reader stops it.
+  const activeRef = useRef<{ turnId: string; runId: string | null } | null>(null);
+  // How far each run has been read, so a re-render (or a dev remount) resumes instead of replaying.
+  const cursorRef = useRef<{ id: string; cursor: number } | null>(null);
 
   useEffect(() => {
     const owned = previews.current;
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      // Leaving the page detaches the reader; the run keeps going so a saved chat can finish later.
       abortRef.current?.abort();
       owned.forEach((url) => URL.revokeObjectURL(url));
     };
@@ -100,14 +150,143 @@ export function ChatView({
     if (followRef.current && turns.length) window.scrollTo({ top: document.documentElement.scrollHeight });
   }, [turns]);
 
+  const updateTurn = useCallback((turnId: string, change: (turn: Turn) => Turn) => {
+    setTurns((prev) => prev.map((turn) => (turn.id === turnId ? change(turn) : turn)));
+  }, []);
+
+  /** Folds one event into a turn and runs the side effects every path shares, streaming or polled. */
+  const applyIncoming = useCallback(
+    (turnId: string, event: AssistantEvent, at: number) => {
+      if (event.type === "project_context") {
+        projectSaved(event.project);
+        setContextAnimation((version) => version + 1);
+        window.dispatchEvent(new Event(CHATS_CHANGED));
+      } else if (event.type === "usage") {
+        window.dispatchEvent(new Event(CREDITS_CHANGED));
+      }
+      updateTurn(turnId, (turn) => applyEvent(turn, event, at));
+    },
+    [projectSaved, updateTurn],
+  );
+
+  /** Follows a durable run to its terminal status, applying its events and settling the turn. */
+  const pollRun = useCallback(
+    async (runId: string, turnId: string, request: number, controller: AbortController) => {
+      // Resume from where this run was last read, so a re-render or dev remount never replays events.
+      let cursor = cursorRef.current?.id === runId ? cursorRef.current.cursor : 0;
+      let attempt = 0;
+      let terminal: ChatRunPage | null = null;
+      for (;;) {
+        let page: ChatRunPage;
+        try {
+          page = await readChatRun(runId, cursor, controller.signal);
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          const pollError = error instanceof ChatRunPollError ? error : new ChatRunPollError("Retrieving the answer failed.", false);
+          if (pollError.retryable && attempt < CHAT_RUN_MAX_RETRIES) {
+            attempt += 1;
+            try {
+              await waitForChatRun(controller.signal, chatRunRetryDelay(attempt));
+            } catch {
+              return;
+            }
+            continue;
+          }
+          if (mountedRef.current && request === requestRef.current) {
+            setRunning(false);
+            updateTurn(turnId, (turn) => (turn.done ? turn : finishTurn(turn, Date.now(), pollError.message)));
+          }
+          return;
+        }
+        if (controller.signal.aborted || !mountedRef.current || request !== requestRef.current) return;
+        attempt = 0;
+        for (const { e } of page.events) applyIncoming(turnId, e, Date.now());
+        cursor = page.cursor;
+        cursorRef.current = { id: runId, cursor };
+        // A terminal status still drains: a page at the limit may have more events behind it.
+        if (isTerminalChatRun(page.status) && page.events.length < CHAT_RUN_PAGE_LIMIT) {
+          terminal = page;
+          break;
+        }
+        if (!isTerminalChatRun(page.status)) {
+          try {
+            await waitForChatRun(controller.signal, CHAT_RUN_POLL_MS);
+          } catch {
+            return;
+          }
+        }
+      }
+      if (!terminal || !mountedRef.current || request !== requestRef.current) return;
+      const message = terminal.status === "complete" && !terminal.error ? null : chatRunFailureMessage(terminal);
+      updateTurn(turnId, (turn) => (turn.done ? turn : finishTurn(turn, Date.now(), message)));
+      setRunning(false);
+      window.dispatchEvent(new Event(CHATS_CHANGED));
+    },
+    [applyIncoming, updateTurn],
+  );
+
+  /** Explicit Stop: cancel the durable run server-side, then detach the reader and close the turn. */
+  const stop = useCallback(async () => {
+    const active = activeRef.current;
+    if (stoppingRef.current) return;
+    if (active?.runId) {
+      stoppingRef.current = true;
+      try {
+        await cancelChatRun(active.runId);
+      } catch {
+        if (mountedRef.current && activeRef.current === active) setStopError("The review could not be stopped. It may still be running; try Stop again.");
+        return;
+      } finally { stoppingRef.current = false; }
+      if (activeRef.current !== active) return;
+    }
+    setStopError(null);
+    activeRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    if (active && mountedRef.current) {
+      updateTurn(active.turnId, (turn) => (turn.done ? turn : finishTurn(turn, Date.now(), "Stopped.")));
+    }
+    setRunning(false);
+  }, [updateTurn]);
+
+  // The last turn is the one a reopened run is still filling in; its id is stable for this mount.
+  const resumeTurnIdRef = useRef<string | null>(null);
+  resumeTurnIdRef.current = turns.at(-1)?.id ?? null;
+  const activeRunId = activeRun?.id ?? null;
+  useEffect(() => {
+    if (!activeRunId) return;
+    const runId = activeRunId;
+    const turnId = resumeTurnIdRef.current;
+    if (!turnId) {
+      setRunning(false);
+      return;
+    }
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+    const request = ++requestRef.current;
+    activeRef.current = { turnId, runId };
+    setRunning(true);
+    void pollRun(runId, turnId, request, controller).finally(() => {
+      if (activeRef.current?.runId === runId && request === requestRef.current) activeRef.current = null;
+      if (abortRef.current === controller) abortRef.current = null;
+      if (request === requestRef.current) setRunning(false);
+    });
+    // Leaving detaches this reader; the backend keeps working so the saved chat can finish later.
+    return () => controller.abort();
+    // Only a different run should restart the loop; events are deduplicated by the run's cursor.
+  }, [activeRunId, pollRun]);
+
   async function ask(question: string, images: PendingImage[]) {
     if (running) return;
+    setStopError(null);
     // Close any remaining stream from the previous answer.
     abortRef.current?.abort();
     const request = ++requestRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
     const turnId = crypto.randomUUID();
+    activeRef.current = { turnId, runId: null };
     const update = (change: (turn: Turn) => Turn) => setTurns((prev) => prev.map((turn) => (turn.id === turnId ? change(turn) : turn)));
     for (const image of images) previews.current.add(image.url);
     followRef.current = true;
@@ -137,6 +316,15 @@ export function ChatView({
       }
       window.dispatchEvent(new Event(CHATS_CHANGED));
 
+      // A durable run acknowledges the request, then answers in the background; otherwise this is the answer.
+      const runId = res.headers.get("x-chat-run-id");
+      if (runId) {
+        activeRef.current = { turnId, runId };
+        void drainAcknowledgement(res.body);
+        await pollRun(runId, turnId, request, controller);
+        return;
+      }
+
       // The route streams one JSON event per line.
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
       let buffer = "";
@@ -150,11 +338,8 @@ export function ChatView({
           buffer = buffer.slice(newline + 1);
           if (!line) continue;
           const event = JSON.parse(line) as AssistantEvent;
-          if (event.type === "project_context") { projectSaved(event.project); setContextAnimation(version => version + 1); window.dispatchEvent(new Event(CHATS_CHANGED)); }
-          if (event.type === "suggestion") continue; // Ignore legacy server events during deploys.
           if (event.type === "done") setRunning(false);
-          update((turn) => applyEvent(turn, event, Date.now()));
-          if (event.type === "usage") window.dispatchEvent(new Event(CREDITS_CHANGED));
+          applyIncoming(turnId, event, Date.now());
         }
       }
       // If the stream ended without a "done" event, don't leave the turn spinning.
@@ -164,6 +349,7 @@ export function ChatView({
       // A completed answer stays intact if its remaining stream is interrupted.
       update((turn) => (turn.done ? turn : finishTurn(turn, Date.now(), message)));
     } finally {
+      if (activeRef.current?.turnId === turnId) activeRef.current = null;
       if (request === requestRef.current) setRunning(false);
       if (abortRef.current === controller) abortRef.current = null;
     }
@@ -193,12 +379,14 @@ export function ChatView({
         {!empty && (
           <div className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10 backdrop-blur-xl [mask-image:linear-gradient(to_top,black_calc(100%_-_2.5rem),transparent)] [@media(prefers-reduced-transparency:reduce)]:bg-canvas" />
         )}
+        {stopError && <p role="alert" className="mb-2 text-sm text-fg-muted">{stopError}</p>}
         <Composer
+          initialText={initialPrompt}
           projectId={project?.id}
           connected={connected}
           running={running}
           onSend={ask}
-          onStop={() => abortRef.current?.abort()}
+          onStop={stop}
           starters={!empty ? [] : !project ? STARTERS : !project.archived ? [{ label: "Plan next steps", prompt: "Help me review this game's plan and work out the next steps. Save the agreed roadmap and to-dos in context." }, { label: "Plan a thumbnail", prompt: "Create and save a thumbnail plan for this project." }, { label: "Plan a UI", prompt: "Create and save a UI plan for this project. Ask me which screen to design first." }] : []}
         />
       </div>}

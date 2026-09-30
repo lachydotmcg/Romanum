@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT } from "../assistant/prompt";
+import { SYSTEM_PROMPT } from "../assistant/prompt.ts";
 
 // Like SYSTEM_PROMPT, kept free of per-request values so DeepSeek can reuse its prompt cache.
 export const CHAT_PROMPT = `${SYSTEM_PROMPT}

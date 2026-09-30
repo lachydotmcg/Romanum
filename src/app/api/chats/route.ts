@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { assistantClient, runAssistant } from "@/lib/assistant/engine";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@/lib/chats/limits";
@@ -16,13 +17,17 @@ import {
   questionForModel,
   recordEvent,
   saveAnswer,
-  saveQuestion,
   type TimedEvent,
 } from "@/lib/chats/store";
 import { ensureOwner, readOwner, readAccount } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
 import { verificationResponse } from "@/lib/turnstile";
+import { privateAnalyticsTools } from "@/lib/linked-games/assistant-tools";
+import { listLinkedGames } from "@/lib/linked-games/store";
+import { submitChatQuestion, ChatRunBusyError, failQueuedChatRun } from "@/lib/chats/runs";
+import { executeChatRun } from "@/lib/chats/run-worker";
+import { dispatchChatRun, usesBackgroundChatWorker } from "@/lib/chats/run-dispatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,17 +98,31 @@ export async function POST(request: Request) {
     if (verification) return verification;
     return failure(503, "Credits unavailable. Try again later.");
   }
-  let saved: Awaited<ReturnType<typeof saveQuestion>>;
+  const account = await readAccount();
+  let submitted: Awaited<ReturnType<typeof submitChatQuestion>>;
   try {
+    const backgroundAccount = account?.ownerId === owner && (await listLinkedGames(db, account.id)).some(game => game.aiAnalysis && game.collect && game.status === "active") ? account.id : null;
     const attachments = await Promise.all(files.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })));
-    saved = await saveQuestion(db, { ownerId: owner, chatId, projectId, question: text, attachments });
+    submitted = await submitChatQuestion(db, { ownerId: owner, chatId, projectId, question: text, attachments }, backgroundAccount);
   } catch (error) {
+    if (error instanceof ChatRunBusyError) return failure(409, error.message);
     if (error instanceof ChatError) return failure(error.code === "not_found" ? 404 : 400, error.message);
     return failure(503, "Chats unavailable.");
   }
 
+  const { saved, runId } = submitted;
   const question = questionForModel(saved.question, saved.attachments.map((file) => file.name));
-  const account = await readAccount();
+  if (runId) {
+    after(async () => {
+      try {
+        if (usesBackgroundChatWorker()) await dispatchChatRun(runId);
+        else await executeChatRun(db, runId);
+      } catch {
+        await failQueuedChatRun(db, owner, runId).catch(() => {});
+      }
+    });
+    return new Response("\n", { status: 202, headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-chat-id": saved.chatId, "x-chat-run-id": runId } });
+  }
   const conversation = withProjectContext(modelConversation(saved.history, withReferenceImages(question, saved.images)), saved.project);
   const client = assistantClient(apiKey);
   const abort = new AbortController();
@@ -124,7 +143,8 @@ export async function POST(request: Request) {
       const billing = assistantBilling(db, owner, "chat");
       try {
         const projectTools = account?.ownerId === owner ? conversationTools(db!, { ownerId: owner, chatId: saved.chatId, questionId: saved.questionId, project: saved.project }, abort.signal) : undefined;
-        await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing, projectTools });
+        const analyticsTools = account?.ownerId === owner ? privateAnalyticsTools(db!, account.id, abort.signal) : undefined;
+        await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing, projectTools, analyticsTools });
       } finally {
         if (billing.credits) send({ type: "usage", credits: billing.credits });
         // Saved even when the reader leaves early, so the chat keeps what was answered.
