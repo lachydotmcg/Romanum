@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { unzipSync } from "fflate";
+import { inflateRawSync } from "node:zlib";
 import { z } from "zod";
 import type { AdReportBundle, AdReportContext, AdReportFile, AdReportRow, AdReportCohort } from "./types.ts";
 import { CANONICAL_DAILY_HEADER } from "./types.ts";
@@ -55,17 +55,30 @@ function zipManifest(bytes: Uint8Array) {
   let end = bytes.length - 22;
   while (end >= Math.max(0, bytes.length - 65558) && view.getUint32(end, true) !== 0x06054b50) end--;
   if (end < 0 || end < bytes.length - 65558 || end + 22 + view.getUint16(end + 20, true) !== bytes.length) throw new Error("Invalid ZIP directory");
+  if (end >= 20 && view.getUint32(end - 20, true) === 0x07064b50) throw new Error("ZIP64 is unsupported");
   if (view.getUint16(end + 4, true) || view.getUint16(end + 6, true)) throw new Error("Multi-disk ZIP is unsupported");
   const count = view.getUint16(end + 10, true), directorySize = view.getUint32(end + 12, true);
   let offset = view.getUint32(end + 16, true);
+  const directoryStart = offset;
   if (!count || count > AD_REPORT_LIMITS.files || count !== view.getUint16(end + 8, true) || offset + directorySize !== end) throw new Error("Invalid ZIP count/size or unsupported ZIP64");
-  const manifest = new Map<string, { size: number; crc: number }>();
+  const manifest = new Map<string, { size: number; crc: number; method: number; dataOffset: number; compressed: number }>();
   const names = new Set<string>();
+  const ranges: [number, number][] = [];
+  const extraFields = (start: number, length: number) => {
+    const end = start + length;
+    while (start < end) {
+      if (start + 4 > end) throw new Error("Invalid ZIP extra field");
+      const id = view.getUint16(start, true), size = view.getUint16(start + 2, true);
+      if (id === 1) throw new Error("ZIP64 is unsupported");
+      start += 4 + size;
+      if (start > end) throw new Error("Invalid ZIP extra field");
+    }
+  };
   let expanded = 0;
   for (let i = 0; i < count; i++) {
     if (offset + 46 > end || view.getUint32(offset, true) !== 0x02014b50) throw new Error("Invalid ZIP entry");
     const flags = view.getUint16(offset + 8, true), method = view.getUint16(offset + 10, true), compressed = view.getUint32(offset + 20, true), size = view.getUint32(offset + 24, true), nameLength = view.getUint16(offset + 28, true), extra = view.getUint16(offset + 30, true), comment = view.getUint16(offset + 32, true), local = view.getUint32(offset + 42, true);
-    if (flags & 1 || ![0, 8].includes(method) || view.getUint16(offset + 34, true) || offset + 46 + nameLength + extra + comment > end || local + 30 > offset || view.getUint32(local, true) !== 0x04034b50) throw new Error("Encrypted/unsupported/invalid ZIP entry");
+    if (flags & ~0x080e || ![0, 8].includes(method) || view.getUint16(offset + 34, true) || offset + 46 + nameLength + extra + comment > end || local + 30 > directoryStart || view.getUint32(local, true) !== 0x04034b50) throw new Error("Encrypted/unsupported/invalid ZIP entry");
     const name = new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
     safeName(name);
     if (!name.toLowerCase().endsWith(".csv")) throw new Error("ZIP may contain CSV files only");
@@ -73,12 +86,46 @@ function zipManifest(bytes: Uint8Array) {
     names.add(name.toLowerCase()); expanded += size;
     if (size > AD_REPORT_LIMITS.csvBytes || expanded > AD_REPORT_LIMITS.expandedBytes || size > Math.max(1024, compressed * 200)) throw new Error("ZIP size/count/compression ratio limit exceeded");
     const localNameLength = view.getUint16(local + 26, true), localExtra = view.getUint16(local + 28, true);
-    if (local + 30 + localNameLength + localExtra + compressed > offset || view.getUint16(local + 8, true) !== method || view.getUint16(local + 6, true) !== flags || new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(local + 30, local + 30 + localNameLength)) !== name || (method === 0 && size !== compressed)) throw new Error("ZIP local/central metadata mismatch");
-    manifest.set(name, { size, crc: view.getUint32(offset + 16, true) });
+    if (local + 30 + localNameLength + localExtra + compressed > directoryStart || view.getUint16(local + 8, true) !== method || view.getUint16(local + 6, true) !== flags || new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(local + 30, local + 30 + localNameLength)) !== name || (method === 0 && size !== compressed)) throw new Error("ZIP local/central metadata mismatch");
+    extraFields(offset + 46 + nameLength, extra);
+    extraFields(local + 30 + localNameLength, localExtra);
+    const crc = view.getUint32(offset + 16, true);
+    for (const [position, expected] of [[14, crc], [18, compressed], [22, size]]) {
+      const actual = view.getUint32(local + position, true);
+      if (actual !== expected && (!(flags & 8) || actual !== 0)) throw new Error("ZIP local/central metadata mismatch");
+    }
+    const dataOffset = local + 30 + localNameLength + localExtra;
+    ranges.push([local, dataOffset + compressed]);
+    manifest.set(name, { size, crc, method, dataOffset, compressed });
     offset += 46 + nameLength + extra + comment;
   }
   if (offset !== end) throw new Error("Invalid ZIP directory length");
+  ranges.sort(([a], [b]) => a - b);
+  if (ranges.some(([start], i) => i > 0 && start < ranges[i - 1][1])) throw new Error("Overlapping ZIP entries");
   return manifest;
+}
+
+/** Extract exactly the validated slices; never let a second ZIP parser choose a directory. */
+function extractZip(bytes: Uint8Array): Record<string, Uint8Array> {
+  const manifest = zipManifest(bytes);
+  const sources: Record<string, Uint8Array> = Object.create(null);
+  for (const [name, entry] of manifest) {
+    const compressed = bytes.subarray(entry.dataOffset, entry.dataOffset + entry.compressed);
+    let output: Uint8Array;
+    if (entry.method === 0) output = compressed;
+    else {
+      try {
+        // The native inflater enforces this bound while producing output, before a
+        // forged size can cause an oversized allocation or a truncated prefix.
+        const result = inflateRawSync(compressed, { maxOutputLength: Math.max(1, entry.size), chunkSize: Math.max(64, Math.min(16384, entry.size)), info: true }) as unknown as { buffer: Uint8Array; engine: { bytesWritten: number } };
+        if (result.engine.bytesWritten !== compressed.length) throw new Error("Trailing compressed data");
+        output = result.buffer;
+      } catch { throw new Error("ZIP DEFLATE output exceeds declared size or compressed data is invalid"); }
+    }
+    if (output.length !== entry.size || crc32(output) !== entry.crc) throw new Error("ZIP checksum/expanded-size mismatch");
+    sources[name] = output;
+  }
+  return sources;
 }
 function safeName(name: string) {
   if (name.length > 500 || /[\x00-\x1f\\:]/.test(name) || name.startsWith("/") || name.split("/").some((part) => part === ".." || part === "." || part === "")) throw new Error("Unsafe ZIP or CSV filename");
@@ -170,13 +217,7 @@ export function importAdReports(input: { name: string; bytes: Uint8Array }, inpu
   if (!input.bytes.length || input.bytes.length > AD_REPORT_LIMITS.uploadBytes) throw new Error("Upload size limit exceeded or empty upload");
   let sources: Record<string, Uint8Array>;
   if (input.name.toLowerCase().endsWith(".zip")) {
-    // Preflight all entries before fflate allocates any decompressed buffers.
-    const manifest = zipManifest(input.bytes);
-    sources = unzipSync(input.bytes);
-    for (const [name, bytes] of Object.entries(sources)) {
-      const expected = manifest.get(name);
-      if (!expected || bytes.length !== expected.size || crc32(bytes) !== expected.crc) throw new Error("ZIP checksum/expanded-size mismatch");
-    }
+    sources = extractZip(input.bytes);
   } else if (input.name.toLowerCase().endsWith(".csv")) sources = { [input.name]: input.bytes };
   else throw new Error("Only CSV or ZIP uploads are supported");
   const warnings: string[] = [];

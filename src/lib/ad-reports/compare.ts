@@ -1,12 +1,28 @@
 import type { AdReportBundle, AdReportCalculated, AdReportMetrics, AdReportRow, AdReportSelection, AdReportSummary } from "./types.ts";
 
 const COHORTS = ["AllUsers", "NewUsers", "ReturningUsers", "7DResurrected", "30DResurrected"];
+function selectedPeriod(bundle: AdReportBundle, selection: AdReportSelection) {
+  return {
+    start: selection.grain === "daily" ? selection.dateStart ?? bundle.context.periodStart : bundle.context.periodStart,
+    end: selection.grain === "daily" ? selection.dateEnd ?? bundle.context.periodEnd : bundle.context.periodEnd,
+  };
+}
+function knownPaymentMethod(rows: AdReportRow[]): string | null {
+  const methods = new Set(rows.map((row) => row.paymentType?.trim() || null));
+  const method = [...methods][0];
+  return methods.size === 1 && method && method.toLowerCase() !== "unspecified" ? method : null;
+}
 function selectedRows(bundle: AdReportBundle, selection: AdReportSelection) {
   if (!selection || !["aggregate", "daily"].includes(selection.grain) || !["campaign", "ad"].includes(selection.entityType) || !COHORTS.includes(selection.cohort)) throw new Error("An explicit grain, entity type and cohort are required");
   if (selection.adId && selection.entityType !== "ad") throw new Error("adId requires ad entity selection");
   if (selection.grain === "aggregate" && (selection.dateStart || selection.dateEnd)) throw new Error("Aggregate reports cannot be filtered into daily observations");
   for (const date of [selection.dateStart, selection.dateEnd]) if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date)) throw new Error("Invalid selected date");
   if (selection.dateStart && selection.dateEnd && selection.dateStart > selection.dateEnd) throw new Error("Invalid selected date range");
+  if (selection.grain === "daily" && (selection.dateStart || selection.dateEnd)) {
+    const { periodStart, periodEnd } = bundle.context;
+    if (!periodStart || !periodEnd) throw new Error("Daily date selection requires a declared report period");
+    for (const date of [selection.dateStart, selection.dateEnd]) if (date && (date < periodStart || date > periodEnd)) throw new Error("Selected daily dates are outside the report period");
+  }
   return bundle.files.filter((file) => file.grain === selection.grain && file.entityType === selection.entityType && file.cohort === selection.cohort).flatMap((file) => file.rows.filter((row) => (!selection.campaignId || row.campaignId === selection.campaignId) && (!selection.adId || row.adId === selection.adId) && (!selection.dateStart || (row.date !== null && row.date >= selection.dateStart)) && (!selection.dateEnd || (row.date !== null && row.date <= selection.dateEnd))).map((row) => ({ row, file })));
 }
 function calculated(metrics: AdReportMetrics): AdReportCalculated {
@@ -27,8 +43,7 @@ export function summarizeAdReports(bundle: AdReportBundle, selection: AdReportSe
     }
   }
   const warnings: string[] = [];
-  const paymentTypes = new Set(entries.map(({ row }) => row.paymentType));
-  if (entries.length && (paymentTypes.size !== 1 || paymentTypes.has(null))) {
+  if (entries.length && !knownPaymentMethod(entries.map(({ row }) => row))) {
     metrics.spend = null;
     warnings.push("Payment method is mixed or unknown; spend, CPC and CPP cannot be combined across unspecified units.");
   }
@@ -39,7 +54,7 @@ export function summarizeAdReports(bundle: AdReportBundle, selection: AdReportSe
   if ((metrics.impressions !== null && metrics.impressions < 1000) || (metrics.clicks !== null && metrics.clicks < 30) || (metrics.plays !== null && metrics.plays < 10)) warnings.push("Small sample: descriptive metrics alone do not establish a reliable winner.");
   if (entries.some(({ row }) => row.clicks !== null && row.plays !== null && row.plays > row.clicks)) warnings.push("Reported plays exceed clicks; plays/clicks is not treated as a conversion probability.");
   if (selection.grain === "daily") {
-    const start = selection.dateStart ?? bundle.context.periodStart, end = selection.dateEnd ?? bundle.context.periodEnd;
+    const { start, end } = selectedPeriod(bundle, selection);
     const dates = new Set(entries.map(({ row }) => row.date));
     if (start && end && dates.size < Math.floor((Date.parse(end) - Date.parse(start)) / 86400000) + 1) warnings.push("Daily coverage is incomplete; unreported dates are missing, not zero.");
     if (start && end) {
@@ -58,16 +73,23 @@ export function compareAdReports(leftBundle: AdReportBundle, rightBundle: AdRepo
   if (!["ctr", "playsPerImpression", "cpc", "cpp"].includes(metric)) throw new Error("Unknown comparison metric");
   const reasons: string[] = [], warnings = [...left.warnings, ...right.warnings];
   const cost = metric === "cpc" || metric === "cpp";
-  for (const key of ["periodStart", "periodEnd", "timezone", "attributionWindow", "placement", "audience"] as const) {
+  for (const key of ["timezone", "attributionWindow", "placement", "audience"] as const) {
     if (leftBundle.context[key] !== rightBundle.context[key]) reasons.push(`Report context differs: ${key}.`);
     if (leftBundle.context[key] === null || rightBundle.context[key] === null) reasons.push(`Report context is unknown: ${key}.`);
   }
   if (options.left.grain !== options.right.grain) reasons.push("Aggregate and daily grains cannot be compared directly.");
   if (options.left.cohort !== options.right.cohort) reasons.push("Cohorts differ; overlapping cohorts are not comparable or additive.");
   if (options.left.entityType !== options.right.entityType) reasons.push("Campaign summaries and ad rows are different entity grains.");
-  if ((options.left.dateStart ?? leftBundle.context.periodStart) !== (options.right.dateStart ?? rightBundle.context.periodStart) || (options.left.dateEnd ?? leftBundle.context.periodEnd) !== (options.right.dateEnd ?? rightBundle.context.periodEnd)) reasons.push("Selected reporting periods differ.");
-  if (cost && (!left.currency || !right.currency || left.currency !== right.currency)) reasons.push("Cost comparison requires the same known currency/spend unit.");
+  const leftPeriod = selectedPeriod(leftBundle, options.left), rightPeriod = selectedPeriod(rightBundle, options.right);
+  if (leftPeriod.start !== rightPeriod.start || leftPeriod.end !== rightPeriod.end) reasons.push("Selected reporting periods differ.");
+  if (!leftPeriod.start || !rightPeriod.start || !leftPeriod.end || !rightPeriod.end) reasons.push("Selected reporting periods are unknown.");
+  const sameCurrency = !!left.currency && !!right.currency && left.currency === right.currency;
+  if (cost && !sameCurrency) reasons.push("Cost comparison requires the same known currency/spend unit.");
   const lRows = selectedRows(leftBundle, options.left).map(({ row }) => row), rRows = selectedRows(rightBundle, options.right).map(({ row }) => row);
+  const leftPayment = knownPaymentMethod(lRows), rightPayment = knownPaymentMethod(rRows);
+  const samePaymentMethod = leftPayment !== null && leftPayment === rightPayment;
+  if (cost && !samePaymentMethod) reasons.push("Cost comparison requires the same single known Payment Method.");
+  if (!sameCurrency || !samePaymentMethod) warnings.push("Cost deltas are unavailable without the same known currency/spend unit and single known Payment Method.");
   const aliases: Record<string, string> = { "Universe ID": "universeId", "Objective": "objective", "Ad Format": "adFormat" };
   const field = (rows: AdReportRow[], key: string, bundle: AdReportBundle) => new Set(rows.map((row) => key === "Payment Method" ? row.paymentType : (row.raw[key] ?? row.raw[aliases[key]])?.trim() || (key === "Audience" ? bundle.context.audience : null)));
   for (const key of ["Universe ID", "Objective", "Audience", ...(options.left.entityType === "ad" || options.right.entityType === "ad" ? ["Ad Format"] : []), ...(cost ? ["Payment Method"] : [])]) {
@@ -84,8 +106,8 @@ export function compareAdReports(leftBundle: AdReportBundle, rightBundle: AdRepo
   const comparable = reasons.length === 0;
   const delta: AdReportCalculated = { ctr: null, playsPerImpression: null, cpc: null, cpp: null };
   if (comparable) for (const key of Object.keys(delta) as (keyof AdReportCalculated)[]) {
-    // Unspecified currency must never silently produce a cost delta.
-    if ((key === "cpc" || key === "cpp") && (!left.currency || left.currency !== right.currency)) continue;
+    // Every cost delta requires compatible units, including in a CTR comparison.
+    if ((key === "cpc" || key === "cpp") && (!sameCurrency || !samePaymentMethod)) continue;
     const a = left.calculated[key], b = right.calculated[key];
     delta[key] = a === null || b === null ? null : b - a;
   }
