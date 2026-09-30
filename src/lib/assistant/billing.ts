@@ -93,6 +93,7 @@ export async function* meteredStream(
   params: OpenAI.Chat.ChatCompletionCreateParamsStreaming,
   billing: AssistantBilling,
   signal: AbortSignal,
+  beforeSend?: () => Promise<void>,
 ): AsyncGenerator<OpenAI.Chat.ChatCompletionChunk> {
   const id = await billing.reserve(quoteAssistantCall(params));
   const at = new Date();
@@ -100,6 +101,8 @@ export async function* meteredStream(
   let failure: unknown;
   let usage: CallUsage | undefined;
   try {
+    signal.throwIfAborted();
+    await beforeSend?.();
     signal.throwIfAborted();
     sent = true;
     // One reservation funds one attempt. Hidden SDK retries could incur a second bill.

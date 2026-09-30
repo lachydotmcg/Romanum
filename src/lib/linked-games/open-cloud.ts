@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Roblox Open Cloud calls made with a person's own API key: key introspection, and the Analytics Query API
 // (create.roblox.com/docs/cloud/guides/analytics), which is in beta. The key needs the universe.analytics:read
-// operation for the experience, and the API allows 30 queries a minute per key owner.
+// operation for the experience. Queries are bounded and rate-limit responses are handled without retries.
 
 export const OPEN_CLOUD = {
   analytics: "https://apis.roblox.com/analytics-query-api/",
@@ -24,43 +24,112 @@ export class OpenCloudError extends Error {
   }
 }
 
-export type OpenCloudOptions = { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void> };
+export type OpenCloudOptions = { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void>; signal?: AbortSignal };
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-async function call(request: typeof fetch, url: string, init: RequestInit): Promise<unknown> {
+async function call(request: typeof fetch, url: string, init: RequestInit, signal?: AbortSignal): Promise<unknown> {
+  signal?.throwIfAborted();
   let response: Response;
   try {
-    response = await request(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    response = await request(url, { ...init, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
+    signal?.throwIfAborted();
     throw new OpenCloudError("unavailable", "Couldn't reach Roblox.");
   }
   if (response.status === 401 || response.status === 403) throw new OpenCloudError("key_rejected", "Roblox rejected the API key for this game.");
   if (response.status === 429) throw new OpenCloudError("rate_limited", "Roblox is rate limiting this key. Try again in a minute.");
   if (response.status === 404) throw new OpenCloudError("bad_request", "Roblox couldn't find that game.");
-  const body = await response.json().catch(() => null);
   if (response.status === 400) throw new OpenCloudError("bad_request", "Roblox refused the query.");
   if (!response.ok) throw new OpenCloudError("unavailable", `Roblox returned ${response.status}.`);
-  return body;
+  // Bound responses before parsing or sending them to a model. Never echo upstream bodies in errors.
+  if (Number(response.headers.get("content-length")) > 1_048_576) throw new OpenCloudError("bad_request", "The response is too large. Narrow the date range or breakdown.");
+  const reader = response.body?.getReader();
+  if (!reader) throw new OpenCloudError("unavailable", "Roblox sent an empty answer.");
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    while (true) {
+      signal?.throwIfAborted();
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 1_048_576) {
+        await reader.cancel();
+        throw new OpenCloudError("bad_request", "The response is too large. Narrow the date range or breakdown.");
+      }
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (error instanceof OpenCloudError) throw error;
+    throw new OpenCloudError("unavailable", "Roblox sent an unexpected answer.");
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 const operation = z.object({
   path: z.string().optional(),
   done: z.boolean(),
-  response: z
-    .object({
-      values: z.array(
-        z.object({
-          dataPoints: z.array(z.object({ time: z.string(), value: z.number().nullish(), status: z.string().nullish() })),
-        }),
-      ),
-    })
-    .optional(),
+  response: z.unknown().optional(),
   error: z.object({ code: z.number().optional() }).optional(),
 });
 
-/** A pending query's operation, to poll. Checked, since the URL is built from what Roblox sent. */
-const OPERATION_PATH = /^v1\/universes\/\d+\/operations\/metrics\/[\w.~-]{1,200}$/;
+export type AnalyticsFilter = { dimension: string; values: string[]; operation: "In" | "NotIn" | "GreaterThan" | "GreaterThanOrEqual" | "LessThan" | "LessThanOrEqual" | "Match" };
+export type AnalyticsQuery = { metric: string; granularity: string; startTime: string; endTime: string; breakdown?: string[]; filter?: AnalyticsFilter[]; limit?: number };
+export type DimensionQuery = Omit<AnalyticsQuery, "granularity" | "breakdown"> & { dimensions: string[] };
+const dimensionValue = z.object({ value: z.string().max(512), displayValue: z.string().max(512).nullish() });
+const seriesSchema = z.object({
+  values: z.array(z.object({
+    breakdowns: z.array(dimensionValue.extend({ dimension: z.string().max(100) })).max(8).default([]),
+    dataPoints: z.array(z.object({ time: z.iso.datetime({ offset: true }), value: z.number().nullish(), stringValues: z.array(z.string().max(512)).max(100).nullish(), status: z.string().max(80).nullish() })).max(50_000),
+  })).max(1000),
+});
+const dimensionsSchema = z.object({ values: z.array(z.object({ dimension: z.string().max(100), values: z.array(dimensionValue).max(1000) })).max(8) });
+export type AnalyticsSeries = z.infer<typeof seriesSchema>["values"][number];
+export type AnalyticsDimension = z.infer<typeof dimensionsSchema>["values"][number];
+
+async function queryOperation<T>(apiKey: string, universeId: number, endpoint: "metrics" | "dimension-values", body: AnalyticsQuery | DimensionQuery, schema: z.ZodType<T>, options: OpenCloudOptions): Promise<T> {
+  if (!Number.isSafeInteger(universeId) || universeId <= 0) throw new OpenCloudError("bad_request", "Invalid universe ID.");
+  const request = options.fetch ?? fetch;
+  const signal = options.signal;
+  const headers = { "x-api-key": apiKey, "content-type": "application/json", accept: "application/json" };
+  const pollPath = new RegExp(`^v1/universes/${universeId}/operations/${endpoint}/[\\w.~-]{1,200}$`);
+  let result = operation.safeParse(await call(request, `${OPEN_CLOUD.analytics}v1/universes/${universeId}/${endpoint}`, { method: "POST", headers, body: JSON.stringify(body) }, signal));
+  for (let poll = 0; result.success && !result.data.done; poll++) {
+    const path = result.data.path?.replace(/^\//, "");
+    if (poll >= POLL_LIMIT || !path || !pollPath.test(path)) throw new OpenCloudError("unavailable", "Roblox took too long to answer or sent an invalid operation.");
+    signal?.throwIfAborted();
+    const delay = Math.min(1000 * 2 ** poll, 8000);
+    if (options.sleep) await options.sleep(delay);
+    else if (signal) await new Promise<void>((resolve, reject) => {
+      const aborted = () => { clearTimeout(timer); reject(signal.reason); };
+      const timer = setTimeout(() => { signal.removeEventListener("abort", aborted); resolve(); }, delay);
+      signal.addEventListener("abort", aborted, { once: true });
+    });
+    else await wait(delay);
+    result = operation.safeParse(await call(request, `${OPEN_CLOUD.analytics}${path}`, { headers }, signal));
+  }
+  if (!result.success) throw new OpenCloudError("unavailable", "Roblox sent an unexpected answer.");
+  if (result.data.error) {
+    const code = result.data.error.code;
+    throw new OpenCloudError(code === 3000 ? "rate_limited" : code === 2001 ? "bad_request" : "unavailable", "Roblox couldn't answer the query. Check its supported dimensions and date range.");
+  }
+  const response = schema.safeParse(result.data.response);
+  if (!response.success) throw new OpenCloudError("unavailable", "Roblox sent an unexpected answer.");
+  return response.data;
+}
+
+/** Numeric or text-valued series, preserving every breakdown, missing value and point status. */
+export async function queryAnalytics(apiKey: string, universeId: number, query: AnalyticsQuery, options: OpenCloudOptions = {}): Promise<AnalyticsSeries[]> {
+  return (await queryOperation(apiKey, universeId, "metrics", query, seriesSchema, options)).values;
+}
+
+/** Raw values (used for filters) and human labels, including creator-defined funnel names and steps. */
+export async function queryDimensionValues(apiKey: string, universeId: number, query: DimensionQuery, options: OpenCloudOptions = {}): Promise<AnalyticsDimension[]> {
+  return (await queryOperation(apiKey, universeId, "dimension-values", query, dimensionsSchema, options)).values;
+}
 
 export type DailyValue = { day: string; value: number; status: string | null };
 
@@ -75,31 +144,9 @@ export async function queryDailyMetric(
   range: { start: Date; end: Date },
   options: OpenCloudOptions = {},
 ): Promise<DailyValue[]> {
-  const request = options.fetch ?? fetch;
-  const sleep = options.sleep ?? wait;
-  const body = JSON.stringify({ metric, granularity: "OneDay", startTime: range.start.toISOString(), endTime: range.end.toISOString() });
-  let result = operation.safeParse(
-    await call(request, `${OPEN_CLOUD.analytics}v1/universes/${universeId}/metrics`, {
-      method: "POST",
-      headers: { "x-api-key": apiKey, "content-type": "application/json", accept: "application/json" },
-      body,
-    }),
-  );
-  for (let poll = 0; result.success && !result.data.done; poll++) {
-    const path = result.data.path?.replace(/^\//, "");
-    if (poll >= POLL_LIMIT || !path || !OPERATION_PATH.test(path)) throw new OpenCloudError("unavailable", "Roblox took too long to answer.");
-    await sleep(Math.min(1000 * 2 ** poll, 8000));
-    result = operation.safeParse(await call(request, `${OPEN_CLOUD.analytics}${path}`, { headers: { "x-api-key": apiKey, accept: "application/json" } }));
-  }
-  if (!result.success) throw new OpenCloudError("unavailable", "Roblox sent an unexpected answer.");
-  if (result.data.error) {
-    const code = result.data.error.code;
-    throw code === 3000
-      ? new OpenCloudError("rate_limited", "The query asked for too much data.")
-      : new OpenCloudError(code === 2001 ? "bad_request" : "unavailable", "Roblox couldn't answer the query.");
-  }
+  const values = await queryAnalytics(apiKey, universeId, { metric, granularity: "OneDay", startTime: range.start.toISOString(), endTime: range.end.toISOString() }, options);
   // Without a breakdown, the answer is a single series.
-  return (result.data.response?.values[0]?.dataPoints ?? []).flatMap((point) => {
+  return (values[0]?.dataPoints ?? []).flatMap((point) => {
     const day = point.time.slice(0, 10);
     return /^\d{4}-\d{2}-\d{2}$/.test(day) && typeof point.value === "number" && Number.isFinite(point.value)
       ? [{ day, value: point.value, status: point.status ?? null }]

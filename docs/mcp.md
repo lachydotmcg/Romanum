@@ -43,7 +43,7 @@ Run the application with `npm run dev`, then run `npm run mcp:smoke`. An optiona
 
 The smoke test uses the official MCP client, reads actual Roblox data and stored history through all ten tools, checks modelled earnings, resolves a game link, checks cache timestamps, and verifies both legacy and 2026-07-28 protocol connections. `npm test` covers protocol contracts, invalid inputs, resource boundaries, caching, history storage, origin/host validation, body size, quotas and concurrency without external network access.
 
-The website, integrated assistant and MCP share `src/lib/public-data.ts`. Public tool schemas and handlers live in `src/lib/public-tools.ts`; MCP protocol and HTTP handling live in `src/lib/mcp/`. Only the integrated assistant calls the model provider. Its chart-rendering tool is not exposed through MCP.
+The website, integrated assistant and MCP share `src/lib/public-data.ts`. Public tool schemas and handlers live in `src/lib/public-tools.ts`; MCP protocol and HTTP handling live in `src/lib/mcp/`. Only the integrated assistant calls the model provider. Its chart-rendering tool is not exposed through MCP. Private owner analytics are available only in authenticated Ask Romanum and Chats after a separate per-game AI-analysis opt-in; those tool definitions and results are never registered with public MCP.
 
 The implementation uses the [official TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk) and [Streamable HTTP](https://modelcontextprotocol.io/specification/latest/basic/transports), with stateless compatibility for older clients. It has no persistent sessions or server subscriptions. A plain browser GET to `/mcp` returns 405; connect with an MCP client.
 

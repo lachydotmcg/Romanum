@@ -6,7 +6,7 @@ import { openSecret, sealSecret } from "../secrets.ts";
 // to the account. The key never leaves the server: it's stored sealed, and only its last four characters come back.
 
 /** Version of the short notices beside the collection and sharing switches, recorded with each choice. */
-export const CONSENT_NOTICE = "2026-09-27";
+export const CONSENT_NOTICE = "2026-09-30";
 
 export type LinkedGameStatus = "active" | "key_rejected" | "disconnected";
 
@@ -17,6 +17,8 @@ export type LinkedGame = {
   collect: boolean;
   /** Help improve Romanum: off by default. */
   share: boolean;
+  /** Allow the hosted assistant to query private analytics. Separate from improvement sharing. */
+  aiAnalysis: boolean;
   status: LinkedGameStatus;
   /** A sync started within the last ten minutes and hasn't finished. */
   syncing: boolean;
@@ -34,6 +36,7 @@ type Row = {
   universe_id: string | number;
   collect: boolean;
   share: boolean;
+  ai_analysis: boolean;
   status: LinkedGameStatus;
   syncing: boolean;
   synced_at: Date | string | null;
@@ -49,6 +52,7 @@ const toGame = (row: Row): LinkedGame => ({
   universeId: Number(row.universe_id),
   collect: row.collect,
   share: row.share,
+  aiAnalysis: row.ai_analysis,
   status: row.status,
   syncing: row.syncing,
   syncedAt: iso(row.synced_at),
@@ -57,7 +61,7 @@ const toGame = (row: Row): LinkedGame => ({
   keyExpiresAt: iso(row.expires_at),
 });
 
-const SELECT = `SELECT g.id, g.universe_id, g.collect, g.share, g.status, g.synced_at, g.sync_error, k.hint, k.expires_at,
+const SELECT = `SELECT g.id, g.universe_id, g.collect, g.share, g.ai_analysis, g.status, g.synced_at, g.sync_error, k.hint, k.expires_at,
   (g.sync_started_at IS NOT NULL AND g.sync_started_at > now() - interval '10 minutes' AND (g.synced_at IS NULL OR g.synced_at < g.sync_started_at)) AS syncing
   FROM linked_games g LEFT JOIN linked_game_keys k ON k.game_id = g.id`;
 
@@ -79,7 +83,7 @@ export async function linkedGameForUniverse(database: Database, accountId: strin
   return rows[0] ? toGame(rows[0]) : null;
 }
 
-const recordConsent = (sql: Pick<Database, "query">, accountId: string, universeId: number, setting: "collect" | "share", enabled: boolean) =>
+const recordConsent = (sql: Pick<Database, "query">, accountId: string, universeId: number, setting: "collect" | "share" | "ai_analysis", enabled: boolean) =>
   sql.query("INSERT INTO linked_game_consents(account_id, universe_id, setting, enabled, notice) VALUES ($1,$2,$3,$4,$5)", [
     accountId,
     universeId,
@@ -149,6 +153,42 @@ export async function setShare(database: Database, accountId: string, gameId: st
     if (rows[0]) await recordConsent(sql, accountId, Number(rows[0].universe_id), "share", enabled);
   });
   return readLinkedGame(database, accountId, gameId);
+}
+
+/** Opt in to owner-only AI analysis; revoking or changing it invalidates in-flight reads. */
+export async function setAiAnalysis(database: Database, accountId: string, gameId: string, enabled: boolean): Promise<LinkedGame | null> {
+  await database.transaction(async (sql) => {
+    const { rows } = await sql.query<{ universe_id: string | number }>(
+      `UPDATE linked_games SET ai_analysis=$3, consent_version=consent_version + 1
+       WHERE id=$1 AND account_id=$2 AND ai_analysis <> $3 RETURNING universe_id`,
+      [gameId, accountId, enabled],
+    );
+    if (rows[0]) await recordConsent(sql, accountId, Number(rows[0].universe_id), "ai_analysis", enabled);
+  });
+  return readLinkedGame(database, accountId, gameId);
+}
+
+/** Server-only access snapshot. The account is supplied by the authenticated route, never the model. */
+export async function analyticsAccess(database: Database, accountId: string, gameId: string): Promise<{ universeId: number; version: number } | null> {
+  const { rows } = await database.query<{ universe_id: string | number; consent_version: number }>(
+    `SELECT g.universe_id, g.consent_version FROM linked_games g JOIN linked_game_keys k ON k.game_id=g.id
+     WHERE g.id=$1 AND g.account_id=$2 AND g.ai_analysis AND g.collect AND g.status='active'
+       AND (k.expires_at IS NULL OR k.expires_at > now())`,
+    [gameId, accountId],
+  );
+  return rows[0] ? { universeId: Number(rows[0].universe_id), version: rows[0].consent_version } : null;
+}
+
+/** Opens only this account's AI-enabled key at the captured consent version, even if linking changes concurrently. */
+export async function openAnalyticsKey(database: Database, accountId: string, gameId: string, version: number, secretsKey: Buffer): Promise<string | null> {
+  const { rows } = await database.query<{ key_version: number; iv: Uint8Array; ciphertext: Uint8Array; tag: Uint8Array }>(
+    `SELECT k.key_version, k.iv, k.ciphertext, k.tag FROM linked_game_keys k JOIN linked_games g ON g.id=k.game_id
+     WHERE g.id=$1 AND g.account_id=$2 AND g.consent_version=$3 AND g.ai_analysis AND g.collect AND g.status='active'
+       AND (k.expires_at IS NULL OR k.expires_at > now())`,
+    [gameId, accountId, version],
+  );
+  const row = rows[0];
+  return row ? openSecret({ keyVersion: row.key_version, iv: row.iv, ciphertext: row.ciphertext, tag: row.tag }, keyContext(gameId), secretsKey) : null;
 }
 
 /** Deletes the game's stored key and stops syncing. Its metrics stay until the game's data is deleted. */

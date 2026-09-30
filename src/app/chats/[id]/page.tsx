@@ -7,6 +7,7 @@ import { readChat } from "@/lib/chats/store";
 import { readOwner, readAccount } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
 import { readProject } from "@/lib/projects/store";
+import { activeChatRun } from "@/lib/chats/runs";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ context?: string }> };
 
@@ -15,7 +16,10 @@ const getChat = cache(async (id: string) => {
   const owner = await readOwner();
   const database = await historyDatabase();
   if (!database) throw new Error("Chats unavailable.");
-  return owner ? readChat(database, owner, id) : null;
+  if (!owner) return null;
+  // Recover an expired review before reading messages, so partial output survives this reload.
+  await activeChatRun(database, owner, id);
+  return readChat(database, owner, id);
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -31,5 +35,6 @@ export default async function ChatPage({ params, searchParams }: Props) {
   const owner = await readOwner();
   const db = await historyDatabase();
   const project = chat.projectId && owner && db ? await readProject(db, owner, chat.projectId) : null;
-  return <ChatView key={chat.id} chatId={chat.id} initialMessages={chat.messages} recent={null} connected={Boolean(process.env.DEEPSEEK_API_KEY)} project={project} canPlan={!!await readAccount()} contextTab={(await searchParams).context} />;
+  const activeRun = owner && db ? await activeChatRun(db, owner, chat.id) : null;
+  return <ChatView key={chat.id} chatId={chat.id} initialMessages={chat.messages} recent={null} connected={Boolean(process.env.DEEPSEEK_API_KEY)} project={project} canPlan={!!await readAccount()} contextTab={(await searchParams).context} activeRun={activeRun ?? undefined} />;
 }

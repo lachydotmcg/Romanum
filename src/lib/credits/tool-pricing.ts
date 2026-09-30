@@ -5,6 +5,7 @@ export const TOOL_FEE_NANO_USD = 600_000;
 export const BILLED_TOOLS = [
   "load_skill", "search_games", "get_game_stats", "get_game_history",
   "get_roblox_charts", "get_market_analysis", "research_game_idea", "estimate_game_earnings",
+  "get_private_game_overview", "get_private_analytics_dimensions", "query_private_analytics",
 ] as const;
 export type BilledTool = (typeof BILLED_TOOLS)[number];
 export const isBilledTool = (name: string): name is BilledTool => BILLED_TOOLS.some(tool => tool === name);

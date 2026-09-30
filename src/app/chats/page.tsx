@@ -12,11 +12,11 @@ export const metadata: Metadata = {
   title: "Chats",
 };
 
-export default async function ChatsPage({ searchParams }: { searchParams: Promise<{ project?: string; archived?: string; context?: string }> }) {
+export default async function ChatsPage({ searchParams }: { searchParams: Promise<{ project?: string; archived?: string; context?: string; prompt?: string }> }) {
   // Per request: the key check and this browser's chats can't be baked in at build time.
   await connection();
   const owner = await readOwner();
-  const { project: projectId, archived: archivedParam, context } = await searchParams;
+  const { project: projectId, archived: archivedParam, context, prompt } = await searchParams;
   const account = await readAccount();
   const archived = archivedParam === "true";
   let project: ProjectBrief | null = null;
@@ -36,5 +36,5 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
   } catch {
     // A new chat still works without the list.
   }
-  return <ChatView key={project?.id ?? (archived ? "archived" : "new")} chatId={null} initialMessages={[]} recent={recent} connected={Boolean(process.env.DEEPSEEK_API_KEY)} project={project} canPlan={!!account} projects={projects} archived={archived} contextTab={context} />;
+  return <ChatView key={project?.id ?? (archived ? "archived" : "new")} chatId={null} initialMessages={[]} recent={recent} connected={Boolean(process.env.DEEPSEEK_API_KEY)} project={project} canPlan={!!account} projects={projects} archived={archived} contextTab={context} initialPrompt={typeof prompt === "string" ? prompt.slice(0, 4000) : undefined} />;
 }

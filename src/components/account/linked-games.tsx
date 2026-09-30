@@ -64,7 +64,7 @@ function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView
     return result;
   }
 
-  async function toggle(setting: "collect" | "share", value: boolean) {
+  async function toggle(setting: "collect" | "share" | "aiAnalysis", value: boolean) {
     const { game: updated } = await act(`/api/linked-games/${game.id}`, { method: "PATCH", body: JSON.stringify({ [setting]: value }) });
     if (updated) onChange(updated);
   }
@@ -121,6 +121,18 @@ function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView
           disabled={busy || game.status !== "active"}
           onChange={(value) => toggle("collect", value)}
         />
+        <Switch
+          label="AI analysis"
+          description="Let Ask Romanum and Chats read this game's private analytics, including funnels, performance and revenue. Results go to DeepSeek and remain in saved chats. Turning this off stops new reads; it doesn't erase earlier answers."
+          checked={game.aiAnalysis}
+          disabled={busy || (!game.aiAnalysis && game.status !== "active")}
+          onChange={(value) => toggle("aiAnalysis", value)}
+        />
+        {game.aiAnalysis && game.collect && game.status === "active" && (
+          <Link href={`/chats?prompt=${encodeURIComponent(`Analyse my linked game ${name} (universe ${game.universeId}). Review its funnels, client and server performance, retention, engagement, monetization and acquisition. Explain the strongest evidence, what is missing, and the changes I should test first.`)}`} className={`inline-flex min-h-9 items-center rounded-lg border border-line px-3 text-xs hover:bg-surface-hover ${FOCUS}`}>
+            Analyse this game
+          </Link>
+        )}
         <Switch
           label="Help improve Romanum"
           description="Let Romanum use this game's daily metrics, from today on, to improve its analysis."
@@ -224,7 +236,7 @@ export function LinkedGames({ initial }: { initial: LinkedGameView[] }) {
         </h3>
         <p className="mt-1 text-xs leading-5 text-fg-muted">
           Create an API key with <span className="text-fg">universe-analytics</span> → <span className="text-fg">universe.analytics:read</span> for the game.
-          Romanum encrypts the key and never shows it again. It syncs daily active users, sessions, playtime, retention, revenue and payer conversion.{" "}
+          Romanum encrypts the key and never shows it again. It syncs daily active users, sessions, playtime, retention, revenue and payer conversion. Turn on AI analysis after linking for deeper private analytics.{" "}
           <a href={KEYS_PAGE} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-0.5 rounded-sm text-fg underline-offset-2 hover:underline ${FOCUS}`}>
             Creator Dashboard <ArrowUpRight className="size-3 text-white" aria-hidden="true" />
           </a>

@@ -7,6 +7,10 @@ import { FetchedData } from "./fetched-data.ts";
 import { prepareCall, runTool, TOOLS } from "./tools.ts";
 import type { ApiMessage, AssistantEvent } from "./types";
 import type { ProjectChatTools } from "../projects/chat-tools";
+import type { PrivateAnalyticsTools } from "../linked-games/assistant-tools";
+import { PRIVATE_ANALYTICS_PROMPT } from "../linked-games/assistant-prompt.ts";
+import { OpenCloudError } from "../linked-games/open-cloud.ts";
+import { withoutPrivateToolHistory } from "../linked-games/assistant-history.ts";
 
 // The assistant's model loop, shared by Ask Romanum (/api/assistant) and saved chats (/api/chats).
 
@@ -29,6 +33,7 @@ export function callUsage(at: Date, usage: DeepSeekUsage): CallUsage {
 }
 
 function describeError(error: unknown): string {
+  if (error instanceof OpenCloudError) return error.message;
   if (error instanceof CreditsError && error.code === "insufficient_balance") return "Not enough credits for the next step.";
   // Provider setup and billing diagnostics belong in server logs and README.md.
   if (error instanceof OpenAI.AuthenticationError || (error instanceof OpenAI.APIError && error.status === 402)) return "Assistant unavailable. Try again later.";
@@ -49,6 +54,9 @@ export async function runAssistant({
   billing,
   systemPrompt = SYSTEM_PROMPT,
   projectTools,
+  analyticsTools,
+  analysisTimeBudgetMs,
+  beforeAttempt,
 }: {
   client: OpenAI;
   conversation: ApiMessage[];
@@ -57,26 +65,39 @@ export async function runAssistant({
   billing: AssistantBilling;
   systemPrompt?: string;
   projectTools?: ProjectChatTools;
+  analyticsTools?: PrivateAnalyticsTools;
+  /** Leave time for a final answer on hosts with short streaming limits; background reviews omit this. */
+  analysisTimeBudgetMs?: number;
+  /** Durable workers revalidate cancellation/deletion immediately before each paid or tool attempt. */
+  beforeAttempt?: () => Promise<void>;
 }): Promise<void> {
   // Everything the model and tools add during this turn, returned so the conversation can continue from it.
   const turn: ApiMessage[] = [];
+  const modelHistory = withoutPrivateToolHistory(conversation);
   // What the tools have fetched so far in the conversation; charts can only plot these values.
-  const fetched = FetchedData.fromMessages(conversation);
+  const fetched = FetchedData.fromMessages(modelHistory);
 
   try {
-    for (let step = 0; step < MAX_STEPS; step++) {
+    const began = Date.now();
+    const maxSteps = analyticsTools ? 12 : MAX_STEPS;
+    for (let step = 0; step < maxSteps; step++) {
+      await beforeAttempt?.();
+      await analyticsTools?.checkAccess();
+      const finalAnalysisStep = !!analyticsTools && (step === maxSteps - 1 || (analysisTimeBudgetMs !== undefined && Date.now() - began >= analysisTimeBudgetMs));
       const completion = meteredStream(
         client,
         {
           model: ASSISTANT_MODEL,
-          messages: [{ role: "system", content: systemPrompt }, ...conversation, ...turn],
-          tools: [...TOOLS, ...(projectTools?.definitions ?? [])],
+          messages: [{ role: "system", content: systemPrompt + (analyticsTools ? PRIVATE_ANALYTICS_PROMPT : "") }, ...modelHistory, ...turn,
+            ...(finalAnalysisStep ? [{ role: "system" as const, content: "Finish the answer now using the evidence already retrieved. State any missing or unchecked areas. No more tools are available this turn." }] : [])],
+          ...(!finalAnalysisStep ? { tools: [...TOOLS, ...(projectTools?.definitions ?? []), ...(analyticsTools?.definitions ?? [])] } : {}),
           max_tokens: MAX_TOKENS,
           stream: true,
           stream_options: { include_usage: true },
         },
         billing,
         signal,
+        beforeAttempt,
       );
 
       let content = "";
@@ -125,6 +146,7 @@ export async function runAssistant({
       }
 
       const execute = async (call: (typeof toolCalls)[number]) => {
+        await beforeAttempt?.();
         const prepared = prepareCall(call.name, call.arguments);
         send({
           type: "tool_start",
@@ -136,10 +158,14 @@ export async function runAssistant({
         });
         const started = Date.now();
         const privateCall = projectTools?.definitions.some((tool) => tool.function.name === call.name);
+        const analyticsCall = analyticsTools?.definitions.some((tool) => tool.function.name === call.name);
         const outcome = signal.aborted ? { ok: false as const, error: "Stopped." }
           : privateCall ? await projectTools!.execute(prepared, call.id)
-          : await billing.tool(call.name, () => runTool(prepared, fetched), signal);
-        if (outcome.ok) fetched.add(outcome.result);
+          : analyticsCall ? await billing.tool(call.name, async () => { await beforeAttempt?.(); return analyticsTools!.execute(prepared, call.id); }, signal)
+          : await billing.tool(call.name, async () => { await beforeAttempt?.(); return runTool(prepared, fetched); }, signal);
+        await beforeAttempt?.();
+        if (analyticsCall && outcome.ok) await analyticsTools!.checkAccess();
+        if (outcome.ok && !analyticsCall) fetched.add(outcome.result);
         send({
           type: "tool_end",
           id: call.id,
@@ -161,10 +187,11 @@ export async function runAssistant({
       // Lookups run in parallel; charts run after them, so a chart requested alongside a lookup sees its data.
       const writes = toolCalls.filter((call) => call.name === "save_project_context" || call.name === "save_asset_plan");
       const lookups = toolCalls.filter((call) => call.name !== "create_chart" && !writes.includes(call));
-      const charts = toolCalls.filter((call) => call.name === "create_chart");
+      const charts = toolCalls.filter((call) => call.name === "create_chart" || call.name === "create_private_analytics_chart");
+      const dataLookups = lookups.filter(call => !charts.includes(call));
       const results = new Map<string, ApiMessage>();
       // Let every started lookup settle before ending the stream on a billing failure.
-      const lookupsFinished = await Promise.allSettled(lookups.map(execute));
+      const lookupsFinished = await Promise.allSettled(dataLookups.map(execute));
       const failure = lookupsFinished.find(result => result.status === "rejected");
       if (failure?.status === "rejected") throw failure.reason;
       for (const result of lookupsFinished) {

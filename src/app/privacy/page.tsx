@@ -9,7 +9,7 @@ const sections = [["collection", "What we collect"], ["ai", "AI requests"], ["ga
 export default function PrivacyPage() {
   return <article className="mx-auto max-w-3xl pb-12">
     <header>
-      <p className="text-sm text-fg-muted">Updated 28 September 2026</p>
+      <p className="text-sm text-fg-muted">Updated 30 September 2026</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Privacy policy</h1>
       <p className="mt-5 leading-relaxed text-fg-muted">Romanum is a Roblox development platform based in Australia. This policy covers the Romanum website and its services. Contact us at <a href="mailto:help@romanum.dev" className={LINK}>help@romanum.dev</a>.</p>
     </header>
@@ -36,14 +36,17 @@ export default function PrivacyPage() {
         <h2>AI requests</h2>
         <p>Ask Romanum and Chats currently use DeepSeek. Sending a message sends its text, relevant conversation history, retrieved information and any images attached to that message to DeepSeek. In a project chat, the project brief is also included. Images are resized and their embedded metadata is removed before they are stored and sent.</p>
         <p>Chats saves the conversation and its attachments. Ask Romanum does not create a saved chat, but provider processing and credit usage records still apply. Saved chat images are not automatically sent again in later messages.</p>
+        <p>For accounts with AI analysis enabled on a connected game, Chats can continue a response in the background after you leave the page. We temporarily store the question, relevant context and references to its attachments, and save private progress so you can reopen the chat. Use Stop to request cancellation. Temporary queued context is cleared when the review ends; saved progress and answers remain with the chat until deletion.</p>
         <p>Project reference images stay in your private library. Choosing one in a chat copies it into that message; sending the message sends that copy to DeepSeek. Removing the library image does not remove copies already saved in chats.</p>
-        <p>Your linked game&apos;s private metrics are not currently available to the assistant. If you paste private metrics or other information into a message, that content is sent with the request. The game-sharing switch does not prevent this processing.</p>
+        <p>Private game analytics reach the assistant only when you enable <strong className="text-fg">AI analysis</strong> for that linked game. When you ask about it, relevant aggregate metrics and breakdowns can be retrieved with your stored key and sent to DeepSeek. These can include funnels, device performance, retention, engagement, monetization, acquisition, economy and custom events. The API key itself is never sent to the model. If you paste private metrics into a message, that content is sent with your request regardless of the game&apos;s switches.</p>
+        <p>Private results and answers are retained in saved chats. Turning AI analysis off stops new private analytics reads; it does not remove earlier answers or recall provider requests. Earlier answers can still be included in later conversation history. Previous private tool payloads are withheld from subsequent turns; a new lookup needs current permission. Delete the chat to remove its saved copy.</p>
         <p>DeepSeek handles requests under its applicable terms. Romanum has not established a zero-retention or no-training arrangement with DeepSeek, so we do not make either promise. Avoid sending passwords, API keys, sensitive personal information or personal information about children in chats.</p>
       </section>
       <section id="games">
         <h2>Connected games</h2>
         <p>Linking a game provides its universe ID and a Roblox API key. We encrypt the key in storage and use it to request the game&apos;s authorised aggregate analytics, such as daily players, session length, playtime, retention, revenue and payer conversion. This integration does not collect individual player identities.</p>
         <p><strong className="text-fg">Collect analytics</strong> controls future collection. Turning it off keeps previously collected records. Disconnecting removes the saved key; deleting a linked game also removes its saved metrics.</p>
+        <p><strong className="text-fg">AI analysis</strong> is off by default and separate from improvement sharing. It permits owner-only analysis through Ask Romanum and Chats while collection is on and the game is connected. Private results do not enter public pages, public MCP tools or shared analytics caches. Changing access during a query discards the pending result. Deleting a linked game does not delete earlier copies in your chats.</p>
         <p><strong className="text-fg">Help improve Romanum</strong> is off by default. It records whether your metrics may be included in platform-improvement analysis. No feature currently uses these shared metrics. Turning it off removes them from that access immediately. We record changes to these settings to keep a consent history.</p>
         <p>Turning these settings off does not stop collection of information already public on Roblox. We will update the notice before introducing a new use of private metrics.</p>
       </section>

@@ -32,6 +32,7 @@ export const EXPORT_SECTIONS = [
   "chats",
   "chat_messages",
   "chat_attachments",
+  "chat_runs",
   "creative_projects",
   "creative_assets",
   "creative_workflows",
@@ -259,10 +260,16 @@ const SPECS: Record<ExportSection, SectionSpec> = {
     key: "(d.entry_id::text || '|' || d.source_entry_id::text)",
   },
   linked_games: {
-    columns: "g.id, g.account_id, g.universe_id::text AS universe_id, g.collect, g.share, g.shared_since, g.consent_version, g.status, g.synced_at, g.sync_error, g.created_at",
+    columns: "g.id, g.account_id, g.universe_id::text AS universe_id, g.collect, g.share, g.ai_analysis, g.shared_since, g.consent_version, g.status, g.synced_at, g.sync_error, g.created_at",
     from: "linked_games g",
     scope: "g.account_id = $2::uuid",
     key: "g.id::text",
+  },
+  chat_runs: {
+    columns: "r.id,r.account_id,r.owner_id,r.chat_id,r.question_id,r.status,r.payload,r.events,r.event_count,r.cancel_requested,r.error,r.created_at,r.started_at,r.finished_at",
+    from: "chat_runs r",
+    scope: "r.account_id=$2::uuid AND r.owner_id=$1",
+    key: "r.id::text",
   },
   linked_game_metrics: {
     columns: "m.game_id, m.metric, m.day::text AS day, m.value, m.status, m.fetched_at",

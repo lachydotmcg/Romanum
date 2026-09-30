@@ -47,6 +47,12 @@ export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
 ];
 
 const LABELS: Record<string, string> = {
+  list_my_linked_games: "Find your linked games",
+  get_private_analytics_catalog: "Read private analytics catalog",
+  get_private_game_overview: "Read your game analytics",
+  get_private_analytics_dimensions: "Find analytics breakdowns",
+  query_private_analytics: "Read private game data",
+  create_private_analytics_chart: "Chart private analytics",
   save_project_context: "Save project context",
   save_asset_plan: "Save asset plan",
   list_asset_plans: "Find saved plans",
@@ -88,6 +94,18 @@ function parseArgs(raw: string): Record<string, unknown> {
 
 function describe(name: string, args: Record<string, unknown>): { activity: string; detail: string } {
   switch (name) {
+    case "list_my_linked_games":
+      return { activity: "Finding your linked games", detail: "" };
+    case "get_private_analytics_catalog":
+      return { activity: "Checking supported private analytics", detail: String(args.metric ?? args.category ?? "all categories") };
+    case "get_private_game_overview":
+      return { activity: "Reading your private daily analytics", detail: "" };
+    case "get_private_analytics_dimensions":
+      return { activity: "Discovering your game's analytics breakdowns", detail: String(args.metric ?? "") };
+    case "query_private_analytics":
+      return { activity: "Reading your game's private data", detail: String(args.metric ?? "") };
+    case "create_private_analytics_chart":
+      return { activity: "Charting your private analytics", detail: String(args.title ?? "") };
     case "save_project_context":
       return { activity: "Saving the game plan", detail: String(args.name ?? "") };
     case "save_asset_plan":

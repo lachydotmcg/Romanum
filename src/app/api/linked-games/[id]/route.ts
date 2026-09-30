@@ -3,7 +3,7 @@ import { z } from "zod";
 import { readAccount } from "@/lib/accounts/session";
 import { isCrossSite } from "@/lib/guest";
 import { historyDatabase } from "@/lib/history/database";
-import { deleteLinkedGame, readLinkedGame, setCollect, setShare } from "@/lib/linked-games/store";
+import { deleteLinkedGame, readLinkedGame, setCollect, setShare, setAiAnalysis } from "@/lib/linked-games/store";
 import { syncLinkedGame } from "@/lib/linked-games/sync";
 import { linkedGameViews } from "@/lib/linked-games/view";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "no-store" };
 const failure = (status: number, error: string) => Response.json({ error }, { status, headers: NO_STORE });
 const gameId = z.uuid();
-const choices = z.object({ collect: z.boolean().optional(), share: z.boolean().optional() }).refine((value) => value.collect !== undefined || value.share !== undefined);
+const choices = z.object({ collect: z.boolean().optional(), share: z.boolean().optional(), aiAnalysis: z.boolean().optional() }).strict().refine((value) => Object.values(value).some((choice) => choice !== undefined));
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -28,7 +28,7 @@ async function scope(request: Request, context: Context) {
   return { account, id: id.data, db };
 }
 
-/** Turns collecting analytics or Help improve Romanum on or off for one of the account's games. */
+/** Changes collection, AI analysis or improvement sharing for one of the account's games. */
 export async function PATCH(request: Request, context: Context) {
   const scoped = await scope(request, context);
   if ("error" in scoped) return scoped.error;
@@ -38,6 +38,7 @@ export async function PATCH(request: Request, context: Context) {
   if (!(await readLinkedGame(db, account.id, id))) return failure(404, "Game not found.");
   if (input.data.collect !== undefined) await setCollect(db, account.id, id, input.data.collect);
   if (input.data.share !== undefined) await setShare(db, account.id, id, input.data.share);
+  if (input.data.aiAnalysis !== undefined) await setAiAnalysis(db, account.id, id, input.data.aiAnalysis);
   if (input.data.collect) after(() => syncLinkedGame(db, id).catch(() => {}));
   const game = await readLinkedGame(db, account.id, id);
   if (!game) return failure(404, "Game not found.");

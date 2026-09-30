@@ -81,6 +81,7 @@ async function seed(db) {
   const messageId = (await db.query("SELECT id FROM chat_messages WHERE chat_id=$1 ORDER BY seq LIMIT 1", [chatId])).rows[0].id;
   const attachmentId = randomUUID();
   await db.query("INSERT INTO chat_attachments(id, message_id, owner_id, position, name, mime_type, bytes) VALUES ($1,$2,$3,0,'ref.webp','image/webp',$4)", [attachmentId, messageId, a.ownerId, Buffer.from(chatImage)]);
+  await db.query("INSERT INTO chat_runs(id,account_id,owner_id,chat_id,question_id,payload) VALUES($1,$2,$3,$4,$5,$6)", [randomUUID(), a.id, a.ownerId, chatId, messageId, JSON.stringify({ question: { role: "user", content: "Review my game" }, history: [], attachmentIds: [attachmentId], project: null })]);
   const otherChatId = randomUUID();
   await db.query("INSERT INTO chats(id, owner_id, title) VALUES ($1,$2,'Owner B chat')", [otherChatId, b.ownerId]);
   await db.query("INSERT INTO chat_messages(id, chat_id, role, content) SELECT gen_random_uuid(), $1, 'user', 'b' || g FROM generate_series(1,6) g", [otherChatId]);
@@ -119,10 +120,11 @@ async function seed(db) {
   // --- Linked games: a game, its sealed key, metrics and consent history.
   const gameId = randomUUID();
   const universeId = 3828411582;
-  await db.query("INSERT INTO linked_games(id, account_id, universe_id, collect, share, shared_since, consent_version, status) VALUES ($1,$2,$3,true,true,now(),2,'active')", [gameId, a.id, universeId]);
+  await db.query("INSERT INTO linked_games(id, account_id, universe_id, collect, share, ai_analysis, shared_since, consent_version, status) VALUES ($1,$2,$3,true,true,true,now(),3,'active')", [gameId, a.id, universeId]);
   await db.query("INSERT INTO linked_game_keys(game_id, key_version, iv, ciphertext, tag, hint) VALUES ($1,1,$2,$3,$4,'WXYZ')", [gameId, randomBytes(12), Buffer.from(SECRETS.keyCiphertext), randomBytes(16)]);
   await db.query("INSERT INTO linked_game_metrics(game_id, metric, day, value, status) VALUES ($1,'DailyActiveUsers','2026-09-01',1234.5,'Projected')", [gameId]);
   await db.query("INSERT INTO linked_game_consents(account_id, universe_id, setting, enabled, notice) VALUES ($1,$2,'collect',true,'2026-09-27')", [a.id, universeId]);
+  await db.query("INSERT INTO linked_game_consents(account_id, universe_id, setting, enabled, notice) VALUES ($1,$2,'ai_analysis',true,'2026-09-30')", [a.id, universeId]);
   const otherGameId = randomUUID();
   await db.query("INSERT INTO linked_games(id, account_id, universe_id) VALUES ($1,$2,999)", [otherGameId, b.id]);
   await db.query("INSERT INTO linked_game_metrics(game_id, metric, day, value) VALUES ($1,'DailyActiveUsers','2026-09-01',77)", [otherGameId]);
@@ -252,7 +254,12 @@ test("every section exports only this owner's rows and only allowlisted fields",
   assert.equal(exported.linked_games[0].id, fixture.gameId);
   assert.equal(exported.linked_games[0].universe_id, "3828411582");
   assert.equal(exported.linked_game_metrics[0].metric, "DailyActiveUsers");
-  assert.equal(exported.linked_game_consents.length, 1);
+  assert.equal(exported.linked_games[0].ai_analysis, true);
+  assert.equal(exported.chat_runs.length, 1);
+  assert.equal(exported.chat_runs[0].owner_id, fixture.a.ownerId);
+  assert.ok(!("claim_token" in exported.chat_runs[0]));
+  assert.equal(exported.linked_game_consents.length, 2);
+  assert.ok(exported.linked_game_consents.some(choice => choice.setting === "ai_analysis" && choice.enabled && choice.notice === "2026-09-30"));
 
   // Internal identities and secret material are never present.
   const blob = JSON.stringify(exported);
