@@ -2,20 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, ChartNoAxesCombined } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
 import { GameIcon } from "@/components/game-icon";
 import { ChartCard } from "@/components/charts/chart-card";
 import { Select } from "@/components/select";
 import { GameEarnings, useRevenue } from "./revenue";
-import { prefillAssistant } from "@/components/assistant/prefill";
 import { formatValue } from "@/lib/charts/spec";
-import { chartPrompt, EXPLORER_METRICS, explorerChart, filterGames, type ExplorerGame, type ExplorerMetric, type ExplorerSort } from "@/lib/analytics/explorer";
+import { EXPLORER_METRICS, explorerChart, filterGames, type ExplorerGame, type ExplorerMetric, type ExplorerSort } from "@/lib/analytics/explorer";
 
 const CONTROL = "min-h-10 rounded-lg border border-line bg-surface px-3 text-sm text-fg focus-visible:outline-2 focus-visible:outline-white";
 const PAGE_SIZE = 20;
 
-export function GameExplorer({ games, connected, chartMode = false, initialGenre = "" }: {
-  games: ExplorerGame[]; connected: boolean; chartMode?: boolean; initialGenre?: string;
+export function GameExplorer({ games, chartMode = false, initialGenre = "" }: {
+  games: ExplorerGame[]; chartMode?: boolean; initialGenre?: string;
 }) {
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState(initialGenre);
@@ -36,7 +35,6 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
   const chartGames = selected.length ? games.filter((game) => selected.includes(game.universeId)) : filtered.slice(0, kind === "donut" ? 6 : 12);
   const effectiveKind = kind === "donut" && selected.length > 6 ? "bar" : kind;
   const spec = explorerChart(chartGames, displayedMetric, effectiveKind, days, currency);
-  const ask = () => prefillAssistant({ prompt: chartPrompt(chartGames, chartMode ? displayedMetric : sort === "created" ? "playing" : sort, days) });
 
   function select(id: number) {
     setSelected((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : ids.length < 12 ? [...ids, id] : ids);
@@ -46,10 +44,6 @@ export function GameExplorer({ games, connected, chartMode = false, initialGenre
     <section aria-label={chartMode ? "Chart builder" : "Game explorer"} className="mt-7">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold">{chartMode ? "Create a chart" : "Explore games"}</h2>
-        <button type="button" disabled={!connected || !chartGames.length} onClick={ask}
-          className={`${CONTROL} inline-flex items-center gap-2 hover:bg-surface-hover disabled:opacity-40`}>
-          <ChartNoAxesCombined className="size-4 text-white" aria-hidden="true" /> Create with AI
-        </button>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
         <input type="search" aria-label="Filter games" placeholder="Filter games" value={query} maxLength={100}

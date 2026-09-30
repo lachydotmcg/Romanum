@@ -43,7 +43,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         {/* Streams in after the prompt bar, so a slow Roblox response doesn't hold up the page. */}
         <Suspense key={`${view}:${genre ?? ""}`} fallback={<p role="status" className="mt-7 text-sm text-fg-muted">Loading…</p>}>
           {view === "overview" && <MarketOverview connected={connected} />}
-          {(view === "games" || view === "charts") && <GamesSection connected={connected} chartMode={view === "charts"} genre={genre} />}
+          {(view === "games" || view === "charts") && <GamesSection chartMode={view === "charts"} genre={genre} />}
           {view === "trends" && <TrendsSection connected={connected} />}
           {view === "genres" && <GenresSection />}
         </Suspense>
