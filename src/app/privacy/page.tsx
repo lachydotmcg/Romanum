@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = { title: "Privacy policy", description: "How Romanum handles your data and the controls available to you." };
 
 const LINK = "text-fg underline underline-offset-4 hover:text-white";
-const sections = [["collection", "What we collect"], ["ai", "AI requests"], ["games", "Connected games"], ["providers", "Service providers"], ["cookies", "Cookies"], ["retention", "Storage & deletion"], ["choices", "Your choices"], ["contact", "Contact"]];
+const sections = [["collection", "What we collect"], ["ai", "AI requests"], ["ads", "Imported ad reports"], ["games", "Connected games"], ["providers", "Service providers"], ["cookies", "Cookies"], ["retention", "Storage & deletion"], ["choices", "Your choices"], ["contact", "Contact"]];
 
 export default function PrivacyPage() {
   return <article className="mx-auto max-w-3xl pb-12">
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
         <h2>What we collect and why</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li><strong className="text-fg">Roblox profile:</strong> signing in gives us your Roblox user ID, username, display name and profile picture. We use these to identify your account, sign you in and apply credits. We do not receive your Roblox password.</li>
-          <li><strong className="text-fg">Content you provide:</strong> saved chats, uploaded images, project briefs, asset plans and related activity. We store this to provide the features you use and let you return to your work.</li>
+          <li><strong className="text-fg">Content you provide:</strong> saved chats, uploaded images, project briefs, asset plans, imported ad reports, creative associations, saved observations and related activity. We store this to provide the features you use and let you return to your work.</li>
           <li><strong className="text-fg">Usage records:</strong> credit grants, reservations, spending, model and tool names, token counts and timestamps. These support metering, error investigation and prevention of repeated sign-up bonuses or weekly refills.</li>
           <li><strong className="text-fg">Technical information:</strong> cookies, request details, IP addresses, browser information and errors processed by our hosting and security providers to deliver and protect the service.</li>
           <li><strong className="text-fg">Support:</strong> if you email us, we receive your address and message so we can respond.</li>
@@ -36,11 +36,17 @@ export default function PrivacyPage() {
         <h2>AI requests</h2>
         <p>Ask Romanum and Chats currently use DeepSeek. Sending a message sends its text, relevant conversation history, retrieved information and any images attached to that message to DeepSeek. In a project chat, the project brief is also included. Images are resized and their embedded metadata is removed before they are stored and sent.</p>
         <p>Chats saves the conversation and its attachments. Ask Romanum does not create a saved chat, but provider processing and credit usage records still apply. Saved chat images are not automatically sent again in later messages.</p>
-        <p>For accounts with AI analysis enabled on a connected game, Chats can continue a response in the background after you leave the page. We temporarily store the question, relevant context and references to its attachments, and save private progress so you can reopen the chat. Use Stop to request cancellation. Temporary queued context is cleared when the review ends; saved progress and answers remain with the chat until deletion.</p>
+        <p>For accounts with AI analysis enabled on a connected game or a project&apos;s imported ad reports, Chats can continue a response in the background after you leave the page. We temporarily store the question, relevant context and references to its attachments, and save private progress so you can reopen the chat. Use Stop to request cancellation. Temporary queued context is cleared when the review ends; saved progress and answers remain with the chat until deletion.</p>
         <p>Project reference images stay in your private library. Choosing one in a chat copies it into that message; sending the message sends that copy to DeepSeek. Removing the library image does not remove copies already saved in chats.</p>
         <p>Private game analytics reach the assistant only when you enable <strong className="text-fg">AI analysis</strong> for that linked game. When you ask about it, relevant aggregate metrics and breakdowns can be retrieved with your stored key and sent to DeepSeek. These can include funnels, device performance, retention, engagement, monetization, acquisition, economy and custom events. The API key itself is never sent to the model. If you paste private metrics into a message, that content is sent with your request regardless of the game&apos;s switches.</p>
         <p>Private results and answers are retained in saved chats. Turning AI analysis off stops new private analytics reads; it does not remove earlier answers or recall provider requests. Earlier answers can still be included in later conversation history. Previous private tool payloads are withheld from subsequent turns; a new lookup needs current permission. Delete the chat to remove its saved copy.</p>
         <p>DeepSeek handles requests under its applicable terms. Romanum has not established a zero-retention or no-training arrangement with DeepSeek, so we do not make either promise. Avoid sending passwords, API keys, sensitive personal information or personal information about children in chats.</p>
+      </section>
+      <section id="ads">
+        <h2>Imported ad reports</h2>
+        <p>Ad reports you upload to a project, their source cells and file hashes, creative-image associations and saved observations are private to your account. Uploading a report does not enable AI analysis. The project&apos;s separate <strong className="text-fg">Allow AI analysis</strong> setting is off by default. Enabling it permits relevant report metrics, associations and private notes to be sent to DeepSeek when you ask project chat to use that evidence.</p>
+        <p>Turning permission off stops future imported-evidence reads. Previous private tool payloads are withheld from later turns, but written answers and saved plans remain and can appear in conversation history. An image association supplies metadata; sending its pixels requires choosing that reference as a chat attachment. Platform-improvement sharing is unavailable for imported reports. Your learning records do not automatically change shared skills.</p>
+        <p>Deleting a report removes its creative associations and dependent saved observations. It does not remove earlier written chat copies or recall provider requests. Reports, learning records and consent history are included in your account export and removed from the active database when you delete your account.</p>
       </section>
       <section id="games">
         <h2>Connected games</h2>

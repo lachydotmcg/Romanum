@@ -8,6 +8,8 @@ import { createProjectPlan, listProjectPlans, readProjectPlan, planInputSchema, 
 export type ProjectChatTools = {
   definitions: OpenAI.Chat.ChatCompletionFunctionTool[];
   execute: (call: ToolCall, callId: string) => Promise<ToolOutcome>;
+  /** Revalidate any private project evidence before it reaches another model call. */
+  checkAccess?: () => Promise<void>;
 };
 const schemas = {
   save_asset_plan: planInputSchema,

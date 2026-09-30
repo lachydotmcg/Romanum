@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local databases, browser profiles and test harnesses are not application source.
+    ".local/**",
   ]),
 ]);
 

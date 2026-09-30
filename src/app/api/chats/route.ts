@@ -25,6 +25,7 @@ import { historyDatabase } from "@/lib/history/database";
 import { verificationResponse } from "@/lib/turnstile";
 import { privateAnalyticsTools } from "@/lib/linked-games/assistant-tools";
 import { listLinkedGames } from "@/lib/linked-games/store";
+import { adReportBackgroundEnabled } from "@/lib/ad-reports/background";
 import { submitChatQuestion, ChatRunBusyError, failQueuedChatRun } from "@/lib/chats/runs";
 import { executeChatRun } from "@/lib/chats/run-worker";
 import { dispatchChatRun, usesBackgroundChatWorker } from "@/lib/chats/run-dispatch";
@@ -101,7 +102,10 @@ export async function POST(request: Request) {
   const account = await readAccount();
   let submitted: Awaited<ReturnType<typeof submitChatQuestion>>;
   try {
-    const backgroundAccount = account?.ownerId === owner && (await listLinkedGames(db, account.id)).some(game => game.aiAnalysis && game.collect && game.status === "active") ? account.id : null;
+    const signedIn = account?.ownerId === owner;
+    const useBackground = signedIn && ((await listLinkedGames(db, account.id)).some(game => game.aiAnalysis && game.collect && game.status === "active")
+      || await adReportBackgroundEnabled(db, owner, { chatId, projectId }));
+    const backgroundAccount = useBackground ? account!.id : null;
     const attachments = await Promise.all(files.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })));
     submitted = await submitChatQuestion(db, { ownerId: owner, chatId, projectId, question: text, attachments }, backgroundAccount);
   } catch (error) {

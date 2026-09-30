@@ -4,6 +4,7 @@ import type { ChatProject } from "./chat-context.ts";
 import { projectInputSchema } from "./store.ts";
 import { projectChatTools, type ProjectChatTools } from "./chat-tools.ts";
 import { ConversationContextError, saveChatProjectContext } from "./conversation-context.ts";
+import { adReportChatTools } from "../ad-reports/assistant-tools.ts";
 
 const schema = projectInputSchema.extend({ expectedRevision: z.number().int().min(0) }).strict();
 
@@ -12,6 +13,7 @@ export function conversationTools(db: Database, scope: { ownerId: string; chatId
   let project = scope.project;
   const assets = () => project ? projectChatTools(db, { ...scope, projectId: project.id, projectRevision: project.revision, archived: project.archived }, signal) : null;
   let assetTools = assets();
+  let adsTools = project ? adReportChatTools(db, { ownerId: scope.ownerId, projectId: project.id }, signal) : null;
   let saves = 0;
   let assetSaves = 0;
   return {
@@ -23,10 +25,13 @@ export function conversationTools(db: Database, scope: { ownerId: string; chatId
           parameters: z.toJSONSchema(schema, { target: "draft-7", io: "input" }),
         } }] : []),
         ...(assetTools?.definitions ?? []),
+        ...(adsTools?.definitions ?? []),
       ];
     },
+    async checkAccess() { await adsTools?.checkAccess?.(); },
     async execute(call, callId) {
       if (signal.aborted) return { ok: false, error: "Stopped." };
+      if (adsTools?.definitions.some(tool => tool.function.name === call.name)) return adsTools.execute(call, callId);
       if (call.name !== "save_project_context") {
         if (call.name === "save_asset_plan" && ++assetSaves > 3) return { ok: false, error: "Save up to three asset plans per message." };
         return assetTools ? assetTools.execute(call, callId) : { ok: false, error: "Save the project context first." };
@@ -37,7 +42,9 @@ export function conversationTools(db: Database, scope: { ownerId: string; chatId
       if (++saves > 1) return { ok: false, error: "Save the context once per message. Continue in a new message for further changes." };
       try {
         const saved = await saveChatProjectContext(db, { ownerId: scope.ownerId, chatId: scope.chatId, questionId: scope.questionId, ...input.data });
+        const previousProjectId = project?.id;
         project = saved; assetTools = assets();
+        if (previousProjectId !== saved.id) adsTools = adReportChatTools(db, { ownerId: scope.ownerId, projectId: saved.id }, signal);
         return { ok: true, result: { saved: true, project: saved }, summary: "Project context saved", project: saved };
       } catch (error) {
         if (error instanceof ConversationContextError) {

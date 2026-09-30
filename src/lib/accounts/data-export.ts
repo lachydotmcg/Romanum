@@ -49,6 +49,13 @@ export const EXPORT_SECTIONS = [
   "linked_games",
   "linked_game_metrics",
   "linked_game_consents",
+  "ad_reports",
+  "ad_report_settings",
+  "ad_report_consents",
+  "ad_report_creative_links",
+  "ad_report_observations",
+  "ad_report_observation_reports",
+  "ad_report_observation_creatives",
 ] as const;
 
 export type ExportSection = (typeof EXPORT_SECTIONS)[number];
@@ -98,6 +105,34 @@ function requireAccount(account: ExportAccount | null | undefined): ExportAccoun
 type SectionSpec = { columns: string; from: string; scope: string; key: string };
 
 const SPECS: Record<ExportSection, SectionSpec> = {
+  ad_reports: {
+    columns: "r.id, r.project_id, r.owner_id, r.content_fingerprint, r.bundle, r.created_at",
+    from: "ad_reports r", scope: "r.owner_id=$1", key: "r.id::text",
+  },
+  ad_report_settings: {
+    columns: "s.project_id, s.owner_id, s.ai_analysis, s.consent_version, s.updated_at",
+    from: "ad_report_settings s", scope: "s.owner_id=$1", key: "s.project_id::text",
+  },
+  ad_report_consents: {
+    columns: "s.id, s.project_id, s.owner_id, s.ai_analysis, s.consent_version, s.created_at",
+    from: "ad_report_consents s", scope: "s.owner_id=$1", key: "s.id::text",
+  },
+  ad_report_creative_links: {
+    columns: "l.id, l.project_id, l.owner_id, l.report_id, l.ad_id, l.creative_id, l.created_at",
+    from: "ad_report_creative_links l", scope: "l.owner_id=$1", key: "l.id::text",
+  },
+  ad_report_observations: {
+    columns: "o.id, o.project_id, o.owner_id, o.status, o.body, o.supersedes_id, o.created_at",
+    from: "ad_report_observations o", scope: "o.owner_id=$1", key: "o.id::text",
+  },
+  ad_report_observation_reports: {
+    columns: "e.observation_id, e.project_id, e.owner_id, e.report_id",
+    from: "ad_report_observation_reports e", scope: "e.owner_id=$1", key: "e.observation_id::text || ':' || e.report_id::text",
+  },
+  ad_report_observation_creatives: {
+    columns: "e.observation_id, e.project_id, e.owner_id, e.creative_id",
+    from: "ad_report_observation_creatives e", scope: "e.owner_id=$1", key: "e.observation_id::text || ':' || e.creative_id::text",
+  },
   // Account profile only: names and the Roblox user id, never session material.
   profile: {
     columns: "a.id, a.owner_id, a.roblox_user_id::text AS roblox_user_id, a.username, a.display_name, a.picture_url, a.credit_plan, a.created_at, a.signed_in_at",

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, ArrowLeft, MessageSquarePlus, RotateCcw } from "lucide-react";
 import type { ProjectBrief } from "@/lib/projects/store";
+import { AdReports } from "@/components/projects/ad-reports";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 const FIELD = `mt-2 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-fg placeholder:text-fg-subtle disabled:opacity-60 ${FOCUS}`;
@@ -87,5 +88,6 @@ export function ProjectEditor({ initial, embedded = false, onSaved }: { initial:
         </button>}
       </div>
     </form>
+    {!embedded && project && <AdReports key={project.id} projectId={project.id} archived={project.archived} />}
   </div>;
 }

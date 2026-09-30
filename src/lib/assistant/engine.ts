@@ -11,6 +11,8 @@ import type { PrivateAnalyticsTools } from "../linked-games/assistant-tools";
 import { PRIVATE_ANALYTICS_PROMPT } from "../linked-games/assistant-prompt.ts";
 import { OpenCloudError } from "../linked-games/open-cloud.ts";
 import { withoutPrivateToolHistory } from "../linked-games/assistant-history.ts";
+import { AdReportAccessError } from "../ad-reports/assistant-tools.ts";
+import { AD_REPORT_PROMPT } from "../ad-reports/assistant-prompt.ts";
 
 // The assistant's model loop, shared by Ask Romanum (/api/assistant) and saved chats (/api/chats).
 
@@ -33,6 +35,7 @@ export function callUsage(at: Date, usage: DeepSeekUsage): CallUsage {
 }
 
 function describeError(error: unknown): string {
+  if (error instanceof AdReportAccessError) return error.message;
   if (error instanceof OpenCloudError) return error.message;
   if (error instanceof CreditsError && error.code === "insufficient_balance") return "Not enough credits for the next step.";
   // Provider setup and billing diagnostics belong in server logs and README.md.
@@ -79,16 +82,21 @@ export async function runAssistant({
 
   try {
     const began = Date.now();
-    const maxSteps = analyticsTools ? 12 : MAX_STEPS;
-    for (let step = 0; step < maxSteps; step++) {
+    const hasAds = () => !!projectTools?.definitions.some(tool => tool.function.name === "list_ad_reports");
+    const maxSteps = analyticsTools || projectTools?.checkAccess ? 12 : MAX_STEPS;
+    const beforeProvider = async () => {
       await beforeAttempt?.();
       await analyticsTools?.checkAccess();
-      const finalAnalysisStep = !!analyticsTools && (step === maxSteps - 1 || (analysisTimeBudgetMs !== undefined && Date.now() - began >= analysisTimeBudgetMs));
+      await projectTools?.checkAccess?.();
+    };
+    for (let step = 0; step < maxSteps; step++) {
+      await beforeProvider();
+      const finalAnalysisStep = (!!analyticsTools || hasAds()) && (step === maxSteps - 1 || (analysisTimeBudgetMs !== undefined && Date.now() - began >= analysisTimeBudgetMs));
       const completion = meteredStream(
         client,
         {
           model: ASSISTANT_MODEL,
-          messages: [{ role: "system", content: systemPrompt + (analyticsTools ? PRIVATE_ANALYTICS_PROMPT : "") }, ...modelHistory, ...turn,
+          messages: [{ role: "system", content: systemPrompt + (analyticsTools ? PRIVATE_ANALYTICS_PROMPT : "") + (hasAds() ? AD_REPORT_PROMPT : "") }, ...modelHistory, ...turn,
             ...(finalAnalysisStep ? [{ role: "system" as const, content: "Finish the answer now using the evidence already retrieved. State any missing or unchecked areas. No more tools are available this turn." }] : [])],
           ...(!finalAnalysisStep ? { tools: [...TOOLS, ...(projectTools?.definitions ?? []), ...(analyticsTools?.definitions ?? [])] } : {}),
           max_tokens: MAX_TOKENS,
@@ -97,7 +105,7 @@ export async function runAssistant({
         },
         billing,
         signal,
-        beforeAttempt,
+        beforeProvider,
       );
 
       let content = "";
@@ -165,7 +173,9 @@ export async function runAssistant({
           : await billing.tool(call.name, async () => { await beforeAttempt?.(); return runTool(prepared, fetched); }, signal);
         await beforeAttempt?.();
         if (analyticsCall && outcome.ok) await analyticsTools!.checkAccess();
-        if (outcome.ok && !analyticsCall) fetched.add(outcome.result);
+        if (privateCall && outcome.ok) await projectTools?.checkAccess?.();
+        const privateResult = outcome.ok && !!outcome.result && typeof outcome.result === "object" && "scope" in outcome.result && outcome.result.scope === "private_owner";
+        if (outcome.ok && !analyticsCall && !privateResult) fetched.add(outcome.result);
         send({
           type: "tool_end",
           id: call.id,

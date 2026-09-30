@@ -9,13 +9,14 @@ import type { ReferenceSummary } from "@/lib/projects/references";
 import type { ChatSummary } from "@/lib/chats/store";
 import { ProjectEditor } from "@/components/projects/project-editor";
 import { ReferenceLibrary } from "@/components/projects/reference-library";
+import { AdReports } from "@/components/projects/ad-reports";
 import { PlanCard } from "@/components/projects/plan-card";
 import { ProjectPreview, type ContextTab } from "./project-preview";
 import styles from "./project-context.module.css";
 
-type Tab = ContextTab;
+type Tab = ContextTab | "ads";
 type Workspace = { project: ProjectBrief; plans: AssetPlanSummary[]; references: ReferenceSummary[]; chats: ChatSummary[] };
-const TABS: { id: Tab; label: string }[] = [{ id: "brief", label: "Context" }, { id: "roadmap", label: "Roadmap" }, { id: "references", label: "References" }, { id: "plans", label: "Assets" }];
+const TABS: { id: Tab; label: string }[] = [{ id: "brief", label: "Context" }, { id: "roadmap", label: "Roadmap" }, { id: "references", label: "References" }, { id: "plans", label: "Assets" }, { id: "ads", label: "Ads" }];
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-fg/70 outline-offset-2";
 
 export function ProjectPanel({ project, onSaved, initialTab, expanded, onExpandedChange, animationVersion }: { project: ProjectBrief; onSaved: (project: ProjectBrief) => void; initialTab?: string; expanded: boolean; onExpandedChange: (expanded: boolean) => void; animationVersion: number }) {
@@ -93,6 +94,7 @@ export function ProjectPanel({ project, onSaved, initialTab, expanded, onExpande
       <div className={styles.drawerBody}>
       {error && <p role="alert" className="mb-4 text-sm text-fg-muted">{error} <button type="button" onClick={load} className="underline underline-offset-4">Reload</button></p>}
       <div hidden={tab !== "brief"}><ProjectEditor key={project.id} initial={project} embedded onSaved={onSaved} /></div>
+      {tab === "ads" && <AdReports key={project.id} projectId={project.id} archived={project.archived} />}
       {tab === "roadmap" && <div className="space-y-8">
         {project.context.roadmap?.length ? <ol className="space-y-5">{project.context.roadmap.map((phase, index) => <li key={index} className="flex gap-3"><span className="text-sm text-fg-subtle tabular-nums">{index + 1}.</span><div className="min-w-0"><h3 className="break-words text-sm font-medium">{phase.title}</h3><p className="mt-1 whitespace-pre-wrap break-words text-sm text-fg-muted">{phase.detail}</p></div></li>)}</ol> : <p className="text-sm text-fg-muted">Plan the next steps in chat.</p>}
         {!!project.context.todos?.length && <section><h3 className="mb-3 text-sm font-medium">To-dos</h3><ul className="space-y-1">{project.context.todos.map(todo => <li key={todo.id}><label className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-3 text-sm hover:bg-surface ${todo.done ? "text-fg-subtle" : ""}`}><input type="checkbox" checked={todo.done} disabled={busy || project.archived} onChange={event => void check(todo.id, event.target.checked)} className={`mt-0.5 size-4 shrink-0 accent-white ${FOCUS}`} /><span className={`min-w-0 break-words ${todo.done ? "line-through" : ""}`}>{todo.text}</span></label></li>)}</ul></section>}

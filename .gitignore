@@ -55,4 +55,5 @@ next-env.d.ts
 !/docs/README.md
 !/docs/development.md
 !/docs/privacy-operations.md
+!/docs/ad-reports.md
 !/docs/THIRD_PARTY_NOTICES.md

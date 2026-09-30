@@ -47,6 +47,11 @@ export const TOOLS: OpenAI.Chat.ChatCompletionFunctionTool[] = [
 ];
 
 const LABELS: Record<string, string> = {
+  list_ad_reports: "Find imported ads reports",
+  read_ad_report: "Read imported ads evidence",
+  compare_ad_reports: "Compare ads evidence",
+  read_ad_learning_history: "Read private learning history",
+  prepare_ad_thumbnail_brief: "Prepare thumbnail test brief",
   list_my_linked_games: "Find your linked games",
   get_private_analytics_catalog: "Read private analytics catalog",
   get_private_game_overview: "Read your game analytics",

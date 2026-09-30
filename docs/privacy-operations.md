@@ -16,6 +16,8 @@ The retained credit ledger includes the Roblox user ID in a sign-up grant's idem
 
 ## Requests requiring support
 
+Migration 022 adds private imported ad reports, explicit project-image associations, source-cited learning records and independent versioned AI consent. Account closure cascades these records; account export includes their contents and consent history. Imported-ads AI analysis is off by default and sends relevant metrics/notes to the existing provider only through owner project chat. Revocation/source deletion is checked before subsequent model requests. Earlier written answers/plans are retained independently; deleting a source report removes dependent learning records but does not recall chat/provider copies. Platform-improvement sharing is unavailable, and project notes do not change shared skills. See [ad reports](ad-reports.md) for the validated formats and limits.
+
 - Verify control of the account or guest identity without requesting passwords or API keys by email. Scope every query and mutation to that verified owner.
 - If unresolved generation jobs, reviews or agent runs block closure, reconcile them before retrying. Do not bypass uncertain billing outcomes.
 - If another owner's library entry depends on an asset being removed, review the rights and deletion request before changing lineage. Do not delete another owner's licensed copy automatically. Marketplace sharing is not exposed by the current website.

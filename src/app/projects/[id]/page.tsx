@@ -14,6 +14,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (!project) notFound();
   const [latest] = await listChats(db, account.ownerId, project.id);
   const context = (await searchParams).context;
-  const panel = ["brief", "roadmap", "references", "plans"].includes(context ?? "") ? context : undefined;
+  const panel = ["brief", "roadmap", "references", "plans", "ads"].includes(context ?? "") ? context : undefined;
   redirect(latest ? `/chats/${latest.id}${panel ? `?context=${panel}` : ""}` : `/chats?project=${project.id}&context=${panel ?? "brief"}`);
 }

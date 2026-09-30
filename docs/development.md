@@ -151,6 +151,10 @@ An agent can return a `wait` decision for a job it queued. The run persists that
 
 The local Studio connector uses Roblox's [built-in MCP server](https://create.roblox.com/docs/studio/mcp). Enable it in Studio, then run `npm run studio:check -- <absolute StudioMCP executable path>` to list sessions. Add a returned session ID as the second argument for a read-only state check. On Windows the installed `Roblox/mcp.bat` names the executable; on macOS it is inside the Studio application bundle. The connector pins the chosen session, validates current tool schemas and requires harness approval for edits or Luau execution. Publishing, asset uploads, generation and playtesting tools are not exposed. Keep this local connector separate from Romanum's anonymous public `/mcp` endpoint.
 
+## Imported ads evidence
+
+Project Context includes an Ads panel for validated Roblox aggregate CSV/ZIP imports and a documented Romanum daily CSV template. Reports, explicit creative mappings and cited observations stay private to their project owner. Separate imported-ads AI consent controls project-chat tool reads and durable reviews; it grants no platform sharing. Deterministic imports/calculations and private ads tools are unmetered. Thumbnail analysis can save a written plan through existing project tools; image generation remains disabled. Apply migration `022_ad_reports.sql`. See [private ad reports](ad-reports.md) for source schemas, interpretation boundaries and fixture validation.
+
 ## Checks
 
 Privacy controls, account closure and release-review items are documented in [privacy operations](privacy-operations.md).
