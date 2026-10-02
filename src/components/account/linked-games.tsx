@@ -89,27 +89,31 @@ function GameCard({ game, settings, onChange, onRemove, onRelink }: { game: Link
   if (!settings) return (
     <li className="min-w-0">
       <Link href={`/analytics/games/${game.universeId}`} aria-label={`View analytics for ${name}`} prefetch={false} className={`group block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong hover:bg-surface-hover sm:p-5 ${FOCUS}`}>
-        <GameIcon url={game.iconUrl} name={name} className="aspect-square w-full rounded-xl" sizes="(min-width: 1024px) 50vw, 100vw" />
-        <h3 className="mt-4 text-lg font-semibold leading-snug break-words group-hover:underline">{name}</h3>
-        {game.creatorName && <p className="mt-1 text-xs text-fg-muted break-words">By {game.creatorName}</p>}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-fg-muted">
-          <p className="inline-flex items-center gap-1.5"><ThumbsUp className="size-3.5" aria-hidden="true" />{game.likeRatio == null ? "Rating unavailable" : `${Math.round(game.likeRatio * 100)}% positive`}</p>
-          <p className="inline-flex items-center gap-1.5" title={game.publicFetchedAt ? `Roblox public activity retrieved ${game.publicFetchedAt}` : "Public retrieval time unavailable"}>
-            <Users className="size-3.5" aria-hidden="true" /><span className="sr-only">Concurrent users: </span><span className="tabular-nums">{game.playing == null ? "Unavailable" : formatMetric(game.playing, "count")}</span>{game.playing != null && <span>playing</span>}
-          </p>
-        </div>
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-4">
-          {summary.map((metric) => (
-            <div key={metric.metric} className="min-w-0">
-              <dt className="text-xs text-fg-muted">{metric.label}</dt>
-              <dd className="mt-1 text-lg font-semibold tabular-nums" title={metric.latest ? `Roblox daily observation: ${metric.latest.day}${metric.latest.status ? ` (${metric.latest.status})` : ""}` : "Not synced"}>
-                {formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}
-                {metric.latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-muted">Projected</span>}
-              </dd>
-              <MetricChange change={metric.change} />
+        <div className="flex flex-wrap items-start gap-5">
+          <GameIcon url={game.iconUrl} name={name} className="aspect-square w-full max-w-72 rounded-xl 2xl:max-w-80" sizes="(min-width: 1536px) 320px, 288px" />
+          <div className="min-w-0 flex-1 basis-56">
+            <h3 className="text-lg font-semibold leading-snug break-words group-hover:underline">{name}</h3>
+            {game.creatorName && <p className="mt-1 text-xs text-fg-muted break-words">By {game.creatorName}</p>}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-fg-muted">
+              <p className="inline-flex items-center gap-1.5"><ThumbsUp className="size-3.5" aria-hidden="true" />{game.likeRatio == null ? "Rating unavailable" : `${Math.round(game.likeRatio * 100)}% positive`}</p>
+              <p className="inline-flex items-center gap-1.5" title={game.publicFetchedAt ? `Roblox public activity retrieved ${game.publicFetchedAt}` : "Public retrieval time unavailable"}>
+                <Users className="size-3.5" aria-hidden="true" /><span className="sr-only">Concurrent users: </span><span className="tabular-nums">{game.playing == null ? "Unavailable" : formatMetric(game.playing, "count")}</span>{game.playing != null && <span>playing</span>}
+              </p>
             </div>
-          ))}
-        </dl>
+            <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-4">
+              {summary.map((metric) => (
+                <div key={metric.metric} className="min-w-0">
+                  <dt className="text-xs text-fg-muted">{metric.label}</dt>
+                  <dd className="mt-1 text-lg font-semibold tabular-nums" title={metric.latest ? `Roblox daily observation: ${metric.latest.day}${metric.latest.status ? ` (${metric.latest.status})` : ""}` : "Not synced"}>
+                    {formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}
+                    {metric.latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-muted">Projected</span>}
+                  </dd>
+                  <MetricChange change={metric.change} />
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
         <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4">
           <p className="min-w-0 text-xs text-fg-muted" role="status">{statusLine(game)}</p>
           <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium">View analytics <ChevronRight className="size-3.5" aria-hidden="true" /></span>
@@ -234,7 +238,7 @@ export function LinkedGames({ initial, settings = false }: { initial: LinkedGame
         </div>
       </div>}
       {games.length > 0 ? (
-        <ul className="mt-4 grid gap-4 lg:grid-cols-2">
+        <ul className={`mt-4 grid gap-4 ${settings ? "lg:grid-cols-2" : "xl:grid-cols-2"}`}>
           {games.map((game) => (
             <GameCard
               key={game.id}
