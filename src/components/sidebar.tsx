@@ -53,6 +53,16 @@ function CreditBalance({ credits, compact = false, className = "" }: { credits: 
 
 export function Sidebar() {
   const pathname = usePathname();
+  // Admin reporting must not create guest grants or load unrelated account/chat data.
+  if (pathname === "/admin/preview" || pathname === "/admin") return <aside aria-label="Admin navigation" className="fixed inset-y-0 left-0 z-40 flex w-16 flex-col items-center border-r border-line bg-sidebar py-5">
+    <Link href="/analytics" prefetch={false} aria-label="Return to Romanum" className="text-xl font-semibold">Ro</Link>
+    <span className="mt-8 text-[10px] text-fg-muted [writing-mode:vertical-rl]">{pathname === "/admin/preview" ? "FIXTURE PREVIEW" : "OWNER ADMIN"}</span>
+  </aside>;
+  return <StandardSidebar />;
+}
+
+function StandardSidebar() {
+  const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
   const [credits, setCredits] = useState<number | null | undefined>(undefined);
   const [recent, setRecent] = useState<ChatSummary[]>([]);

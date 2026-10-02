@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { AssistantMarkdown } from "@/components/assistant/markdown";
 
-export const metadata: Metadata = { title: "MCP setup" };
+export const metadata: Metadata = { title: "Free MCP setup and public data tools", description: "Romanum’s free read-only Roblox MCP tools, metric definitions, source coverage and setup instructions. Public tools require no authentication.", alternates: { canonical: "https://romanum.dev/connect/guide" } };
 
 export default async function McpGuidePage() {
   // One fixed repository document; never accept a filename from a request.

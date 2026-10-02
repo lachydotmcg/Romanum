@@ -9,6 +9,7 @@ import { GenreBreakdown } from "./genre-breakdown";
 import { PatternExplorer } from "./pattern-explorer";
 import { RetryMarket } from "./retry";
 import { RomanumInsight } from "./romanum-insight";
+import { SourceContext } from "@/components/analytics/source-context";
 
 function topPlayingChart(games: ChartGame[]): ChartSpec {
   const top = games.filter((game) => !game.sponsored).slice(0, 8);
@@ -21,11 +22,12 @@ function topPlayingChart(games: ChartGame[]): ChartSpec {
 }
 
 export async function MarketOverview({ connected }: { connected: boolean }) {
-  const [{ samples, analysis }, insight] = await Promise.all([getMarketData(), currentInsight()]);
+  const [{ samples, analysis, observations }, insight] = await Promise.all([getMarketData(), currentInsight()]);
   const playing = samples.find((sample) => sample.chart === "top-playing-now")?.games ?? null;
   const genreSample = analyzeMarket([{ chart: "top-playing-now", games: playing }], analysis.assembledAt);
   return (
     <>
+      <SourceContext analysis={analysis} observations={observations} />
       <section aria-labelledby="market-heading" className="mt-9">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
           <h2 id="market-heading" className="text-base font-semibold tracking-tight">Roblox right now</h2>

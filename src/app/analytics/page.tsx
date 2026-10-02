@@ -12,10 +12,11 @@ import { ChartInvitation } from "@/components/analytics/chart-invitation";
 import { GamesSection, GenresSection, TrendsSection } from "@/components/analytics/sections";
 import { EarningsCalculator } from "@/components/analytics/earnings-calculator";
 import { RevenueControls } from "@/components/analytics/revenue";
+import { analyticsPageMetadata } from "@/lib/public-discovery";
 
-export const metadata: Metadata = {
-  title: "Analytics",
-};
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ view?: string }> }): Promise<Metadata> {
+  return analyticsPageMetadata((await searchParams).view);
+}
 
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ starter?: string; view?: string; genre?: string }> }) {
   // Check for the key per request rather than baking the answer in at build time.
@@ -29,6 +30,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     <>
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Explore the market</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-fg-muted">Public Roblox analytics, free to browse without signup or MCP. <Link href="/analytics/data" className="text-fg underline underline-offset-4">Sources, freshness and metric definitions</Link></p>
       </header>
       <Assistant key={starter ?? "default"} connected={connected} initialPrompt={initialPrompt} />
       <ChartInvitation connected={connected} />

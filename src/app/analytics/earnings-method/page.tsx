@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DEVEX, GENRE_RATES, EARNINGS_MODEL_VERSION } from "@/lib/analytics/earnings";
 
-export const metadata = { title: "Earnings method" };
+export const metadata = { title: "Roblox earnings estimate method", description: "Romanum’s heuristic earnings model, genre assumptions and DevEx sources. These projections are separate from observed statistics and actual revenue.", alternates: { canonical: "https://romanum.dev/analytics/earnings-method" } };
 
 export default function EarningsMethod() {
   return <article className="max-w-2xl space-y-5 text-sm leading-relaxed text-fg-muted">

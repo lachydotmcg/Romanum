@@ -15,6 +15,7 @@ import { Assistant } from "@/components/assistant/assistant";
 import { gameAnalysisPrompt } from "@/lib/analytics/game-analysis";
 import { getGameIcons } from "@/lib/roblox-icons";
 import { GameEarningsPanel } from "@/components/analytics/revenue";
+import { publicGameMetadata, utcObservationTime } from "@/lib/public-discovery";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ universeId: string }> };
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   validId(universeId);
   // Request memoisation shares this observation with the page body.
   const result = await getGame(universeId);
-  return { title: result.game?.name ?? "Game not found" };
+  return result.game ? publicGameMetadata(result.game) : { title: "Game not found", robots: { index: false } };
 }
 
 function dateLabel(value: string) {
@@ -49,7 +50,7 @@ async function ownAnalytics(universeId: number) {
 export default async function GamePage({ params }: Props) {
   const { universeId } = await params;
   validId(universeId);
-  const [{ game, fetchedAt }, own] = await Promise.all([getGame(universeId), ownAnalytics(Number(universeId))]);
+  const [{ game, fetchedAt, source }, own] = await Promise.all([getGame(universeId), ownAnalytics(Number(universeId))]);
   if (!game) notFound();
   const iconUrl = (await getGameIcons([game.universeId], "512x512")).get(game.universeId) ?? game.iconUrl;
   const privateAnalysis = Boolean(own?.game.aiAnalysis && own.game.collect && own.game.status === "active");
@@ -105,11 +106,12 @@ export default async function GamePage({ params }: Props) {
           <section id="public-activity" aria-labelledby="public-activity-heading" className="scroll-mt-8">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="public-activity-heading" className="text-base font-semibold">Public activity</h2>
-              <p className="text-xs text-fg-subtle">Roblox · <time dateTime={fetchedAt}>{new Date(fetchedAt).toISOString().slice(11, 16)} UTC</time></p>
+              <p className="text-xs text-fg-subtle">Roblox · Retrieved <time dateTime={fetchedAt}>{utcObservationTime(fetchedAt) ?? "Time unavailable"}</time></p>
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
               {stats.map((stat) => <div key={stat.label} className="min-w-0 rounded-xl border border-line bg-surface px-4 py-5"><dt className="text-xs text-fg-muted">{stat.label}</dt><dd className="mt-2 text-2xl font-semibold tabular-nums" title={formatValue(stat.value, stat.format === "percent" ? "percent" : "full")}>{formatValue(stat.value, stat.format)}</dd></div>)}
             </dl>
+            <p className="mt-3 text-xs leading-5 text-fg-muted"><a href={`${source}?universeIds=${game.universeId}`} className="text-fg underline underline-offset-2">Roblox statistics source</a> · Current players are concurrent; visits and favourites are cumulative. <Link href="/analytics/data" className="text-fg underline underline-offset-2">Metric definitions and coverage</Link></p>
             <PlayerHistory key={game.universeId} game={{ universeId: game.universeId, rootPlaceId: game.rootPlaceId, name: game.name, iconUrl: iconUrl ?? null }} />
           </section>
           <details className="rounded-xl border border-line p-5">

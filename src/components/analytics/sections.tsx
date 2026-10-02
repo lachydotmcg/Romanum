@@ -5,6 +5,7 @@ import { PatternExplorer } from "@/components/market/pattern-explorer";
 import { RankedList } from "@/components/market/ranked-list";
 import { RetryMarket } from "@/components/market/retry";
 import { GenresTable } from "./genres-table";
+import { SourceContext } from "./source-context";
 
 function Unavailable() {
   return <div className="mt-7 rounded-xl border border-line p-5 text-sm text-fg-muted"><p role="status">Couldn&apos;t load games.</p><RetryMarket /></div>;
@@ -13,13 +14,14 @@ function Unavailable() {
 export async function GamesSection({ chartMode, genre }: { chartMode?: boolean; genre?: string }) {
   const data = await getGameDirectory();
   if (!data.analysis.availableCharts.length) return <Unavailable />;
-  return <GameExplorer games={data.games} chartMode={chartMode} initialGenre={genre} />;
+  return <><SourceContext analysis={data.analysis} observations={data.observations} /><GameExplorer games={data.games} chartMode={chartMode} initialGenre={genre} /></>;
 }
 
 export async function TrendsSection({ connected }: { connected: boolean }) {
-  const { samples, analysis } = await getMarketData();
+  const { samples, analysis, observations } = await getMarketData();
   if (!analysis.availableCharts.length) return <Unavailable />;
   return <>
+    <SourceContext analysis={analysis} observations={observations} />
     <section className="mt-7" aria-labelledby="trending-heading">
       <h2 id="trending-heading" className="mb-4 text-base font-semibold">Roblox discovery</h2>
       <div className="grid gap-4 md:grid-cols-3">
@@ -33,13 +35,13 @@ export async function TrendsSection({ connected }: { connected: boolean }) {
 }
 
 export async function GenresSection() {
-  const { analysis } = await getMarketData();
+  const { analysis, observations } = await getMarketData();
   if (!analysis.availableCharts.length) return <Unavailable />;
-  return <section className="mt-7" aria-labelledby="genres-heading">
+  return <><SourceContext analysis={analysis} observations={observations} /><section className="mt-7" aria-labelledby="genres-heading">
     <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
       <h2 id="genres-heading" className="text-base font-semibold">Genres</h2>
       <span className="text-xs text-fg-muted">{analysis.sampleSize} games in Roblox charts</span>
     </div>
     <GenresTable genres={analysis.genres} />
-  </section>;
+  </section></>;
 }

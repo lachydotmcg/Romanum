@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { Sidebar } from "@/components/sidebar";
 import { VerificationProvider } from "@/components/verification";
+import { PUBLIC_ORIGIN } from "@/lib/public-discovery";
 import "./globals.css";
 
 const geist = Geist({
@@ -11,7 +12,8 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   title: { default: "Romanum", template: "%s · Romanum" },
-  description: "Create without limits.",
+  metadataBase: new URL(PUBLIC_ORIGIN),
+  description: "Public Roblox game statistics, chart samples and grounded game research. Free analytics and read-only MCP.",
 };
 
 export const viewport: Viewport = {

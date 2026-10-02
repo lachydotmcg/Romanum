@@ -4,7 +4,9 @@ import { ArrowUpRight } from "lucide-react";
 import { ConnectionCard } from "@/components/mcp/connection-card";
 
 export const metadata: Metadata = {
-  title: "Get MCP",
+  title: "Free Roblox analytics MCP",
+  description: "Connect an MCP-compatible AI app to Romanum’s free, read-only public Roblox data. Public analytics are also available in the browser without installing MCP.",
+  alternates: { canonical: "https://romanum.dev/connect" },
 };
 
 export default function ConnectPage() {
