@@ -116,11 +116,16 @@ export type GameStats = {
 
 export async function getGameStats(universeIds: number[]): Promise<GameStats[]> {
   const ids = universeIds.join(",");
-  const [games, votes, icons] = await Promise.all([
+  const pending = [
     getJson<{ data: RobloxGame[] }>(`https://games.roblox.com/v1/games?universeIds=${ids}`),
     getJson<{ data: RobloxVotes[] }>(`https://games.roblox.com/v1/games/votes?universeIds=${ids}`),
     getGameIcons(universeIds),
-  ]);
+  ] as const;
+  // A failed sibling must not release the public-data admission slot while other
+  // requests still run. Each request retains its existing timeout; drain all work
+  // before returning either the combined result or its failure.
+  await Promise.allSettled(pending);
+  const [games, votes, icons] = await Promise.all(pending);
   const votesById = new Map(votes.data.map((v) => [v.id, v]));
 
   return games.data.map((game) => {
