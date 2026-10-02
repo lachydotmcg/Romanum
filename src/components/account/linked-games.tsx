@@ -88,7 +88,7 @@ function GameCard({ game, settings, onChange, onRemove, onRelink }: { game: Link
   });
   if (!settings) return (
     <li className="min-w-0">
-      <Link href={`/analytics/games/${game.universeId}`} prefetch={false} className={`group block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong hover:bg-surface-hover sm:p-5 ${FOCUS}`}>
+      <Link href={`/analytics/games/${game.universeId}`} aria-label={`View analytics for ${name}`} prefetch={false} className={`group block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong hover:bg-surface-hover sm:p-5 ${FOCUS}`}>
         <GameIcon url={game.iconUrl} name={name} className="aspect-square w-full rounded-xl" sizes="(min-width: 1024px) 50vw, 100vw" />
         <h3 className="mt-4 text-lg font-semibold leading-snug break-words group-hover:underline">{name}</h3>
         {game.creatorName && <p className="mt-1 text-xs text-fg-muted break-words">By {game.creatorName}</p>}
@@ -104,7 +104,7 @@ function GameCard({ game, settings, onChange, onRemove, onRelink }: { game: Link
               <dt className="text-xs text-fg-muted">{metric.label}</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums" title={metric.latest ? `Roblox daily observation: ${metric.latest.day}${metric.latest.status ? ` (${metric.latest.status})` : ""}` : "Not synced"}>
                 {formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}
-                {metric.latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-subtle">Projected</span>}
+                {metric.latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-muted">Projected</span>}
               </dd>
               <MetricChange change={metric.change} />
             </div>
