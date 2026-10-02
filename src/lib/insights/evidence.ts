@@ -84,19 +84,43 @@ export type RecommendationEvidence = z.infer<typeof recommendationEvidenceSchema
 export type CompetitorResearch = z.infer<typeof competitorResearchSchema>;
 type Market = Awaited<ReturnType<PublicDataService["market"]>>;
 
-/** No free-form market claims: chart presence is rendered from verified observations. */
+// These checks restrict proposal fragments; they cannot establish the factuality of arbitrary prose.
+// Measured statements must instead be rendered from the separate, verified observation objects.
+const unsupportedClaim = /\b(?:saturat\w*|underserv\w*|untapped|uncrowded|novel\w*|original|unique|guarantee\w*)\b|\b(?:few|no|only)\s+(?:games|matches|competitors?)\b|\bopen\s+(?:genre|space|opportunity)\b/i;
+const metricClaim = /[%\u2030$\u20ac\u00a3]|\b(?:percent(?:age)?s?|ctr|click[\s-]*through|ccu|dau|mau|arppu|arpdau|earnings|revenue|retention|conversion|session[\s-]+(?:length|duration)|concurrent[\s-]+players|daily[\s-]+active|monthly[\s-]+active|visits|likes|dislikes|ratings|votes|robux|usd)\b/i;
+const factualClause = /[.!?;:\r\n]|\b(?:because|therefore|since|according to|already|currently|measured|observed|proven|has|have|had|is|are|was|were)\b|\bdata\s+(?:proves?|shows?)\b/i;
+const proposalFragment = z.string().trim().min(4).max(80).refine(
+  (value) => {
+    const comparable = value.normalize("NFKC");
+    return !unsupportedClaim.test(comparable) && !metricClaim.test(comparable) && !factualClause.test(comparable);
+  },
+  "Unsupported claim or sentence in a design proposal. Use a player-action or prototype-variation fragment.",
+);
+
+export const designProposalSchema = z.object({
+  coreAction: proposalFragment,
+  variation: proposalFragment,
+}).strict();
+export type DesignProposal = z.infer<typeof designProposalSchema>;
+export const designTitleSchema = z.string().trim().min(2).max(40).refine(
+  (value) => !metricClaim.test(value.normalize("NFKC")) && !unsupportedClaim.test(value.normalize("NFKC")),
+  "Unsupported metric or factual claim in a working title.",
+);
+
+/** The generated contract supplies design fragments, never a model-written factual reason. */
+export function renderDesignProposal(proposal: DesignProposal): string {
+  return `Prototype a game where players ${proposal.coreAction}, using ${proposal.variation}.`;
+}
+
+/** Chart presence and counts are rendered only from verified observations, outside this proposal. */
 const draftSchema = z.object({
   recommendations: z.array(z.object({
-    title: z.string().trim().min(2).max(40),
-    hypothesis: z.string().trim().min(10).max(220),
+    title: designTitleSchema,
+    proposal: designProposalSchema,
     researchTerms: z.array(z.string().trim().min(1).max(80)).min(1).max(2),
     evidenceRefs: z.array(z.object({ chart: chartId, universeId: id }).strict()).min(1).max(4),
   }).strict()).min(1).max(3),
 }).strict();
-
-// Conservative rejection of common unsupported claims, in addition to the constrained prompt.
-// This is not a semantic fact checker; only the separate evidence statements are verified facts.
-const unsupportedClaim = /\b(?:trend(?:s|ing)?|growth|accelerat\w*|declin\w*|revenue|retention|saturat\w*|underserv\w*|untapped|uncrowded|novel\w*|original|unique|competitors?|competition|market|chart|genre|popular\w*|demand|guarantee\w*)\b|\b(?:is|are|keep(?:s)?)\s+(?:rising|growing)\b|\b(?:rising|growing)\s+(?:interest|players|games|patterns?)\b|\b(?:few|no|only)\s+(?:games|matches)\b|\bopen\s+(?:space|opportunity)\b/i;
 
 /** Only the bounded, non-sponsored observations actually sent to the model may be referenced. */
 export function recommendationMarket(market: Market) {
@@ -164,7 +188,6 @@ export async function evidenceRecommendations(
   const references = new Map(prepared.evidence.map((item) => [`${item.chart}:${item.universeId}`, item]));
   // Validate every draft before any competitor searches, including cross-chart or fabricated references.
   const validated = drafts.map((draft) => {
-    if (unsupportedClaim.test(draft.hypothesis)) throw new Error("Unsupported claim in a design hypothesis.");
     const evidence = [...new Map(draft.evidenceRefs.map((ref) => {
       const key = `${ref.chart}:${ref.universeId}`;
       const observation = references.get(key);
@@ -189,7 +212,7 @@ export async function evidenceRecommendations(
       games: research.games.map(({ universeId, rootPlaceId, name, playing, sponsored, matchedQueries, fetchedAt }) =>
         ({ universeId, rootPlaceId, name, playing, sponsored, matchedQueries, fetchedAt })),
     });
-    recommendations.push({ title: draft.title, reason: draft.hypothesis, evidence, research: competitors });
+    recommendations.push({ title: draft.title, proposal: draft.proposal, reason: renderDesignProposal(draft.proposal), evidence, research: competitors });
   }
   return { recommendations, marketEvidence: prepared.marketEvidence, dataAt: prepared.dataAt };
 }

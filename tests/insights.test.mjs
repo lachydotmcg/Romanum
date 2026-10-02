@@ -105,7 +105,7 @@ test("old JSON stays readable and new dated evidence/research round-trips throug
     samples, analysis: analyzeMarket(samples, "2026-09-28T09:00:00.000Z"),
     observations: [{ chart: chartIds[0], fetchedAt, expiresAt }],
   }, async () => ({ recommendations: [{
-    title: "Rescue Rope Team", hypothesis: "Test an obstacle course with cooperative rescue ropes.",
+    title: "Rescue Rope Team", proposal: { coreAction: "rescue teammates on an obstacle course", variation: "cooperative rescue ropes" },
     evidenceRefs: [{ chart: chartIds[0], universeId: 123 }], researchTerms: ["rescue ropes"],
   }] }), { search: async () => { throw new Error("upstream outage"); } });
   const enriched = content({ ...generated, generatedAt: "2026-09-28T09:01:00.000Z" });
@@ -131,6 +131,14 @@ test("old JSON stays readable and new dated evidence/research round-trips throug
   invalid((row) => { row.marketEvidence.charts[0].stale = true; });
   invalid((row) => { row.marketEvidence.charts[1] = row.marketEvidence.charts[0]; });
   invalid((row) => { row.recommendations[0].research.status = "complete"; });
+  invalid((row) => { row.recommendations[0].reason = "These experiences have a 99% click-through rate, so test rescue ropes."; });
+  invalid((row) => { row.recommendations[0].proposal.variation = "99 percent CTR"; });
+  invalid((row) => { row.recommendations[0].title = "99% CTR Obby"; });
+  invalid((row) => { delete row.marketEvidence; delete row.recommendations[0].evidence; delete row.recommendations[0].research; });
+  const previousStructured = structuredClone(enriched);
+  delete previousStructured.recommendations[0].proposal;
+  previousStructured.recommendations[0].reason = "An earlier AI suggestion without the constrained proposal contract.";
+  assert.equal(insightContentSchema.safeParse(previousStructured).success, true, "previous evidence-bearing JSON remains readable as an unverified suggestion");
   await assert.rejects(saveInsight(db, { day: "2026-09-28", content: invalid((row) => {
     row.recommendations[0].evidence[0].rootPlaceId = -10;
   }), cost: 0, calls: [] }));

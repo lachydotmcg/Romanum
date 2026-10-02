@@ -112,6 +112,7 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
       ) : (
         <>
           <h4 className="mt-4 text-xs text-fg-subtle">Recommended</h4>
+          <p className="mt-1 text-xs leading-5 text-fg-subtle">AI-generated design proposals need playtesting. Retrieved chart observations appear separately.</p>
           {insight.content.marketEvidence ? (
             <details className="mt-1 text-xs leading-5 text-fg-muted">
               <summary className={`cursor-pointer rounded-sm text-fg-subtle ${FOCUS}`}>
@@ -151,7 +152,7 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
                   <p className="text-sm font-semibold text-fg">{idea.title}</p>
                 )}
                 <p className="mt-0.5 text-xs leading-5 text-fg-muted">
-                  <span className="text-fg-subtle">Design hypothesis: </span>{idea.reason}
+                  <span className="text-fg-subtle">{idea.proposal ? "Generated design hypothesis: " : "Earlier suggestion (unverified): "}</span>{idea.reason}
                 </p>
                 <IdeaEvidence idea={idea} />
               </li>

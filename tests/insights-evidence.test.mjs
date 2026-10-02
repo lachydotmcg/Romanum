@@ -7,7 +7,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { analyzeMarket } from "../src/lib/market-analysis.ts";
-import { evidenceRecommendations, recommendationMarket } from "../src/lib/insights/evidence.ts";
+import { evidenceRecommendations, recommendationMarket, renderDesignProposal } from "../src/lib/insights/evidence.ts";
 
 const assembledAt = "2026-10-02T10:00:00.000Z";
 const fetchedAt = "2026-10-02T09:59:00.000Z";
@@ -25,7 +25,7 @@ function market(rows = [[game(1)], [], null, [game(2)]], observations) {
   };
 }
 const draft = (extra = {}) => ({
-  title: "Lava Team Rescue", hypothesis: "Test a cooperative obstacle course with shared rescue ropes.",
+  title: "Lava Team Rescue", proposal: { coreAction: "rescue teammates on an obstacle course", variation: "shared rescue ropes" },
   researchTerms: ["team obstacle rescue", "rescue ropes"],
   evidenceRefs: [{ chart: "top-playing-now", universeId: 1 }], ...extra,
 });
@@ -74,7 +74,8 @@ test("verified evidence copies retrieved values, preserves per-chart observation
   assert.deepEqual(calls, ["model", "Lava Team Rescue", "team obstacle rescue", "rescue ropes"]);
   const idea = result.recommendations[0];
   assert.deepEqual(idea.evidence.map((item) => [item.chart, item.playing]), [[charts[0], 50], [charts[1], 12]]);
-  assert.equal(idea.reason, draft().hypothesis);
+  assert.equal(idea.reason, renderDesignProposal(draft().proposal));
+  assert.deepEqual(idea.proposal, draft().proposal);
   assert.equal(idea.research.status, "complete");
   assert.equal(idea.research.games.length, 1);
   assert.equal(idea.research.games[0].fetchedAt, fetchedAt);
@@ -114,12 +115,50 @@ test("unsupported rise, open-genre, competitor and novelty claims are rejected",
     "This original concept guarantees a unique game.",
     "Trending games prove demand for this obstacle course.",
   ]) {
-    await assert.rejects(evidenceRecommendations(market(), proposal(draft({ hypothesis })), neverSearch), /Unsupported claim/);
+    await assert.rejects(evidenceRecommendations(market(), proposal(draft({ proposal: { ...draft().proposal, coreAction: hypothesis } })), neverSearch), /Unsupported claim/);
   }
   const design = await evidenceRecommendations(market(), proposal(draft({
-    hypothesis: "Test growing gardens on rising platforms with a first-place race.",
+    proposal: { coreAction: "grow gardens on rising platforms", variation: "a first-place race" },
   })), emptySearch);
   assert.equal(design.recommendations.length, 1, "growth and rising platforms can describe proposed mechanics");
+});
+
+test("model-written factual reasons and quantified metric claims are rejected before research", async () => {
+  const fabricated = "These experiences have a 99% click-through rate, so test rescue ropes.";
+  for (const extra of [{ hypothesis: fabricated }, { reason: fabricated }, { measuredCtr: 0.99 }]) {
+    await assert.rejects(evidenceRecommendations(market(), proposal(draft(extra)), neverSearch));
+  }
+  for (const title of ["99% CTR Obby", "99 percent CTR", "Guaranteed Rescue"]) {
+    await assert.rejects(evidenceRecommendations(market(), proposal(draft({ title })), neverSearch));
+  }
+  for (const claim of [
+    "have a 99% click-through rate", "99 percent CTR", "achieve 99 per cent click-through",
+    "earn 10000 Robux daily", "retain 90 percent of players", "reach 2000 CCU",
+    "have 2 million visits", "99% of users click thumbnails", "session length of 20 minutes", "99\uff05 \uff23\uff34\uff32",
+  ]) {
+    for (const field of ["coreAction", "variation"]) {
+      await assert.rejects(evidenceRecommendations(market(), proposal(draft({
+        proposal: { ...draft().proposal, [field]: claim },
+      })), neverSearch), /Unsupported claim/);
+    }
+  }
+  const valid = await evidenceRecommendations(market(), proposal(draft({
+    title: "+1 Rope Rescuers",
+    proposal: { coreAction: "choose between 2 rescue routes", variation: "shared rescue ropes" },
+  })), emptySearch);
+  assert.equal(valid.recommendations[0].reason, "Prototype a game where players choose between 2 rescue routes, using shared rescue ropes.");
+  assert.equal(valid.recommendations[0].evidence[0].playing, 50, "measured values come from the verified observation only");
+  const trading = await evidenceRecommendations(market(), proposal(draft({
+    proposal: { coreAction: "trade at a player market", variation: "a travelling magic show" },
+  })), emptySearch);
+  assert.equal(trading.recommendations.length, 1, "design settings are not rejected merely for words also used in analytics");
+});
+
+test("missing and empty evidence cannot finalize a structured design proposal", async () => {
+  const missing = draft();
+  delete missing.evidenceRefs;
+  await assert.rejects(evidenceRecommendations(market(), proposal(missing), neverSearch));
+  await assert.rejects(evidenceRecommendations(market(), proposal(draft({ evidenceRefs: [] })), neverSearch));
 });
 
 test("all unavailable, all empty and undated charts refuse generation before any model or search", async () => {
@@ -226,7 +265,8 @@ test("the rendered card separates hypotheses from dated evidence, search gaps an
       initial: { day: "2026-10-02", content: record }, today: "2026-10-02", connected: false, fitRow: true,
     }));
     const markup = render(content);
-    assert.match(markup, /Design hypothesis:/);
+    assert.match(markup, /Generated design hypothesis:/);
+    assert.match(markup, /AI-generated design proposals need playtesting/);
     assert.match(markup, /Chart observations/);
     assert.match(markup, /href="https:\/\/www\.roblox\.com\/games\/101"/);
     assert.match(markup, /href="https:\/\/www\.roblox\.com\/games\/109"/);
@@ -241,6 +281,7 @@ test("the rendered card separates hypotheses from dated evidence, search gaps an
     assert.ok(!markup.includes("<script>fixture</script>"));
     const old = render({ recommendations: [{ title: "Old Idea", reason: "An older suggestion without structured evidence." }], radar: [], dataAt: assembledAt, generatedAt: assembledAt });
     assert.match(old, /evidence links and retrieval times were not recorded/);
+    assert.match(old, /Earlier suggestion \(unverified\):/);
     assert.ok(!old.includes("Retrieved <time"));
   } finally { hooks.deregister(); }
 });

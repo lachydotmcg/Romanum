@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Database } from "../history/database.ts";
-import { competitorResearchSchema, marketEvidenceSchema, recommendationEvidenceSchema } from "./evidence.ts";
+import { competitorResearchSchema, designProposalSchema, designTitleSchema, marketEvidenceSchema, recommendationEvidenceSchema, renderDesignProposal } from "./evidence.ts";
 
 // Romanum insight: each day's recommended titles and indie radar, generated once and shared by everyone.
 
@@ -9,8 +9,10 @@ const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 export const recommendationSchema = z.object({
   /** A working title, like a real Roblox game name. */
   title: text(2, 40),
-  /** A design hypothesis for new records; older records combined the idea and reason. */
+  /** Server-rendered proposal for new records; older records combined the idea and reason. */
   reason: text(10, 220),
+  /** Optional for legacy records; generated proposals use a constrained design-only contract. */
+  proposal: designProposalSchema.optional(),
   /** Optional so existing JSON records remain readable without a migration. */
   evidence: z.array(recommendationEvidenceSchema).min(1).max(4).optional(),
   research: competitorResearchSchema.optional(),
@@ -37,7 +39,7 @@ export const insightContentSchema = z.object({
   generatedAt: z.iso.datetime(),
 }).superRefine((content, context) => {
   if (!content.marketEvidence) {
-    if (content.recommendations.some((idea) => idea.evidence || idea.research)) {
+    if (content.recommendations.some((idea) => idea.proposal || idea.evidence || idea.research)) {
       context.addIssue({ code: "custom", message: "Evidence requires dated chart coverage." });
     }
     return;
@@ -50,6 +52,12 @@ export const insightContentSchema = z.object({
     .sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   if (content.dataAt !== oldest) context.addIssue({ code: "custom", message: "Data time must retain chart retrieval time." });
   for (const idea of content.recommendations) {
+    if (idea.proposal && !designTitleSchema.safeParse(idea.title).success) {
+      context.addIssue({ code: "custom", message: "A generated working title cannot contain metric or factual claims." });
+    }
+    if (idea.proposal && idea.reason !== renderDesignProposal(idea.proposal)) {
+      context.addIssue({ code: "custom", message: "A generated proposal must use its server-rendered description." });
+    }
     if (!idea.evidence || !idea.research) {
       context.addIssue({ code: "custom", message: "New recommendations require evidence and search coverage." });
     }
