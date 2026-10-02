@@ -229,7 +229,7 @@ test("generation cancellation stops waiting for stalled searches and prevents fu
   await assert.rejects(evidenceRecommendations(market(), async () => assert.fail("aborted before model"), neverSearch, controller.signal), /deadline/);
 });
 
-test("the rendered card separates hypotheses from dated evidence, search gaps and legacy coverage", async () => {
+test("the rendered card leads with prototypes, keeps evidence inspectable and states material gaps once", async () => {
   // Node strips .ts but not TSX. Transpile only the actual view modules, with no test copies or network.
   const hooks = registerHooks({
     resolve(specifier, context, nextResolve) {
@@ -265,8 +265,15 @@ test("the rendered card separates hypotheses from dated evidence, search gaps an
       initial: { day: "2026-10-02", content: record }, today: "2026-10-02", connected: false, fitRow: true,
     }));
     const markup = render(content);
-    assert.match(markup, /Generated design hypothesis:/);
+    assert.match(markup, /Ideas to prototype/);
     assert.match(markup, /AI-generated design proposals need playtesting/);
+    const detailsStart = markup.indexOf("<details");
+    assert.ok(detailsStart > markup.indexOf(content.recommendations[0].reason));
+    assert.equal(markup.match(/<details\b/g)?.length, 1);
+    assert.ok(!/<details[^>]*\bopen(?:[\s=>])/.test(markup));
+    assert.match(markup.slice(detailsStart), /Evidence and sources/);
+    assert.ok(!/coverage|unavailable|need playtesting|Empty results do not prove novelty/.test(markup.slice(0, detailsStart)));
+    assert.ok(!markup.includes("Generated design hypothesis:"));
     assert.match(markup, /Chart observations/);
     assert.match(markup, /href="https:\/\/www\.roblox\.com\/games\/101"/);
     assert.match(markup, /href="https:\/\/www\.roblox\.com\/games\/109"/);
@@ -279,9 +286,30 @@ test("the rendered card separates hypotheses from dated evidence, search gaps an
     assert.match(markup, /Empty results do not prove novelty/);
     assert.match(markup, /Sponsored/);
     assert.ok(!markup.includes("<script>fixture</script>"));
-    const old = render({ recommendations: [{ title: "Old Idea", reason: "An older suggestion without structured evidence." }], radar: [], dataAt: assembledAt, generatedAt: assembledAt });
+    const old = render({ recommendations: [
+      { title: "Old Idea", reason: "An older suggestion without structured evidence." },
+      { title: "Another Old Idea", reason: "Another older suggestion without structured evidence." },
+    ], radar: [], dataAt: assembledAt, generatedAt: assembledAt });
     assert.match(old, /evidence links and retrieval times were not recorded/);
-    assert.match(old, /Earlier suggestion \(unverified\):/);
+    assert.equal(old.match(/Earlier suggestions are unverified\./g)?.length, 1);
+    assert.ok(old.indexOf("Earlier suggestions are unverified.") < old.indexOf("<details"));
     assert.ok(!old.includes("Retrieved <time"));
+
+    const outageResearch = { status: "unavailable", games: [], searches: content.recommendations[0].research.searches.map((search) => ({
+      ...search, status: "unavailable", fetchedAt: null, resultCount: null,
+    })) };
+    const outage = render({ ...content, recommendations: content.recommendations.flatMap((idea) => [
+      { ...idea, research: outageResearch }, { ...idea, title: "Second Rescue", research: outageResearch },
+    ]) });
+    assert.equal(outage.match(/Competitor search could not run;/g)?.length, 1);
+    assert.ok(outage.indexOf("Competitor search could not run;") < outage.indexOf("<details"));
+    assert.match(outage.slice(outage.indexOf("<details")), /unavailable; results unknown/);
+
+    const stale = render({ ...content, marketEvidence: { ...content.marketEvidence, charts: content.marketEvidence.charts.map((chart) => (
+      chart.status === "unavailable" ? chart : { ...chart, stale: true, expiresAt: assembledAt }
+    )) } });
+    assert.equal(stale.match(/Some chart observations were stale when assembled;/g)?.length, 1);
+    assert.ok(stale.indexOf("Some chart observations were stale when assembled;") < stale.indexOf("<details"));
+    assert.match(stale.slice(stale.indexOf("<details")), /expired when assembled/);
   } finally { hooks.deregister(); }
 });

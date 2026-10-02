@@ -25,8 +25,8 @@ function IdeaEvidence({ idea }: { idea: Recommendation }) {
   if (!idea.evidence || !idea.research) return null;
   const research = idea.research;
   return (
-    <details className="mt-1 text-xs leading-5 text-fg-muted">
-      <summary className={`cursor-pointer rounded-sm text-fg-subtle ${FOCUS}`}>Evidence and competitor search</summary>
+    <div className="mt-3 border-t border-line pt-3">
+      <h5 className="font-medium text-fg">{idea.title}</h5>
       <p className="mt-2">Chart observations</p>
       <ul className="mt-1 space-y-2">
         {idea.evidence.map((item) => (
@@ -63,8 +63,7 @@ function IdeaEvidence({ idea }: { idea: Recommendation }) {
           </ul>
         </>
       )}
-      <p className="mt-2">Limited Roblox search; matches are candidates. Empty results do not prove novelty. Inspect gameplay before comparing.</p>
-    </details>
+    </div>
   );
 }
 
@@ -93,6 +92,14 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
   }, [current, connected]);
 
   const radar = insight?.content.radar ?? [];
+  const materialNotes = insight ? [
+    insight.content.recommendations.some((idea) => !idea.proposal)
+      ? "Earlier suggestions are unverified." : null,
+    insight.content.recommendations.some((idea) => idea.research?.status === "unavailable")
+      ? "Competitor search could not run; check similar games before committing to a build." : null,
+    insight.content.marketEvidence?.charts.some((chart) => chart.stale)
+      ? "Some chart observations were stale when assembled; check current charts before acting on them." : null,
+  ].filter(Boolean) : [];
   return (
     // On desktop, Top Playing Now sets the row's height: this card's content doesn't count toward it. Without the
     // chart, containing it would shrink it to the height of the error message.
@@ -111,31 +118,7 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
         </p>
       ) : (
         <>
-          <h4 className="mt-4 text-xs text-fg-subtle">Recommended</h4>
-          <p className="mt-1 text-xs leading-5 text-fg-subtle">AI-generated design proposals need playtesting. Retrieved chart observations appear separately.</p>
-          {insight.content.marketEvidence ? (
-            <details className="mt-1 text-xs leading-5 text-fg-muted">
-              <summary className={`cursor-pointer rounded-sm text-fg-subtle ${FOCUS}`}>
-                Chart coverage: {insight.content.marketEvidence.charts.filter((chart) => chart.status !== "unavailable").length}/4 retrieved
-              </summary>
-              <p className="mt-1">At most ten non-sponsored games per chart. Chart presence is not measured growth or an open genre; names do not verify gameplay.</p>
-              <a href="https://www.roblox.com/charts" target="_blank" rel="noopener noreferrer" className={`rounded-sm text-fg hover:underline ${FOCUS}`}>Roblox charts</a>
-              <ul className="mt-1 space-y-1">
-                {insight.content.marketEvidence.charts.map((chart) => (
-                  <li key={chart.chart}>
-                    {chartNames[chart.chart]}: {chart.status === "unavailable" ? "unavailable; coverage unknown" : chart.status === "empty" ? "no usable games in sample" : `${chart.sampledGames} games sampled`}
-                    {chart.fetchedAt && <> · retrieved <time dateTime={chart.fetchedAt} title={chart.fetchedAt}>{observedTime(chart.fetchedAt)}</time></>}
-                    {chart.stale && " · expired when assembled"}
-                    {chart.expiresAt && <p>Cache expired/expiring <time dateTime={chart.expiresAt} title={chart.expiresAt}>{observedTime(chart.expiresAt)}</time></p>}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-1">Assembled <time dateTime={insight.content.marketEvidence.assembledAt}>{observedTime(insight.content.marketEvidence.assembledAt)}</time></p>
-              <p>Generated <time dateTime={insight.content.generatedAt}>{observedTime(insight.content.generatedAt)}</time></p>
-            </details>
-          ) : (
-            <p className="mt-1 text-xs leading-5 text-fg-subtle">Earlier insight: evidence links and retrieval times were not recorded.</p>
-          )}
+          <h4 className="mt-4 text-xs text-fg-subtle">Ideas to prototype</h4>
           <ul className="mt-2 space-y-2">
             {insight.content.recommendations.map((idea) => (
               <li key={idea.title}>
@@ -152,12 +135,36 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
                   <p className="text-sm font-semibold text-fg">{idea.title}</p>
                 )}
                 <p className="mt-0.5 text-xs leading-5 text-fg-muted">
-                  <span className="text-fg-subtle">{idea.proposal ? "Generated design hypothesis: " : "Earlier suggestion (unverified): "}</span>{idea.reason}
+                  {idea.reason}
                 </p>
-                <IdeaEvidence idea={idea} />
               </li>
             ))}
           </ul>
+          {materialNotes.length > 0 && <p className="mt-2 text-xs leading-5 text-fg-muted">{materialNotes.join(" ")}</p>}
+          <details className="mt-3 text-xs leading-5 text-fg-muted">
+            <summary className={`cursor-pointer rounded-sm text-fg-subtle ${FOCUS}`}>Evidence and sources</summary>
+            <p className="mt-2">AI-generated design proposals need playtesting. Retrieved chart observations appear separately.</p>
+            {insight.content.marketEvidence ? (
+              <>
+                <p className="mt-2">Chart coverage: {insight.content.marketEvidence.charts.filter((chart) => chart.status !== "unavailable").length}/4 retrieved. At most ten non-sponsored games per chart.</p>
+                <a href="https://www.roblox.com/charts" target="_blank" rel="noopener noreferrer" className={`rounded-sm text-fg hover:underline ${FOCUS}`}>Roblox charts</a>
+                <ul className="mt-1 space-y-1">
+                  {insight.content.marketEvidence.charts.map((chart) => (
+                    <li key={chart.chart}>
+                      {chartNames[chart.chart]}: {chart.status === "unavailable" ? "unavailable; coverage unknown" : chart.status === "empty" ? "no usable games in sample" : `${chart.sampledGames} games sampled`}
+                      {chart.fetchedAt && <> · retrieved <time dateTime={chart.fetchedAt} title={chart.fetchedAt}>{observedTime(chart.fetchedAt)}</time></>}
+                      {chart.stale && " · expired when assembled"}
+                      {chart.expiresAt && <p>Cache expired/expiring <time dateTime={chart.expiresAt} title={chart.expiresAt}>{observedTime(chart.expiresAt)}</time></p>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">Assembled <time dateTime={insight.content.marketEvidence.assembledAt}>{observedTime(insight.content.marketEvidence.assembledAt)}</time></p>
+              </>
+            ) : <p className="mt-2">Earlier insight: evidence links and retrieval times were not recorded.</p>}
+            <p>Generated <time dateTime={insight.content.generatedAt}>{observedTime(insight.content.generatedAt)}</time></p>
+            {insight.content.recommendations.map((idea) => <IdeaEvidence key={idea.title} idea={idea} />)}
+            <p className="mt-3">Chart presence does not establish growth or an open genre; names do not verify gameplay. Limited Roblox search matches are candidates. Empty results do not prove novelty. Inspect gameplay before comparing.</p>
+          </details>
 
           {radar.length > 0 && (
             <>
