@@ -29,6 +29,8 @@ The catalog also identifies the existing public routes; their validation and beh
 - `GET /api/history/games`: up to 100 games with recorded public observations, ordered by their latest recorded player counts. This is a collection directory, not every Roblox game or a current ranking.
 - `GET /api/history?universeId=994732206&days=7`: recorded observations for a positive universe ID over 1–30 days, default one day. Includes availability, requested period, sample count, gaps, observation statuses and nullable metrics.
 
+`GET /api/history/compare?universeIds=994732206,4924922222&days=7` compares two to five distinct games over one fixed cutoff and the same 1–30-day bound. It uses matching actual collection slots and reports each game's recorded span, gaps, paired overlap and coverage across the **complete requested period**. Insufficient evidence withholds player-count statistics. The three-paired-slot/50%-of-valid-union rule is an engineering evidence floor, not statistical significance or a universal guarantee; a qualifying short span can still cover very little of the requested period. Keep those coverage fields beside any quoted comparison. See [recorded-history comparison details](history-comparisons.md).
+
 Recorded history contains only observations gathered since collection began and only where games were sampled. An unavailable database, an unsampled game, a failed collection slot and an observed zero are different states. Never convert a gap into zero or infer activity before the recording period.
 
 ## Freshness and citations
@@ -44,3 +46,5 @@ Cite the returned source, universe or chart ID, metric, unit and full UTC retrie
 The new routes return a JSON `error` with **400** for invalid queries and **503** for retrieval failures. Upstream error details are not exposed. Use GET; unsupported methods return **405**. Read coverage fields even after a successful response.
 
 MCP remains an optional, free read-only interface to the same services, with additional development guides and tools. `/mcp` uses Streamable HTTP and requires an MCP client; it is not a GET JSON endpoint. See [the MCP guide](mcp.md) or `/connect/guide`, and `/analytics/data` for the public data guide.
+
+Daily AI recommendations are generated design hypotheses, separate from the retrieved observations. Their prototype descriptions are rendered from bounded player-action and variation fields; reported metrics and timestamps come from verified evidence objects. Proposal checks reject metric expressions and ordinary factual clauses, but do not establish the truth or quality of arbitrary model wording. Earlier suggestions remain explicitly unverified.

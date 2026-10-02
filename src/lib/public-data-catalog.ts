@@ -1,10 +1,11 @@
 import { METRIC_DEFINITIONS } from "./metric-definitions.ts";
 import { PATTERNS } from "./market-analysis.ts";
 import { ROBLOX_CHART_IDS } from "./roblox.ts";
+import { HISTORY_COMPARISON_POLICY } from "./analytics/history-comparison.ts";
 
 /** Relative URLs work on the same origin as this catalog; no private identity or live lookup is needed. */
 export const PUBLIC_DATA_CATALOG = {
-  version: "1",
+  version: "2",
   access: { method: "GET", readOnly: true, authenticationRequired: false, creditsRequired: false, modelRequired: false },
   endpoints: [
     {
@@ -55,6 +56,19 @@ export const PUBLIC_DATA_CATALOG = {
       },
       example: "/api/history?universeId=994732206&days=7",
       response: "available, source, from/to, intervalSeconds, sampleCount, gaps and points with actual observation times, statuses and nullable metrics. Unavailable history does not establish zero activity.",
+    },
+    {
+      path: "/api/history/compare", description: "Compare two to five games on matching recorded public collection slots with one fixed cutoff.",
+      parameters: {
+        universeIds: { required: true, encoding: "comma-separated distinct positive safe-integer universe IDs, without whitespace", minItems: 2, maxItems: 5 },
+        days: { required: false, type: "integer", minimum: 1, maximum: 30, default: 1 },
+      },
+      example: "/api/history/compare?universeIds=994732206,4924922222&days=7",
+      comparisonPolicy: {
+        ...HISTORY_COMPARISON_POLICY, engineeringHeuristic: true,
+        overlapDenominator: "union of the two games' valid recorded slots",
+      },
+      response: "Status, source, cutoff/from/to, per-game spans and gaps, requested-period coverage, paired/union overlap, paired/requested coverage and matching-slot player-count summaries. Insufficient comparisons retain coverage and withhold statistics. Thresholds are an engineering evidence floor, not significance or a universal guarantee; qualifying short spans must retain requested-period coverage.",
     },
   ],
   queryRules: "For /api/public/*, unknown or repeated parameters, empty supplied values and URLs longer than 2048 characters return 400. Query integers use decimal digits; comma-separated ID whitespace is accepted. Existing search/history routes retain their own validation.",

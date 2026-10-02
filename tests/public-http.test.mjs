@@ -199,11 +199,16 @@ test("catalog is available without any service calls and identifies actual exist
   assert.deepEqual(result.access, { method: "GET", readOnly: true, authenticationRequired: false, creditsRequired: false, modelRequired: false });
   assert.deepEqual(result.endpoints.map(item => item.path), [
     "/api/public/stats", "/api/public/charts", "/api/public/market", "/api/public/catalog",
-    "/api/games/search", "/api/history/games", "/api/history",
+    "/api/games/search", "/api/history/games", "/api/history", "/api/history/compare",
   ]);
   for (const item of result.endpoints) await access(new URL(`../src/app${item.path}/route.ts`, import.meta.url));
   assert.equal(result.endpoints[0].parameters.universeIds.maxItems, 10);
   assert.equal(result.endpoints[1].parameters.limit.maximum, 50);
+  assert.equal(result.endpoints[7].parameters.universeIds.maxItems, 5);
+  assert.equal(result.endpoints[7].comparisonPolicy.minimumPairedSlots, 3);
+  assert.equal(result.endpoints[7].comparisonPolicy.minimumOverlapFraction, 0.5);
+  assert.equal(result.endpoints[7].comparisonPolicy.engineeringHeuristic, true);
+  assert.match(result.endpoints[7].response, /requested-period coverage/);
   assert.equal(result.metricDefinitions.metrics.playing.unit, "players");
   assert.match(result.coverage, /Private connected-game data is excluded/);
   assert.match(result.citation, /UTC retrieval timestamp/);
