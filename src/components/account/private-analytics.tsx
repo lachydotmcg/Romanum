@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { MetricChange } from "./metric-change";
+import { dailyMetricChange } from "@/lib/linked-games/changes";
 import { ChartCard } from "@/components/charts/chart-card";
 import { colorHex, type ChartSpec, type ValueFormat } from "@/lib/charts/spec";
 import { asFractions, formatMetric, SYNCED_METRICS, type MetricUnit } from "@/lib/linked-games/metrics";
@@ -49,14 +51,14 @@ export function PrivateAnalytics({ game, metrics }: { game: LinkedGame; metrics:
   ].filter((chart): chart is ChartSpec => chart !== null);
 
   return (
-    <section id="your-analytics" aria-labelledby="your-analytics-heading" className="mt-9 scroll-mt-8">
+    <section id="your-analytics" aria-labelledby="your-analytics-heading" className="scroll-mt-8">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="your-analytics-heading" className="text-base font-semibold tracking-tight">
           Your analytics
         </h2>
         <p className="text-xs text-fg-subtle">
           Private to you ·{" "}
-          <Link href="/profile#games" className="rounded-sm text-fg-muted underline-offset-2 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-fg-muted">
+          <Link href={`/profile/settings/games#game-${game.id}`} className="rounded-sm text-fg-muted underline-offset-2 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-fg-muted">
             {game.collect && game.status === "active" ? "Manage" : "Collection off"}
           </Link>
         </p>
@@ -64,8 +66,8 @@ export function PrivateAnalytics({ game, metrics }: { game: LinkedGame; metrics:
 
       {charts.length ? (
         <>
-          <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {SYNCED_METRICS.map(({ metric, label, unit }) => {
+          <dl className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {SYNCED_METRICS.filter(({ metric }) => ["DailyActiveUsers", "AveragePlayTimeMinutesPerDAU", "ForwardD1Retention", "DailyRevenue"].includes(metric)).map(({ metric, label, unit }) => {
               const series = metrics[metric] ?? [];
               const latest = series.at(-1);
               const value = latest ? chartValues(metric, series.map((point) => point.value)).at(-1) : null;
@@ -74,11 +76,23 @@ export function PrivateAnalytics({ game, metrics }: { game: LinkedGame; metrics:
                   <dt className="truncate text-xs text-fg-muted">{label}</dt>
                   <dd className="mt-2 text-xl font-semibold tabular-nums">{formatMetric(value, unit)}</dd>
                   {latest && <p className="mt-1 text-[11px] text-fg-subtle">{latest.day}{latest.status === "Projected" ? " · projected" : ""}</p>}
+                  <MetricChange change={dailyMetricChange(series, unit)} />
                 </div>
               );
             })}
           </dl>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <details className="mt-4 rounded-xl border border-line px-4 py-3">
+            <summary className="cursor-pointer text-sm text-fg-muted hover:text-fg">More daily metrics</summary>
+            <dl className="mt-4 grid grid-cols-2 gap-4">
+              {SYNCED_METRICS.filter(({ metric }) => !["DailyActiveUsers", "AveragePlayTimeMinutesPerDAU", "ForwardD1Retention", "DailyRevenue"].includes(metric)).map(({ metric, label, unit }) => {
+                const series = metrics[metric] ?? [];
+                const latest = series.at(-1);
+                const value = latest ? chartValues(metric, series.map((point) => point.value)).at(-1) : null;
+                return <div key={metric}><dt className="text-xs text-fg-muted">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{formatMetric(value, unit)}</dd>{latest && <p className="mt-1 text-[11px] text-fg-subtle">{latest.day}{latest.status === "Projected" ? " · projected" : ""}</p>}</div>;
+              })}
+            </dl>
+          </details>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
             {charts.map((chart) => (
               <ChartCard key={chart.title} chart={chart} />
             ))}

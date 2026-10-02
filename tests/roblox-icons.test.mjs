@@ -161,6 +161,13 @@ test("getGameIcons batches ids 100 at a time in sorted order", async (t) => {
   assert.equal(new URL(calls[0].url).searchParams.get("size"), "150x150");
 });
 
+test("large artwork uses Roblox's 512 square size without changing the default icon request", async (t) => {
+  const calls = mockFetch(t, () => jsonResponse({ data: [{ targetId: 1, state: "Completed", imageUrl: ICON_URL(1) }] }));
+  assert.equal((await getGameIcons([1], "512x512")).get(1), ICON_URL(1));
+  await getGameIcons([1]);
+  assert.deepEqual(calls.map((call) => new URL(call.url).searchParams.get("size")), ["512x512", "150x150"]);
+});
+
 test("getGameIcons returns a partial map when one batch fails", async (t) => {
   const ids = Array.from({ length: 150 }, (_, i) => i + 1);
   mockFetch(t, (call) => {

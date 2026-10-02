@@ -40,12 +40,12 @@ function validUniverseId(value: unknown): number | null {
 }
 
 /** Fetch one batch and keep only completed images whose targetId we actually asked for. */
-async function fetchIconBatch(ids: number[]): Promise<Map<number, string>> {
+async function fetchIconBatch(ids: number[], size: "150x150" | "512x512"): Promise<Map<number, string>> {
   const icons = new Map<number, string>();
 
   const url = new URL(ICONS_ENDPOINT);
   url.searchParams.set("universeIds", ids.join(","));
-  url.searchParams.set("size", "150x150");
+  url.searchParams.set("size", size);
   url.searchParams.set("format", "Png");
   url.searchParams.set("isCircular", "false");
 
@@ -86,13 +86,13 @@ async function fetchIconBatch(ids: number[]): Promise<Map<number, string>> {
 }
 
 /**
- * 150x150 square icons for the given universes, keyed by universeId.
+ * Square icons for the given universes (150x150 by default; 512x512 for artwork), keyed by universeId.
  *
  * Ids are validated, deduped and sorted before batching so the request URLs stay stable (and
  * therefore cacheable) for a given set of games. Failures are swallowed: a broken thumbnail
  * request never breaks the statistics a caller actually asked for.
  */
-export async function getGameIcons(universeIds: number[]): Promise<Map<number, string>> {
+export async function getGameIcons(universeIds: number[], size: "150x150" | "512x512" = "150x150"): Promise<Map<number, string>> {
   const icons = new Map<number, string>();
   if (!Array.isArray(universeIds)) return icons;
 
@@ -106,7 +106,7 @@ export async function getGameIcons(universeIds: number[]): Promise<Map<number, s
     batches.push(ids.slice(i, i + MAX_IDS_PER_REQUEST));
   }
 
-  const results = await Promise.all(batches.map((batch) => fetchIconBatch(batch)));
+  const results = await Promise.all(batches.map((batch) => fetchIconBatch(batch, size)));
   for (const batch of results) {
     for (const [id, imageUrl] of batch) icons.set(id, imageUrl);
   }

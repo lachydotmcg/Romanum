@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Sparkles, Square } from "lucide-react";
 import { CREDITS_CHANGED } from "@/components/events";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { Transcript } from "./transcript";
@@ -11,7 +11,7 @@ import { useVerifiedFetch } from "../verification";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
-export function Assistant({ connected, initialPrompt = "" }: { connected: boolean; initialPrompt?: string }) {
+export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { connected: boolean; initialPrompt?: string; analysisPrompt?: string }) {
   const verifiedFetch = useVerifiedFetch();
   const [input, setInput] = useState(initialPrompt);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -73,8 +73,11 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
 
   async function ask(event: FormEvent) {
     event.preventDefault();
-    const question = input.trim();
-    if (!question || running) return;
+    await askQuestion(input.trim());
+  }
+
+  async function askQuestion(question: string, displayQuestion = question) {
+    if (!connected || !question || running) return;
 
     // Close any remaining stream from the previous answer.
     abortRef.current?.abort();
@@ -89,7 +92,7 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
     revealRef.current = true;
     setInput("");
     setRunning(true);
-    setTurns((prev) => [...prev, newTurn(turnId, question)]);
+    setTurns((prev) => [...prev, newTurn(turnId, displayQuestion)]);
 
     try {
       const res = await verifiedFetch("/api/assistant", {
@@ -140,6 +143,26 @@ export function Assistant({ connected, initialPrompt = "" }: { connected: boolea
       if (abortRef.current === controller) abortRef.current = null;
     }
   }
+
+  if (analysisPrompt) return (
+    <div>
+      {turns.length === 0 && <button type="button" disabled={!connected || running} onClick={() => void askQuestion(analysisPrompt, "Analyse this game and suggest what I should test next.")} className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-fg-subtle ${FOCUS}`}>
+        <Sparkles className="size-4" aria-hidden="true" />Analyse with AI
+      </button>}
+      {!connected && <p role="status" className="mt-3 text-sm text-fg-muted">The AI assistant isn&apos;t connected here.</p>}
+      {turns.length > 0 && <>
+        <div ref={scrollRef} aria-busy={running} className="mt-4 max-h-[min(70vh,48rem)] overflow-y-auto rounded-xl border border-line p-4" onScroll={(event) => { const el = event.currentTarget; followRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
+          <Transcript turns={turns} />
+        </div>
+        <form onSubmit={ask} aria-label="Ask about this game" className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border border-line bg-surface pr-2 pl-4">
+          <label htmlFor="game-ai-prompt" className="sr-only">Ask about this game</label>
+          <input id="game-ai-prompt" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about this game…" maxLength={4000} className="min-w-0 flex-1 bg-transparent text-sm placeholder:text-fg-subtle focus:outline-none" />
+          {running ? <button type="button" onClick={() => abortRef.current?.abort()} aria-label="Stop" className={`grid size-9 shrink-0 place-items-center rounded-lg bg-surface-hover ${FOCUS}`}><Square className="size-3.5 fill-current" aria-hidden="true" /></button> : <button type="submit" disabled={!connected || !input.trim()} aria-label="Send" className={`grid size-9 shrink-0 place-items-center rounded-lg bg-fg text-canvas disabled:opacity-40 ${FOCUS}`}><ArrowUp className="size-4" aria-hidden="true" /></button>}
+        </form>
+      </>}
+      <p role="status" className="sr-only">{running ? "Analysing this game. Advice will appear here." : ""}</p>
+    </div>
+  );
 
   if (!connected) {
     return (

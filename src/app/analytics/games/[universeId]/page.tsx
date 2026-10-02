@@ -2,7 +2,7 @@ import { cache } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Settings } from "lucide-react";
 import { PrivateAnalytics } from "@/components/account/private-analytics";
 import { GameIcon } from "@/components/game-icon";
 import { PlayerHistory } from "@/components/history/player-history";
@@ -11,6 +11,9 @@ import { formatValue } from "@/lib/charts/spec";
 import { readAccount } from "@/lib/accounts/session";
 import { historyDatabase } from "@/lib/history/database";
 import { linkedGameForUniverse, readGameMetrics } from "@/lib/linked-games/store";
+import { Assistant } from "@/components/assistant/assistant";
+import { gameAnalysisPrompt } from "@/lib/analytics/game-analysis";
+import { getGameIcons } from "@/lib/roblox-icons";
 import { GameEarningsPanel } from "@/components/analytics/revenue";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +51,9 @@ export default async function GamePage({ params }: Props) {
   validId(universeId);
   const [{ game, fetchedAt }, own] = await Promise.all([getGame(universeId), ownAnalytics(Number(universeId))]);
   if (!game) notFound();
+  const iconUrl = (await getGameIcons([game.universeId], "512x512")).get(game.universeId) ?? game.iconUrl;
+  const privateAnalysis = Boolean(own?.game.aiAnalysis && own.game.collect && own.game.status === "active");
+  const prompt = gameAnalysisPrompt(game, privateAnalysis);
   const stats = [
     { label: "Players now", value: game.playing, format: "compact" },
     { label: "Visits", value: game.visits, format: "compact" },
@@ -59,41 +65,59 @@ export default async function GamePage({ params }: Props) {
       <Link href="/analytics" className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-fg-muted">
         <ArrowLeft className="size-4 text-white" aria-hidden="true" /> Analytics
       </Link>
-      <header className="mt-5 flex flex-wrap items-center justify-between gap-5">
-        <div className="flex min-w-0 flex-1 basis-full items-center gap-4 sm:basis-auto">
-          <GameIcon url={game.iconUrl} name={game.name} className="size-16 sm:size-20" />
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight break-words sm:text-2xl">{game.name}</h1>
-            <p className="mt-1 text-sm text-fg-muted break-words">{game.creator.name}</p>
+      <div className="mt-5 grid items-start gap-8 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] xl:gap-10">
+        <header className="min-w-0 lg:sticky lg:top-8">
+          <GameIcon url={iconUrl} name={game.name} className="aspect-square w-full max-w-72 rounded-2xl" sizes="288px" />
+          <p className="mt-5 text-xs text-fg-muted">{own ? "Your experience" : "Roblox experience"}</p>
+          <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight break-words">{game.name}</h1>
+          <p className="mt-2 text-sm text-fg-muted break-words">By {game.creator.name}</p>
+          <p className="mt-4 text-xs text-fg-subtle break-words">{game.genre ?? "Genre unavailable"}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <a href={`https://www.roblox.com/games/${game.rootPlaceId}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-sm hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-fg-muted">View on Roblox <ArrowUpRight className="size-4" aria-hidden="true" /></a>
+            {own && <Link href={`/profile/settings/games#game-${own.game.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-sm hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-fg-muted"><Settings className="size-4" aria-hidden="true" />Settings</Link>}
           </div>
-        </div>
-        <a href={`https://www.roblox.com/games/${game.rootPlaceId}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-line px-3 text-sm hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-fg-muted">
-          Roblox <ArrowUpRight className="size-4 text-white" aria-hidden="true" />
-        </a>
-      </header>
+          <dl className="mt-6 space-y-3 border-t border-line pt-5 text-xs">
+            <div className="flex justify-between gap-3"><dt className="text-fg-muted">Created</dt><dd>{dateLabel(game.created)}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-fg-muted">Updated</dt><dd>{dateLabel(game.updated)}</dd></div>
+          </dl>
+        </header>
 
-      <section aria-label="Current statistics" className="mt-8">
-        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="min-w-0 rounded-xl border border-line bg-surface px-4 py-5">
-              <dt className="text-xs text-fg-muted">{stat.label}</dt>
-              <dd className="mt-2 text-2xl font-semibold tabular-nums" title={formatValue(stat.value, stat.format === "percent" ? "percent" : "full")}>{formatValue(stat.value, stat.format)}</dd>
+        <div className="min-w-0 space-y-8">
+          <nav aria-label="Game sections" className="flex flex-wrap gap-2 border-b border-line pb-4 text-xs">
+            {own && <a href="#your-analytics" className="rounded-full border border-line px-3 py-2 hover:bg-surface">Your analytics</a>}
+            <a href="#game-analysis" className="rounded-full border border-line px-3 py-2 hover:bg-surface">AI advice</a>
+            <a href="#public-activity" className="rounded-full border border-line px-3 py-2 hover:bg-surface">Public activity</a>
+          </nav>
+          {own && <PrivateAnalytics game={own.game} metrics={own.metrics} />}
+
+          <section id="game-analysis" aria-labelledby="game-analysis-heading" className="scroll-mt-8 rounded-2xl border border-line p-5 sm:p-6">
+            <p className="text-xs text-fg-muted">FROM DATA TO YOUR NEXT UPDATE</p>
+            <h2 id="game-analysis-heading" className="mt-2 text-lg font-semibold">What should you try next?</h2>
+            <p className="mt-3 mb-5 max-w-2xl text-sm leading-6 text-fg-muted">Get a focused review of {privateAnalysis ? "your authorized private metrics and public activity" : "this game's public activity"}, with prioritized tests and a way to measure each one.</p>
+            <Assistant connected={Boolean(process.env.DEEPSEEK_API_KEY)} analysisPrompt={prompt} />
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-fg-subtle">
+              <span>Uses credits · advice appears here · data gaps are called out</span>
+              <Link href={`/chats?prompt=${encodeURIComponent(prompt)}`} className="inline-flex min-h-9 items-center text-fg-muted hover:text-fg hover:underline">Open a saved chat →</Link>
             </div>
-          ))}
-        </dl>
-        <p className="mt-3 text-xs text-fg-subtle">As of <time dateTime={fetchedAt}>{new Date(fetchedAt).toISOString().slice(11, 16)} UTC</time></p>
-      </section>
+            {own && !privateAnalysis && <p className="mt-2 text-xs leading-5 text-fg-muted">Private AI access is off or unavailable. <Link href={`/profile/settings/games#game-${own.game.id}`} className="text-fg underline">Manage AI access in Settings</Link>.</p>}
+          </section>
 
-      <GameEarningsPanel game={game} />
-      {own && <PrivateAnalytics game={own.game} metrics={own.metrics} />}
-
-      <PlayerHistory key={game.universeId} game={{ universeId: game.universeId, rootPlaceId: game.rootPlaceId, name: game.name, iconUrl: game.iconUrl ?? null }} />
-
-      <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-5 text-sm sm:grid-cols-3">
-        <div><dt className="text-xs text-fg-muted">Genre</dt><dd className="mt-1 break-words">{game.genre ?? "–"}</dd></div>
-        <div><dt className="text-xs text-fg-muted">Created</dt><dd className="mt-1">{dateLabel(game.created)}</dd></div>
-        <div><dt className="text-xs text-fg-muted">Game updated</dt><dd className="mt-1">{dateLabel(game.updated)}</dd></div>
-      </dl>
+          <section id="public-activity" aria-labelledby="public-activity-heading" className="scroll-mt-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="public-activity-heading" className="text-base font-semibold">Public activity</h2>
+              <p className="text-xs text-fg-subtle">Roblox · <time dateTime={fetchedAt}>{new Date(fetchedAt).toISOString().slice(11, 16)} UTC</time></p>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {stats.map((stat) => <div key={stat.label} className="min-w-0 rounded-xl border border-line bg-surface px-4 py-5"><dt className="text-xs text-fg-muted">{stat.label}</dt><dd className="mt-2 text-2xl font-semibold tabular-nums" title={formatValue(stat.value, stat.format === "percent" ? "percent" : "full")}>{formatValue(stat.value, stat.format)}</dd></div>)}
+            </dl>
+            <PlayerHistory key={game.universeId} game={{ universeId: game.universeId, rootPlaceId: game.rootPlaceId, name: game.name, iconUrl: iconUrl ?? null }} />
+          </section>
+          <details className="rounded-xl border border-line p-5">
+            <summary className="cursor-pointer text-sm text-fg-muted hover:text-fg">Explore earnings estimates</summary>
+            <GameEarningsPanel game={game} />
+          </details>
+        </div>
+      </div>
     </>
   );
 }

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Plus, Settings, ThumbsUp } from "lucide-react";
 import { GameIcon } from "@/components/game-icon";
+import { MetricChange } from "./metric-change";
 import { Switch } from "@/components/switch";
 import { formatMetric } from "@/lib/linked-games/metrics";
 import type { LinkedGameView } from "@/lib/linked-games/view";
@@ -13,7 +14,7 @@ const INPUT = `min-h-11 w-full rounded-lg border border-line bg-surface px-3 tex
 const KEYS_PAGE = "https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab";
 /** The metrics each game's card shows, labelled to fit its tiles; its game page shows them all. */
 const SUMMARY = [
-  { metric: "DailyActiveUsers", label: "DAU" },
+  { metric: "DailyActiveUsers", label: "Daily active users" },
   { metric: "AveragePlayTimeMinutesPerDAU", label: "Playtime" },
   { metric: "ForwardD1Retention", label: "Day 1 retention" },
   { metric: "DailyRevenue", label: "Revenue" },
@@ -49,7 +50,7 @@ async function send(url: string, init: RequestInit): Promise<{ game?: LinkedGame
   return res.ok ? { game: data?.game } : { error: typeof data?.error === "string" ? data.error : "Something went wrong. Try again." };
 }
 
-function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView; onChange: (game: LinkedGameView) => void; onRemove: () => void; onRelink: () => void }) {
+function GameCard({ game, settings, onChange, onRemove, onRelink }: { game: LinkedGameView; settings: boolean; onChange: (game: LinkedGameView) => void; onRemove: () => void; onRelink: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = game.name ?? `Universe ${game.universeId}`;
@@ -85,8 +86,40 @@ function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView
     const found = game.metrics.find((item) => item.metric === metric);
     return found ? [{ ...found, label }] : [];
   });
+  if (!settings) return (
+    <li className="min-w-0">
+      <Link href={`/analytics/games/${game.universeId}`} prefetch={false} className={`group block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong hover:bg-surface-hover sm:p-5 ${FOCUS}`}>
+        <div className="flex flex-col gap-4 min-[440px]:flex-row">
+          <GameIcon url={game.iconUrl} name={name} className="size-36 rounded-xl sm:size-40" sizes="160px" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium tracking-wide text-fg-muted">YOUR EXPERIENCE</p>
+            <h3 className="mt-2 text-lg font-semibold leading-snug break-words group-hover:underline">{name}</h3>
+            {game.creatorName && <p className="mt-1 text-xs text-fg-muted break-words">By {game.creatorName}</p>}
+            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-fg-muted"><ThumbsUp className="size-3.5" aria-hidden="true" />{game.likeRatio == null ? "Rating unavailable" : `${Math.round(game.likeRatio * 100)}% positive`}</p>
+            <p className="mt-4 text-xs text-fg-muted">Concurrent users</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{game.playing == null ? "Unavailable" : formatMetric(game.playing, "count")}</p>
+            {game.publicFetchedAt && <p className="mt-1 text-[11px] text-fg-subtle">Public · {ago(game.publicFetchedAt)}</p>}
+          </div>
+        </div>
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-4">
+          {summary.map((metric) => (
+            <div key={metric.metric} className="min-w-0">
+              <dt className="text-xs text-fg-muted">{metric.label}</dt>
+              <dd className="mt-1 text-lg font-semibold tabular-nums">{formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}</dd>
+              <p className="mt-1 text-[11px] text-fg-subtle">{metric.latest ? `${metric.latest.day}${metric.latest.status === "Projected" ? " · projected" : ""}` : "Not synced"}</p>
+              <MetricChange change={metric.change} />
+            </div>
+          ))}
+        </dl>
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4">
+          <p className="min-w-0 text-xs text-fg-muted" role="status">{statusLine(game)}</p>
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium">View analytics <ChevronRight className="size-3.5" aria-hidden="true" /></span>
+        </div>
+      </Link>
+    </li>
+  );
   return (
-    <li className="rounded-xl border border-line bg-surface p-5">
+    <li id={`game-${game.id}`} className="scroll-mt-8 rounded-xl border border-line bg-surface p-5">
       <div className="flex items-start gap-3">
         <GameIcon url={game.iconUrl} name={name} className="size-12" />
         <div className="min-w-0 flex-1">
@@ -99,19 +132,6 @@ function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView
           </p>
         </div>
       </div>
-
-      {summary.some((metric) => metric.latest) && (
-        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {summary.map((metric) => (
-            <div key={metric.metric} className="rounded-lg border border-line px-3 py-2.5">
-              <dt className="truncate text-xs text-fg-muted">{metric.label}</dt>
-              <dd className="mt-1 text-base font-semibold tabular-nums" title={metric.latest ? metric.latest.day : undefined}>
-                {formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
 
       <div className="mt-4 space-y-3 border-t border-line pt-4">
         <Switch
@@ -128,11 +148,6 @@ function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView
           disabled={busy || (!game.aiAnalysis && game.status !== "active")}
           onChange={(value) => toggle("aiAnalysis", value)}
         />
-        {game.aiAnalysis && game.collect && game.status === "active" && (
-          <Link href={`/chats?prompt=${encodeURIComponent(`Analyse my linked game ${name} (universe ${game.universeId}). Review its funnels, client and server performance, retention, engagement, monetization and acquisition. Explain the strongest evidence, what is missing, and the changes I should test first.`)}`} className={`inline-flex min-h-9 items-center rounded-lg border border-line px-3 text-xs hover:bg-surface-hover ${FOCUS}`}>
-            Analyse this game
-          </Link>
-        )}
         <Switch
           label="Help improve Romanum"
           description="Let Romanum use this game's daily metrics, from today on, to improve its analysis."
@@ -164,7 +179,7 @@ function GameCard({ game, onChange, onRemove, onRelink }: { game: LinkedGameView
 }
 
 /** The signed-in account's linked games, and the form that links another with its Open Cloud API key. */
-export function LinkedGames({ initial }: { initial: LinkedGameView[] }) {
+export function LinkedGames({ initial, settings = false }: { initial: LinkedGameView[]; settings?: boolean }) {
   const [games, setGames] = useState(initial);
   const [universeId, setUniverseId] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -212,12 +227,20 @@ export function LinkedGames({ initial }: { initial: LinkedGameView[] }) {
 
   return (
     <>
+      {!settings && <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-fg-muted">Open an experience to see its data and decide what to improve next.</p>
+        <div className="flex gap-2">
+          <Link href="/profile/settings/games" className={`inline-flex min-h-10 items-center gap-2 rounded-lg border border-line px-3 text-xs hover:bg-surface-hover ${FOCUS}`}><Settings className="size-3.5" aria-hidden="true" />Game settings</Link>
+          <Link href="/profile/settings/games#link-game" className={`inline-flex min-h-10 items-center gap-2 rounded-lg bg-fg px-3 text-xs font-medium text-canvas ${FOCUS}`}><Plus className="size-3.5" aria-hidden="true" />Link game</Link>
+        </div>
+      </div>}
       {games.length > 0 ? (
         <ul className="mt-4 grid gap-4 lg:grid-cols-2">
           {games.map((game) => (
             <GameCard
               key={game.id}
               game={game}
+              settings={settings}
               onChange={(updated) => setGames((list) => list.map((item) => (item.id === updated.id ? updated : item)))}
               onRemove={() => setGames((list) => list.filter((item) => item.id !== game.id))}
               onRelink={() => relink(game)}
@@ -230,7 +253,7 @@ export function LinkedGames({ initial }: { initial: LinkedGameView[] }) {
         </div>
       )}
 
-      <form onSubmit={link} className="mt-6 max-w-2xl rounded-xl border border-line p-5" aria-labelledby="link-game-heading">
+      {settings && <form id="link-game" onSubmit={link} className="mt-6 max-w-2xl scroll-mt-8 rounded-xl border border-line p-5" aria-labelledby="link-game-heading">
         <h3 id="link-game-heading" className="text-sm font-medium">
           Link a game
         </h3>
@@ -283,7 +306,7 @@ export function LinkedGames({ initial }: { initial: LinkedGameView[] }) {
         >
           {linking ? "Checking the key…" : "Link game"}
         </button>
-      </form>
+      </form>}
     </>
   );
 }
