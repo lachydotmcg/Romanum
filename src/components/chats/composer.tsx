@@ -5,6 +5,8 @@ import Image from "next/image";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 import { IMAGE_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, MAX_QUESTION_CHARS } from "@/lib/chats/limits";
 import { ReferencePicker } from "@/components/projects/reference-picker";
+import { ModelSelector } from "@/components/models/model-selector";
+import type { useModelCatalog } from "@/components/models/use-model-catalog";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 /** The prompt grows with its text up to this height, then scrolls. */
@@ -24,6 +26,7 @@ export function Composer({
   starters = [],
   projectId,
   initialText = "",
+  models,
 }: {
   connected: boolean;
   running: boolean;
@@ -33,6 +36,7 @@ export function Composer({
   starters?: { label: string; prompt: string }[];
   projectId?: string;
   initialText?: string;
+  models: ReturnType<typeof useModelCatalog>;
 }) {
   const [text, setText] = useState(() => initialText.slice(0, MAX_QUESTION_CHARS));
   const [images, setImages] = useState<PendingImage[]>([]);
@@ -87,7 +91,7 @@ export function Composer({
   function submit(event?: FormEvent) {
     event?.preventDefault();
     const question = text.trim();
-    if (!question || running || !connected || referencePending) return;
+    if (!question || running || !connected || !models.canSend || referencePending) return;
     for (const image of imagesRef.current) previews.current.delete(image.url);
     onSend(question, imagesRef.current);
     setText("");
@@ -201,6 +205,8 @@ export function Composer({
             }}
           />
           {projectId && <ReferencePicker projectId={projectId} disabled={!connected || images.length >= MAX_ATTACHMENTS} onPick={file => addFiles([file])} onPendingChange={setReferencePending} />}
+          <ModelSelector compact catalog={models.catalog} selection={models.selection} onChange={models.setSelection}
+            loading={models.loading} error={models.error} disabled={running} className="min-w-0 max-w-44" />
           {!connected && (
             <span className="rounded-full border border-line-strong px-2 py-0.5 text-xs text-fg-muted">Not connected</span>
           )}
@@ -217,7 +223,7 @@ export function Composer({
           ) : (
             <button
               type="submit"
-              disabled={!connected || !text.trim() || referencePending}
+              disabled={!connected || !models.canSend || !text.trim() || referencePending}
               aria-label="Send"
               className={`grid size-8 shrink-0 place-items-center rounded-full bg-white text-black disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${FOCUS}`}
             >
@@ -232,6 +238,7 @@ export function Composer({
           {notice}
         </p>
       )}
+      {models.error && <p role="status" className="mt-2 px-4 text-xs text-fg-muted">{models.error}</p>}
     </div>
   );
 }

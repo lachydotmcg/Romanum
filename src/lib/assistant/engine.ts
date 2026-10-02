@@ -13,6 +13,7 @@ import { OpenCloudError } from "../linked-games/open-cloud.ts";
 import { withoutPrivateToolHistory } from "../linked-games/assistant-history.ts";
 import { AdReportAccessError } from "../ad-reports/assistant-tools.ts";
 import { AD_REPORT_PROMPT } from "../ad-reports/assistant-prompt.ts";
+import { ModelSelectionError, revalidateAssistantModel, type AssistantModelRoute } from "./model-selection.ts";
 
 // The assistant's model loop, shared by Ask Romanum (/api/assistant) and saved chats (/api/chats).
 
@@ -35,6 +36,7 @@ export function callUsage(at: Date, usage: DeepSeekUsage): CallUsage {
 }
 
 function describeError(error: unknown): string {
+  if (error instanceof ModelSelectionError) return error.message;
   if (error instanceof AdReportAccessError) return error.message;
   if (error instanceof OpenCloudError) return error.message;
   if (error instanceof CreditsError && error.code === "insufficient_balance") return "Not enough credits for the next step.";
@@ -42,6 +44,20 @@ function describeError(error: unknown): string {
   if (error instanceof OpenAI.AuthenticationError || (error instanceof OpenAI.APIError && error.status === 402)) return "Assistant unavailable. Try again later.";
   if (error instanceof OpenAI.RateLimitError) return "Assistant busy. Try again shortly.";
   return "Couldn't get a response. Try again.";
+}
+
+/** Initial routing and each actual call use the same prompts, tool schemas and reviewed output limit. */
+export function assistantRequest(conversation: ApiMessage[], {
+  systemPrompt = SYSTEM_PROMPT, projectTools, analyticsTools, finalAnalysisStep = false, preparedHistory = false,
+}: { systemPrompt?: string; projectTools?: ProjectChatTools; analyticsTools?: PrivateAnalyticsTools; finalAnalysisStep?: boolean; preparedHistory?: boolean } = {}): OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+  const hasAds = !!projectTools?.definitions.some(tool => tool.function.name === "list_ad_reports");
+  return {
+    model: ASSISTANT_MODEL,
+    messages: [{ role: "system", content: systemPrompt + (analyticsTools ? PRIVATE_ANALYTICS_PROMPT : "") + (hasAds ? AD_REPORT_PROMPT : "") }, ...(preparedHistory ? conversation : withoutPrivateToolHistory(conversation)),
+      ...(finalAnalysisStep ? [{ role: "system" as const, content: "Finish the answer now using the evidence already retrieved. State any missing or unchecked areas. No more tools are available this turn." }] : [])],
+    ...(!finalAnalysisStep ? { tools: [...TOOLS, ...(projectTools?.definitions ?? []), ...(analyticsTools?.definitions ?? [])] } : {}),
+    max_tokens: MAX_TOKENS, stream: true, stream_options: { include_usage: true },
+  };
 }
 
 /**
@@ -60,6 +76,7 @@ export async function runAssistant({
   analyticsTools,
   analysisTimeBudgetMs,
   beforeAttempt,
+  modelRoute,
 }: {
   client: OpenAI;
   conversation: ApiMessage[];
@@ -73,6 +90,8 @@ export async function runAssistant({
   analysisTimeBudgetMs?: number;
   /** Durable workers revalidate cancellation/deletion immediately before each paid or tool attempt. */
   beforeAttempt?: () => Promise<void>;
+  /** Trusted server resolution, never request-body configuration or a browser quote. */
+  modelRoute?: AssistantModelRoute;
 }): Promise<void> {
   // Everything the model and tools add during this turn, returned so the conversation can continue from it.
   const turn: ApiMessage[] = [];
@@ -81,6 +100,8 @@ export async function runAssistant({
   const fetched = FetchedData.fromMessages(modelHistory);
 
   try {
+    if (modelRoute) send({ type: "model_selection", modelSelection: modelRoute.modelSelection, decision: modelRoute.modelDecision, resolvedAt: modelRoute.modelResolvedAt, ...(modelRoute.legacy ? { legacy: true } : {}) });
+    let modelReported = false;
     const began = Date.now();
     const hasAds = () => !!projectTools?.definitions.some(tool => tool.function.name === "list_ad_reports");
     const maxSteps = analyticsTools || projectTools?.checkAccess ? 12 : MAX_STEPS;
@@ -92,20 +113,14 @@ export async function runAssistant({
     for (let step = 0; step < maxSteps; step++) {
       await beforeProvider();
       const finalAnalysisStep = (!!analyticsTools || hasAds()) && (step === maxSteps - 1 || (analysisTimeBudgetMs !== undefined && Date.now() - began >= analysisTimeBudgetMs));
+      const params = assistantRequest([...modelHistory, ...turn], { systemPrompt, projectTools, analyticsTools, finalAnalysisStep, preparedHistory: true });
+      if (modelRoute) revalidateAssistantModel(modelRoute, params);
       const completion = meteredStream(
         client,
-        {
-          model: ASSISTANT_MODEL,
-          messages: [{ role: "system", content: systemPrompt + (analyticsTools ? PRIVATE_ANALYTICS_PROMPT : "") + (hasAds() ? AD_REPORT_PROMPT : "") }, ...modelHistory, ...turn,
-            ...(finalAnalysisStep ? [{ role: "system" as const, content: "Finish the answer now using the evidence already retrieved. State any missing or unchecked areas. No more tools are available this turn." }] : [])],
-          ...(!finalAnalysisStep ? { tools: [...TOOLS, ...(projectTools?.definitions ?? []), ...(analyticsTools?.definitions ?? [])] } : {}),
-          max_tokens: MAX_TOKENS,
-          stream: true,
-          stream_options: { include_usage: true },
-        },
+        params,
         billing,
         signal,
-        beforeProvider,
+        async () => { await beforeProvider(); if (modelRoute) revalidateAssistantModel(modelRoute, params); },
       );
 
       let content = "";
@@ -113,6 +128,7 @@ export async function runAssistant({
       const calls: { id: string; name: string; arguments: string }[] = [];
 
       for await (const chunk of completion) {
+        if (modelRoute && !modelReported) { modelReported = true; send({ type: "model", modelId: ASSISTANT_MODEL }); }
         const delta = chunk.choices[0]?.delta as DeepSeekDelta | undefined;
         if (!delta) continue;
         if (delta.reasoning_content) {

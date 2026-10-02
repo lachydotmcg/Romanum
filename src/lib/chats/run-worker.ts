@@ -10,6 +10,7 @@ import { withProjectContext } from "../projects/chat-context.ts";
 import { conversationTools } from "../projects/conversation-tools.ts";
 import { privateAnalyticsTools, type PrivateAnalyticsTools } from "../linked-games/assistant-tools.ts";
 import { appendChatRunEvents, chatRunStillActive, claimChatRun, finishChatRun } from "./runs.ts";
+import { ModelSelectionError, persistedAssistantModel } from "../assistant/model-selection.ts";
 
 /** Detached from the browser request. Durable events make the review visible across reloads. */
 export async function executeChatRun(database: Database, runId: string, options: { client?: OpenAI; billing?: AssistantBilling; analyticsTools?: PrivateAnalyticsTools; checkEveryMs?: number } = {}): Promise<boolean> {
@@ -35,6 +36,8 @@ export async function executeChatRun(database: Database, runId: string, options:
   };
   const periodic = setInterval(flush, 500);
   const send = (event: AssistantEvent) => {
+    // The worker records selection before loading images; the shared engine may report the same selection.
+    if (event.type === "model_selection" && events.some(({ e }) => e.type === "model_selection")) return;
     if (event.type === "done") turn = event.messages;
     if (event.type === "error") error = event.message;
     recordEvent(events, event, Date.now() - began);
@@ -47,6 +50,8 @@ export async function executeChatRun(database: Database, runId: string, options:
     abort.signal.throwIfAborted();
   };
   try {
+    const modelRoute = persistedAssistantModel(run.payload);
+    send({ type: "model_selection", modelSelection: modelRoute.modelSelection, decision: modelRoute.modelDecision, resolvedAt: modelRoute.modelResolvedAt, ...(modelRoute.legacy ? { legacy: true } : {}) });
     await beforeAttempt();
     const images = [];
     for (const id of run.payload.attachmentIds) {
@@ -60,9 +65,10 @@ export async function executeChatRun(database: Database, runId: string, options:
       projectTools: conversationTools(database, { ownerId: run.ownerId, chatId: run.chatId, questionId: run.questionId, project: run.payload.project }, abort.signal),
       analyticsTools: options.analyticsTools ?? privateAnalyticsTools(database, run.accountId, abort.signal),
       beforeAttempt,
+      modelRoute,
     });
-  } catch {
-    error = abort.signal.aborted ? "Stopped." : "The review could not finish. Try again.";
+  } catch (failure) {
+    error = abort.signal.aborted ? "Stopped." : failure instanceof ModelSelectionError ? failure.message : "The review could not finish. Try again.";
     send({ type: "error", message: error });
   } finally {
     clearInterval(cancellation); clearInterval(periodic); clearTimeout(watchdog);

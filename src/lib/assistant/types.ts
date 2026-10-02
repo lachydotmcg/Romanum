@@ -1,6 +1,7 @@
 import type OpenAI from "openai";
 import type { ChartSpec } from "@/lib/charts/spec";
 import type { ProjectBrief } from "../projects/store.ts";
+import type { ModelId, ModelSelection, RouteDecision } from "../models/types.ts";
 
 export type SavedPlanCard = { id: string; projectId: string; title: string; kind: "thumbnail" | "ui"; conceptCount: number };
 
@@ -17,6 +18,9 @@ export type ApiMessage =
 
 /** One line of the NDJSON stream returned by /api/assistant. */
 export type AssistantEvent =
+  | { type: "model_selection"; modelSelection: ModelSelection; decision: RouteDecision | null; resolvedAt: string; legacy?: true }
+  /** Emitted only after the selected provider starts returning chunks, including usage-only chunks. */
+  | { type: "model"; modelId: ModelId }
   | { type: "thinking"; delta: string }
   | { type: "text"; delta: string }
   | { type: "tool_start"; id: string; label: string; activity: string; detail: string; input: unknown }

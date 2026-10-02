@@ -28,6 +28,7 @@ import type { ProjectBrief, ProjectSummary } from "@/lib/projects/store";
 import { ProjectPanel } from "./project-panel";
 import { WorkspaceList } from "./workspace-list";
 import contextStyles from "./project-context.module.css";
+import { useModelCatalog } from "@/components/models/use-model-catalog";
 
 const attachmentUrl = (id: string) => `/api/chat-attachments/${id}`;
 const STARTERS = [
@@ -37,7 +38,7 @@ const STARTERS = [
 ];
 
 /** Redraws saved messages: each question starts a turn, and its answer's recorded events replay onto it. */
-function replay(messages: StoredMessage[]): Turn[] {
+export function replayChatMessages(messages: StoredMessage[]): Turn[] {
   const turns: Turn[] = [];
   for (const message of messages) {
     if (message.role === "user") {
@@ -100,8 +101,12 @@ export function ChatView({
   activeRun?: { id: string } | null;
 }) {
   const verifiedFetch = useVerifiedFetch();
+  const [initialTurns] = useState(() => replayChatMessages(initialMessages));
+  // Reopening a chat restores the requested mode/choice, including an explicit choice now unavailable.
+  const models = useModelCatalog(initialTurns.at(-1)?.modelSelection);
+  const restoreSelection = models.setSelection;
   const [turns, setTurns] = useState<Turn[]>(() => {
-    const saved = replay(initialMessages);
+    const saved = initialTurns;
     // A resumed run keeps its last turn open until the recorded events catch up to it.
     return activeRun && saved.length ? [...settle(saved.slice(0, -1)), saved[saved.length - 1]] : settle(saved);
   });
@@ -124,6 +129,7 @@ export function ChatView({
   const mountedRef = useRef(true);
   // The turn a run is filling in, and the durable run id to cancel if the reader stops it.
   const activeRef = useRef<{ turnId: string; runId: string | null } | null>(null);
+  const restoreRunSelection = useRef(activeRun?.id ?? null);
   // How far each run has been read, so a re-render (or a dev remount) resumes instead of replaying.
   const cursorRef = useRef<{ id: string; cursor: number } | null>(null);
 
@@ -157,6 +163,11 @@ export function ChatView({
   /** Folds one event into a turn and runs the side effects every path shares, streaming or polled. */
   const applyIncoming = useCallback(
     (turnId: string, event: AssistantEvent, at: number) => {
+      if (event.type === "model_selection" && restoreRunSelection.current && activeRef.current?.runId === restoreRunSelection.current) {
+        const requested = applyEvent(newTurn("model", ""), event, at).modelSelection;
+        if (requested) restoreSelection(requested);
+        restoreRunSelection.current = null;
+      }
       if (event.type === "project_context") {
         projectSaved(event.project);
         setContextAnimation((version) => version + 1);
@@ -166,7 +177,7 @@ export function ChatView({
       }
       updateTurn(turnId, (turn) => applyEvent(turn, event, at));
     },
-    [projectSaved, updateTurn],
+    [projectSaved, updateTurn, restoreSelection],
   );
 
   /** Follows a durable run to its terminal status, applying its events and settling the turn. */
@@ -278,7 +289,7 @@ export function ChatView({
   }, [activeRunId, pollRun]);
 
   async function ask(question: string, images: PendingImage[]) {
-    if (running) return;
+    if (running || !models.canSend) return;
     setStopError(null);
     // Close any remaining stream from the previous answer.
     abortRef.current?.abort();
@@ -300,6 +311,7 @@ export function ChatView({
     if (chatRef.current) body.set("chatId", chatRef.current);
     if (project) body.set("projectId", project.id);
     body.set("text", question);
+    body.set("modelSelection", JSON.stringify(models.selection));
     for (const image of images) body.append("files", image.file, image.file.name);
 
     try {
@@ -384,6 +396,7 @@ export function ChatView({
           initialText={initialPrompt}
           projectId={project?.id}
           connected={connected}
+          models={models}
           running={running}
           onSend={ask}
           onStop={stop}

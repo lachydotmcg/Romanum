@@ -159,6 +159,9 @@ function TurnView({ turn }: { turn: Turn }) {
         <p className="max-w-[min(85%,40rem)] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap text-fg">{turn.question}</p>
       </div>
       {(turn.steps.length > 0 || working) && <ProcessGroup steps={turn.steps} active={working} credits={turn.credits} />}
+      {turn.actualModel && <p className="text-xs text-fg-subtle" title={turn.modelResolvedAt ? `Model selected ${turn.modelResolvedAt}` : undefined}>
+        {turn.actualModel === "deepseek-flash" ? "DeepSeek Flash" : turn.actualModel}{turn.legacyModel ? " · Legacy" : turn.modelSelection?.mode === "auto" ? " · Auto" : " · Your choice"}
+      </p>}
       {turn.charts.map(({ id, chart }) => (
         <ChartCard key={id} chart={chart} />
       ))}

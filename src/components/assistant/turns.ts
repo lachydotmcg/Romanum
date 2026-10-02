@@ -1,5 +1,6 @@
 import type { ChartSpec } from "@/lib/charts/spec";
 import type { AssistantEvent, SavedPlanCard } from "@/lib/assistant/types";
+import { MODEL_IDS, type ModelId, type ModelSelection, type RouteDecision } from "../../lib/models/types.ts";
 
 export type Step =
   | { kind: "thinking"; id: string; text: string; startedAt: number; endedAt: number | null }
@@ -36,6 +37,12 @@ export type Turn = {
   done: boolean;
   /** What the answer cost, in credits, once it has been charged. */
   credits?: number;
+  modelSelection?: ModelSelection;
+  modelDecision?: RouteDecision | null;
+  modelResolvedAt?: string;
+  legacyModel?: true;
+  /** Separate from the proposal: recorded when the provider actually returns output. */
+  actualModel?: ModelId;
 };
 
 const NOTE_MAX_CHARS = 160;
@@ -73,6 +80,13 @@ export function finishTurn(turn: Turn, now: number, error: string | null = null)
 /** Folds one streamed event into the turn. */
 export function applyEvent(turn: Turn, event: AssistantEvent, now: number): Turn {
   switch (event.type) {
+    case "model_selection": {
+      const selection = event.modelSelection;
+      if (!selection || !(selection.mode === "auto" || (selection.mode === "explicit" && MODEL_IDS.includes(selection.modelId))) || !Number.isFinite(Date.parse(event.resolvedAt))) return turn;
+      return { ...turn, modelSelection: selection, modelDecision: event.decision, modelResolvedAt: event.resolvedAt, legacyModel: event.legacy === true ? true : undefined };
+    }
+    case "model":
+      return MODEL_IDS.includes(event.modelId) && (!turn.modelDecision || (turn.modelDecision.status === "selected" && turn.modelDecision.modelId === event.modelId)) ? { ...turn, actualModel: event.modelId } : turn;
     case "project_context":
       return turn;
     case "thinking": {

@@ -8,16 +8,21 @@ import { Transcript } from "./transcript";
 import { applyEvent, finishTurn, newTurn, type Turn } from "./turns";
 import { PREFILL_EVENT, type AssistantPrefill } from "./prefill";
 import { useVerifiedFetch } from "../verification";
+import { ModelSelector } from "../models/model-selector";
+import { useModelCatalog } from "../models/use-model-catalog";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 
 export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { connected: boolean; initialPrompt?: string; analysisPrompt?: string }) {
   const verifiedFetch = useVerifiedFetch();
+  const models = useModelCatalog();
   const [input, setInput] = useState(initialPrompt);
   const [turns, setTurns] = useState<Turn[]>([]);
   // The conversation in API form, including tool results and DeepSeek's reasoning, sent back on each question.
   const [history, setHistory] = useState<ApiMessage[]>([]);
   const [running, setRunning] = useState(false);
+  const modelPicker = <ModelSelector compact catalog={models.catalog} selection={models.selection} onChange={models.setSelection}
+    loading={models.loading} error={models.error} disabled={running} className="min-w-0 max-w-32 sm:max-w-44" />;
   const abortRef = useRef<AbortController | null>(null);
   // An older stream may finish closing after the next question starts.
   const requestRef = useRef(0);
@@ -77,7 +82,7 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
   }
 
   async function askQuestion(question: string, displayQuestion = question) {
-    if (!connected || !question || running) return;
+    if (!connected || !models.canSend || !question || running) return;
 
     // Close any remaining stream from the previous answer.
     abortRef.current?.abort();
@@ -98,7 +103,7 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
       const res = await verifiedFetch("/api/assistant", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: [...history, userMessage] }),
+        body: JSON.stringify({ messages: [...history, userMessage], modelSelection: models.selection }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
@@ -146,7 +151,8 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
 
   if (analysisPrompt) return (
     <div>
-      {turns.length === 0 && <button type="button" disabled={!connected || running} onClick={() => void askQuestion(analysisPrompt, "Analyse this game and suggest what I should test next.")} className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-fg-subtle ${FOCUS}`}>
+      {turns.length === 0 && <div className="mb-3">{modelPicker}</div>}
+      {turns.length === 0 && <button type="button" disabled={!connected || !models.canSend || running} onClick={() => void askQuestion(analysisPrompt, "Analyse this game and suggest what I should test next.")} className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-fg-subtle ${FOCUS}`}>
         <Sparkles className="size-4" aria-hidden="true" />Analyse with AI
       </button>}
       {!connected && <p role="status" className="mt-3 text-sm text-fg-muted">The AI assistant isn&apos;t connected here.</p>}
@@ -156,8 +162,9 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
         </div>
         <form onSubmit={ask} aria-label="Ask about this game" className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border border-line bg-surface pr-2 pl-4">
           <label htmlFor="game-ai-prompt" className="sr-only">Ask about this game</label>
+          {modelPicker}
           <input id="game-ai-prompt" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about this game…" maxLength={4000} className="min-w-0 flex-1 bg-transparent text-sm placeholder:text-fg-subtle focus:outline-none" />
-          {running ? <button type="button" onClick={() => abortRef.current?.abort()} aria-label="Stop" className={`grid size-9 shrink-0 place-items-center rounded-lg bg-surface-hover ${FOCUS}`}><Square className="size-3.5 fill-current" aria-hidden="true" /></button> : <button type="submit" disabled={!connected || !input.trim()} aria-label="Send" className={`grid size-9 shrink-0 place-items-center rounded-lg bg-fg text-canvas disabled:opacity-40 ${FOCUS}`}><ArrowUp className="size-4" aria-hidden="true" /></button>}
+          {running ? <button type="button" onClick={() => abortRef.current?.abort()} aria-label="Stop" className={`grid size-9 shrink-0 place-items-center rounded-lg bg-surface-hover ${FOCUS}`}><Square className="size-3.5 fill-current" aria-hidden="true" /></button> : <button type="submit" disabled={!connected || !models.canSend || !input.trim()} aria-label="Send" className={`grid size-9 shrink-0 place-items-center rounded-lg bg-fg text-canvas disabled:opacity-40 ${FOCUS}`}><ArrowUp className="size-4" aria-hidden="true" /></button>}
         </form>
       </>}
       <p role="status" className="sr-only">{running ? "Analysing this game. Advice will appear here." : ""}</p>
@@ -167,6 +174,7 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
   if (!connected) {
     return (
       <section aria-label="AI assistant">
+        <div className="mb-2">{modelPicker}</div>
         <div className="flex h-12 items-center gap-3 rounded-xl border border-line bg-surface pr-2 pl-4">
           <label htmlFor="ai-prompt" className="sr-only">
             Ask the AI assistant
@@ -240,6 +248,7 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-sm text-ellipsis text-fg placeholder:text-fg-subtle focus:outline-none"
           />
+          {modelPicker}
           {running ? (
             <button
               type="button"
@@ -252,7 +261,7 @@ export function Assistant({ connected, initialPrompt = "", analysisPrompt }: { c
           ) : (
             <button
               type="submit"
-              disabled={!input.trim()}
+              disabled={!models.canSend || !input.trim()}
               aria-label="Send"
               className={`grid size-8 shrink-0 place-items-center bg-white text-black transition-[border-radius] disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-white/40 ${reshape} ${buttonShape} ${FOCUS}`}
             >

@@ -11,6 +11,10 @@ import { chatRunDispatchProof, validChatRunDispatch, usesBackgroundChatWorker } 
 import { readChatRun as pollChatRun, waitForChatRun, cancelChatRun as stopChatRun, ChatRunPollError } from "../src/lib/chats/poll-run.ts";
 
 async function fixture(t) {
+  // The injected provider still needs server readiness; this is a literal fixture key, never a credential.
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "fixture-only";
+  t.after(() => { if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = originalKey; });
   const engine = await PGlite.create(); t.after(() => engine.close());
   const sql = client => ({ query: (text, values) => client.query(text, values), exec: text => client.exec(text) });
   const db = { ...sql(engine), transaction: fn => engine.transaction(client => fn(sql(client))), close: () => engine.close() };

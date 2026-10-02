@@ -1,27 +1,31 @@
 import { randomUUID } from "node:crypto";
 import type { Database, Sql } from "../history/database.ts";
 import type { ApiMessage } from "../assistant/types.ts";
+import type { AssistantModelRoute } from "../assistant/model-selection.ts";
 import type { ChatProject } from "../projects/chat-context.ts";
 import { isChatId, saveAnswer, saveQuestion, questionForModel, type TimedEvent } from "./store.ts";
 
 export type ChatRunStatus = "queued" | "running" | "complete" | "failed" | "cancelled";
-export type ChatRunPayload = { history: ApiMessage[]; question: ApiMessage; attachmentIds: string[]; project: ChatProject | null };
+export type ChatRunPayload = { history: ApiMessage[]; question: ApiMessage; attachmentIds: string[]; project: ChatProject | null } & Partial<AssistantModelRoute>;
 export type ClaimedChatRun = { id: string; accountId: string; ownerId: string; chatId: string; questionId: string; claim: string; payload: ChatRunPayload };
 
 export class ChatRunBusyError extends Error {}
 const transactionDatabase = (sql: Sql): Database => ({ ...sql, transaction: fn => fn(sql), close: async () => {} });
 
 /** The question and its run are one commit, so a competing tab cannot leave an orphan question. */
-export async function submitChatQuestion(database: Database, input: Parameters<typeof saveQuestion>[1], accountId: string | null) {
+export async function submitChatQuestion(database: Database, input: Parameters<typeof saveQuestion>[1], accountId: string | null,
+  prepareModel?: (saved: Awaited<ReturnType<typeof saveQuestion>>) => AssistantModelRoute | Promise<AssistantModelRoute>) {
   return database.transaction(async sql => {
     await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [input.ownerId]);
     const db = transactionDatabase(sql);
     if (input.chatId && await activeChatRun(db, input.ownerId, input.chatId)) throw new ChatRunBusyError("This chat is still responding. Stop the review or wait for it to finish.");
     const saved = await saveQuestion(db, input);
+    // Resolve from the owner-scoped saved context inside the question transaction. A blocked choice rolls it back.
+    const modelRoute = await prepareModel?.(saved);
     const runId = accountId ? await queueChatRun(db, { accountId, ownerId: input.ownerId, chatId: saved.chatId, questionId: saved.questionId,
-      payload: { question: questionForModel(saved.question, saved.attachments.map(file => file.name)), history: saved.history, attachmentIds: saved.attachments.map(file => file.id), project: saved.project },
+      payload: { question: questionForModel(saved.question, saved.attachments.map(file => file.name)), history: saved.history, attachmentIds: saved.attachments.map(file => file.id), project: saved.project, ...modelRoute },
     }) : null;
-    return { saved, runId };
+    return { saved, runId, modelRoute };
   });
 }
 
@@ -35,7 +39,11 @@ async function endWithoutWorker(database: Database, ownerId: string, select: { i
     );
     for (const row of rows) {
       const error = reason === "cancel" ? "Stopped." : reason === "dispatch" ? "The review could not start. Try again." : "The review was interrupted. Start a new message to continue.";
-      const events: TimedEvent[] = [...row.events, { t: row.events.at(-1)?.t ?? 0, e: { type: "error", message: error } }];
+      const events: TimedEvent[] = [...row.events];
+      if (row.payload?.modelSelection && row.payload.modelDecision && row.payload.modelResolvedAt && !events.some(({ e }) => e.type === "model_selection")) {
+        events.unshift({ t: 0, e: { type: "model_selection", modelSelection: row.payload.modelSelection, decision: row.payload.modelDecision, resolvedAt: row.payload.modelResolvedAt } });
+      }
+      events.push({ t: row.events.at(-1)?.t ?? 0, e: { type: "error", message: error } });
       if (row.payload) await saveAnswer(transactionDatabase(sql), { ownerId, chatId: row.chat_id, question: row.payload.question, turn: null, events });
       const body = JSON.stringify(events), bytes = Buffer.byteLength(body);
       const append = events.length <= 10000 && bytes <= 2097152;
@@ -58,11 +66,15 @@ export async function activeChatRun(database: Database, ownerId: string, chatId:
 export async function queueChatRun(database: Database, input: { accountId: string; ownerId: string; chatId: string; questionId: string; payload: ChatRunPayload }): Promise<string> {
   const id = randomUUID();
   if (Buffer.byteLength(JSON.stringify(input.payload)) > 1_000_000) throw new Error("Chat context is too large.");
+  // A reopened queued run can restore its requested choice before its worker has started.
+  const initialEvents: TimedEvent[] = input.payload.modelSelection && input.payload.modelDecision && input.payload.modelResolvedAt
+    ? [{ t: 0, e: { type: "model_selection", modelSelection: input.payload.modelSelection, decision: input.payload.modelDecision, resolvedAt: input.payload.modelResolvedAt } }] : [];
+  const initialBody = JSON.stringify(initialEvents);
   const { rows } = await database.query(
-    `INSERT INTO chat_runs(id,account_id,owner_id,chat_id,question_id,payload)
-     SELECT $1,a.id,a.owner_id,c.id,m.id,$6 FROM accounts a JOIN chats c ON c.owner_id=a.owner_id JOIN chat_messages m ON m.chat_id=c.id
+    `INSERT INTO chat_runs(id,account_id,owner_id,chat_id,question_id,payload,events,event_count,event_bytes)
+     SELECT $1,a.id,a.owner_id,c.id,m.id,$6,$7::jsonb,$8,$9 FROM accounts a JOIN chats c ON c.owner_id=a.owner_id JOIN chat_messages m ON m.chat_id=c.id
      WHERE a.id=$2 AND a.owner_id=$3 AND c.id=$4 AND m.id=$5 AND m.role='user' RETURNING id`,
-    [id, input.accountId, input.ownerId, input.chatId, input.questionId, JSON.stringify(input.payload)],
+    [id, input.accountId, input.ownerId, input.chatId, input.questionId, JSON.stringify(input.payload), initialBody, initialEvents.length, initialEvents.length ? Buffer.byteLength(initialBody) : 0],
   );
   if (!rows.length) throw new Error("Chat not found.");
   return id;

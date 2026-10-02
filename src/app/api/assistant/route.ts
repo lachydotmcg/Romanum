@@ -1,5 +1,7 @@
 import type OpenAI from "openai";
-import { assistantClient, runAssistant } from "@/lib/assistant/engine";
+import { assistantClient, assistantRequest, runAssistant } from "@/lib/assistant/engine";
+import { assertSelectionReady, ModelSelectionError, requestModelSelection, resolveAssistantModel } from "@/lib/assistant/model-selection";
+import type { ModelSelection } from "@/lib/models/types";
 import type { ApiMessage, AssistantEvent } from "@/lib/assistant/types";
 import { welcomeGuest } from "@/lib/credits/guest";
 import { welcomeAccount } from "@/lib/credits/account";
@@ -60,15 +62,17 @@ function parseMessages(body: unknown): ApiMessage[] | null {
 
 export async function POST(request: Request) {
   if (isCrossSite(request)) return Response.json({ error: "Request rejected." }, { status: 403 });
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) return Response.json({ error: "The AI assistant isn't connected." }, { status: 503 });
-
   const raw = await request.text();
   if (raw.length > MAX_BODY_CHARS) return Response.json({ error: "The conversation is too long." }, { status: 413 });
   let history: ApiMessage[] | null = null;
+  let modelSelection: ModelSelection;
   try {
-    history = parseMessages(JSON.parse(raw));
-  } catch {
+    const body = JSON.parse(raw);
+    history = parseMessages(body);
+    modelSelection = requestModelSelection(body?.modelSelection, Object.hasOwn(body ?? {}, "modelSelection"));
+    assertSelectionReady(modelSelection);
+  } catch (error) {
+    if (error instanceof ModelSelectionError) return Response.json({ error: error.message, decision: error.decision }, { status: error.status, headers: { "cache-control": "no-store" } });
     // Handled below.
   }
   if (!history) return Response.json({ error: "Invalid conversation." }, { status: 400 });
@@ -78,6 +82,7 @@ export async function POST(request: Request) {
   let db: Database;
   let owner: string;
   let accountId: string | undefined;
+  let availableCredits: number;
   try {
     const database = await historyDatabase();
     if (!database) throw new Error("No database is configured.");
@@ -86,6 +91,7 @@ export async function POST(request: Request) {
     const account = await readAccount();
     if (account?.ownerId === owner) accountId = account.id;
     const balance = account?.ownerId === owner ? await welcomeAccount(db, account.id) : await welcomeGuest(db, owner);
+    availableCredits = balance.available;
     if (balance.available < 1) return Response.json({ error: "You're out of credits." }, { status: 402 });
   } catch (error) {
     const verification = verificationResponse(error);
@@ -93,8 +99,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Credits unavailable. Try again later." }, { status: 503 });
   }
 
-  const client = assistantClient(apiKey);
   const abort = new AbortController();
+  const timeBudget = usesBackgroundChatWorker() ? 25_000 : undefined;
+  const analyticsTools = accountId ? privateAnalyticsTools(db, accountId, abort.signal, timeBudget ? { signal: AbortSignal.timeout(timeBudget) } : {}) : undefined;
+  let modelRoute;
+  try { modelRoute = resolveAssistantModel(modelSelection!, assistantRequest(conversation, { analyticsTools }), availableCredits); }
+  catch (error) {
+    if (error instanceof ModelSelectionError) return Response.json({ error: error.message, decision: error.decision }, { status: error.status, headers: { "cache-control": "no-store" } });
+    return Response.json({ error: "The model selection could not be validated." }, { status: 503 });
+  }
+  const client = assistantClient(process.env.DEEPSEEK_API_KEY ?? "");
   request.signal.addEventListener("abort", () => abort.abort());
   const encoder = new TextEncoder();
   let closed = false;
@@ -106,9 +120,7 @@ export async function POST(request: Request) {
       };
       const billing = assistantBilling(db, owner, "ask");
       try {
-        const timeBudget = usesBackgroundChatWorker() ? 25_000 : undefined;
-        const analyticsTools = accountId ? privateAnalyticsTools(db, accountId, abort.signal, timeBudget ? { signal: AbortSignal.timeout(timeBudget) } : {}) : undefined;
-        await runAssistant({ client, conversation, send, signal: abort.signal, billing, analyticsTools, analysisTimeBudgetMs: timeBudget });
+        await runAssistant({ client, conversation, send, signal: abort.signal, billing, analyticsTools, analysisTimeBudgetMs: timeBudget, modelRoute });
       } finally {
         if (billing.credits) send({ type: "usage", credits: billing.credits });
         if (!closed) {
