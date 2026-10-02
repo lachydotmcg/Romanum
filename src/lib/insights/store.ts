@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Database } from "../history/database.ts";
+import { competitorResearchSchema, marketEvidenceSchema, recommendationEvidenceSchema } from "./evidence.ts";
 
 // Romanum insight: each day's recommended titles and indie radar, generated once and shared by everyone.
 
@@ -8,8 +9,11 @@ const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 export const recommendationSchema = z.object({
   /** A working title, like a real Roblox game name. */
   title: text(2, 40),
-  /** One plain sentence on the idea and what in today's data points to it. */
+  /** A design hypothesis for new records; older records combined the idea and reason. */
   reason: text(10, 220),
+  /** Optional so existing JSON records remain readable without a migration. */
+  evidence: z.array(recommendationEvidenceSchema).min(1).max(4).optional(),
+  research: competitorResearchSchema.optional(),
 });
 
 export const radarItemSchema = z.object({
@@ -27,9 +31,35 @@ export const radarItemSchema = z.object({
 export const insightContentSchema = z.object({
   recommendations: z.array(recommendationSchema).min(1).max(3),
   radar: z.array(radarItemSchema).max(6),
-  /** When the chart data behind the recommendations was fetched. */
+  /** Oldest chart retrieval time in new records. Legacy records used assembly time. */
   dataAt: z.iso.datetime(),
+  marketEvidence: marketEvidenceSchema.optional(),
   generatedAt: z.iso.datetime(),
+}).superRefine((content, context) => {
+  if (!content.marketEvidence) {
+    if (content.recommendations.some((idea) => idea.evidence || idea.research)) {
+      context.addIssue({ code: "custom", message: "Evidence requires dated chart coverage." });
+    }
+    return;
+  }
+  const charts = new Map(content.marketEvidence.charts.map((chart) => [chart.chart, chart]));
+  if (charts.size !== content.marketEvidence.charts.length) {
+    context.addIssue({ code: "custom", message: "Duplicate chart coverage." });
+  }
+  const oldest = content.marketEvidence.charts.flatMap((chart) => chart.fetchedAt ? [chart.fetchedAt] : [])
+    .sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+  if (content.dataAt !== oldest) context.addIssue({ code: "custom", message: "Data time must retain chart retrieval time." });
+  for (const idea of content.recommendations) {
+    if (!idea.evidence || !idea.research) {
+      context.addIssue({ code: "custom", message: "New recommendations require evidence and search coverage." });
+    }
+    for (const evidence of idea.evidence ?? []) {
+      const chart = charts.get(evidence.chart);
+      if (chart?.status !== "available" || !chart.sampledGames || chart.fetchedAt !== evidence.fetchedAt || chart.expiresAt !== evidence.expiresAt) {
+        context.addIssue({ code: "custom", message: "Evidence must match an available chart observation." });
+      }
+    }
+  }
 });
 
 export type Recommendation = z.infer<typeof recommendationSchema>;
@@ -79,7 +109,9 @@ export async function latestInsight(database: Database): Promise<Insight | null>
   const { rows } = await database.query<{ day: string; content: InsightContent }>(
     "SELECT day::text AS day, content FROM insights WHERE status='ready' ORDER BY insights.day DESC LIMIT 1",
   );
-  return rows[0] ? { day: rows[0].day, content: rows[0].content } : null;
+  if (!rows[0]) return null;
+  const parsed = insightContentSchema.safeParse(rows[0].content);
+  return parsed.success ? { day: rows[0].day, content: parsed.data } : null;
 }
 
 /** A URL reduced to what identifies the page: no scheme, "www.", fragment, tracking parameters or trailing slash. */
