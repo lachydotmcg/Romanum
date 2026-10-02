@@ -74,8 +74,10 @@ export function PrivateAnalytics({ game, metrics }: { game: LinkedGame; metrics:
               return (
                 <div key={metric} className="min-w-0 rounded-xl border border-line bg-surface px-4 py-4">
                   <dt className="truncate text-xs text-fg-muted">{label}</dt>
-                  <dd className="mt-2 text-xl font-semibold tabular-nums">{formatMetric(value, unit)}</dd>
-                  {latest && <p className="mt-1 text-[11px] text-fg-subtle">{latest.day}{latest.status === "Projected" ? " · projected" : ""}</p>}
+                  <dd className="mt-2 text-xl font-semibold tabular-nums" title={latest ? `Roblox daily observation: ${latest.day}${latest.status ? ` (${latest.status})` : ""}` : "Not synced"}>
+                    {formatMetric(value, unit)}
+                    {latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-subtle">Projected</span>}
+                  </dd>
                   <MetricChange change={dailyMetricChange(series, unit)} />
                 </div>
               );
@@ -88,7 +90,7 @@ export function PrivateAnalytics({ game, metrics }: { game: LinkedGame; metrics:
                 const series = metrics[metric] ?? [];
                 const latest = series.at(-1);
                 const value = latest ? chartValues(metric, series.map((point) => point.value)).at(-1) : null;
-                return <div key={metric}><dt className="text-xs text-fg-muted">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{formatMetric(value, unit)}</dd>{latest && <p className="mt-1 text-[11px] text-fg-subtle">{latest.day}{latest.status === "Projected" ? " · projected" : ""}</p>}</div>;
+                return <div key={metric}><dt className="text-xs text-fg-muted">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums" title={latest ? `Roblox daily observation: ${latest.day}${latest.status ? ` (${latest.status})` : ""}` : "Not synced"}>{formatMetric(value, unit)}{latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-subtle">Projected</span>}</dd></div>;
               })}
             </dl>
           </details>

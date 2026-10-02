@@ -30,7 +30,6 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     <>
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Explore the market</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-fg-muted">Public Roblox analytics, free to browse without signup or MCP. <Link href="/analytics/data" className="text-fg underline underline-offset-4">Sources, freshness and metric definitions</Link></p>
       </header>
       <Assistant key={starter ?? "default"} connected={connected} initialPrompt={initialPrompt} />
       <ChartInvitation connected={connected} />

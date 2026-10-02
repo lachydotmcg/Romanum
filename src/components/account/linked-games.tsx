@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, ChevronRight, Plus, Settings, ThumbsUp } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Plus, Settings, ThumbsUp, Users } from "lucide-react";
 import { GameIcon } from "@/components/game-icon";
 import { MetricChange } from "./metric-change";
 import { Switch } from "@/components/switch";
@@ -89,24 +89,23 @@ function GameCard({ game, settings, onChange, onRemove, onRelink }: { game: Link
   if (!settings) return (
     <li className="min-w-0">
       <Link href={`/analytics/games/${game.universeId}`} prefetch={false} className={`group block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong hover:bg-surface-hover sm:p-5 ${FOCUS}`}>
-        <div className="flex flex-col gap-4 min-[440px]:flex-row">
-          <GameIcon url={game.iconUrl} name={name} className="size-36 rounded-xl sm:size-40" sizes="160px" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium tracking-wide text-fg-muted">YOUR EXPERIENCE</p>
-            <h3 className="mt-2 text-lg font-semibold leading-snug break-words group-hover:underline">{name}</h3>
-            {game.creatorName && <p className="mt-1 text-xs text-fg-muted break-words">By {game.creatorName}</p>}
-            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-fg-muted"><ThumbsUp className="size-3.5" aria-hidden="true" />{game.likeRatio == null ? "Rating unavailable" : `${Math.round(game.likeRatio * 100)}% positive`}</p>
-            <p className="mt-4 text-xs text-fg-muted">Concurrent users</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{game.playing == null ? "Unavailable" : formatMetric(game.playing, "count")}</p>
-            {game.publicFetchedAt && <p className="mt-1 text-[11px] text-fg-subtle">Public · {ago(game.publicFetchedAt)}</p>}
-          </div>
+        <GameIcon url={game.iconUrl} name={name} className="aspect-square w-full rounded-xl" sizes="(min-width: 1024px) 50vw, 100vw" />
+        <h3 className="mt-4 text-lg font-semibold leading-snug break-words group-hover:underline">{name}</h3>
+        {game.creatorName && <p className="mt-1 text-xs text-fg-muted break-words">By {game.creatorName}</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-fg-muted">
+          <p className="inline-flex items-center gap-1.5"><ThumbsUp className="size-3.5" aria-hidden="true" />{game.likeRatio == null ? "Rating unavailable" : `${Math.round(game.likeRatio * 100)}% positive`}</p>
+          <p className="inline-flex items-center gap-1.5" title={game.publicFetchedAt ? `Roblox public activity retrieved ${game.publicFetchedAt}` : "Public retrieval time unavailable"}>
+            <Users className="size-3.5" aria-hidden="true" /><span className="sr-only">Concurrent users: </span><span className="tabular-nums">{game.playing == null ? "Unavailable" : formatMetric(game.playing, "count")}</span>{game.playing != null && <span>playing</span>}
+          </p>
         </div>
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-4">
           {summary.map((metric) => (
             <div key={metric.metric} className="min-w-0">
               <dt className="text-xs text-fg-muted">{metric.label}</dt>
-              <dd className="mt-1 text-lg font-semibold tabular-nums">{formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}</dd>
-              <p className="mt-1 text-[11px] text-fg-subtle">{metric.latest ? `${metric.latest.day}${metric.latest.status === "Projected" ? " · projected" : ""}` : "Not synced"}</p>
+              <dd className="mt-1 text-lg font-semibold tabular-nums" title={metric.latest ? `Roblox daily observation: ${metric.latest.day}${metric.latest.status ? ` (${metric.latest.status})` : ""}` : "Not synced"}>
+                {formatMetric(metric.unit === "rate" && metric.latest && metric.latest.value > 1 ? metric.latest.value / 100 : metric.latest?.value, metric.unit)}
+                {metric.latest?.status === "Projected" && <span className="ml-2 text-[11px] font-normal text-fg-subtle">Projected</span>}
+              </dd>
               <MetricChange change={metric.change} />
             </div>
           ))}

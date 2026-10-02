@@ -1,7 +1,7 @@
 import { asFractions, formatMetric, type MetricUnit } from "./metrics.ts";
 import type { MetricPoint } from "./store";
 
-export type DailyMetricChange = { label: string; direction: "up" | "down" | "flat"; previousDay: string; latestDay: string };
+export type DailyMetricChange = { label: string; direction: "up" | "down" | "flat"; previousDay: string; latestDay: string; percentage: number | null };
 
 /** Compare consecutive completed days only. A missing day or provisional cohort is not a measured change. */
 export function dailyMetricChange(series: MetricPoint[], unit: MetricUnit): DailyMetricChange | null {
@@ -14,5 +14,9 @@ export function dailyMetricChange(series: MetricPoint[], unit: MetricUnit): Dail
   const rounded = Math.round(difference * 10) / 10;
   const direction = rounded > 0 ? "up" : rounded < 0 ? "down" : "flat";
   const amount = unit === "rate" ? `${Math.abs(rounded).toFixed(1)} pp` : formatMetric(Math.abs(rounded), unit);
-  return { label: `${direction === "up" ? "+" : direction === "down" ? "−" : ""}${amount}`, direction, previousDay: previous.day, latestDay: latest.day };
+  const before = values.at(-2)!;
+  const relative = before === 0 ? null : (values.at(-1)! - before) / Math.abs(before) * 100;
+  const roundedRelative = relative !== null && Number.isFinite(relative) ? Math.round(relative * 10) / 10 : null;
+  const percentage = roundedRelative !== null && Number.isFinite(roundedRelative) ? roundedRelative : null;
+  return { label: `${direction === "up" ? "+" : direction === "down" ? "−" : ""}${amount}`, direction, previousDay: previous.day, latestDay: latest.day, percentage };
 }

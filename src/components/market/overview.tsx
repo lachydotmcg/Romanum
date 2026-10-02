@@ -27,8 +27,7 @@ export async function MarketOverview({ connected }: { connected: boolean }) {
   const genreSample = analyzeMarket([{ chart: "top-playing-now", games: playing }], analysis.assembledAt);
   return (
     <>
-      <SourceContext analysis={analysis} observations={observations} />
-      <section aria-labelledby="market-heading" className="mt-9">
+      <section aria-labelledby="market-heading" className="mt-7">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
           <h2 id="market-heading" className="text-base font-semibold tracking-tight">Roblox right now</h2>
         </div>
@@ -50,6 +49,7 @@ export async function MarketOverview({ connected }: { connected: boolean }) {
           <RankedList title="Top Earning" earnings games={samples.find((sample) => sample.chart === "top-earning")?.games ?? null} />
         </div>
       </section>
+      <SourceContext analysis={analysis} observations={observations} />
     </>
   );
 }

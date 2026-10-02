@@ -69,8 +69,7 @@ export default async function GamePage({ params }: Props) {
       <div className="mt-5 grid items-start gap-8 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] xl:gap-10">
         <header className="min-w-0 lg:sticky lg:top-8">
           <GameIcon url={iconUrl} name={game.name} className="aspect-square w-full max-w-72 rounded-2xl" sizes="288px" />
-          <p className="mt-5 text-xs text-fg-muted">{own ? "Your experience" : "Roblox experience"}</p>
-          <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight break-words">{game.name}</h1>
+          <h1 className="mt-5 text-2xl font-semibold leading-tight tracking-tight break-words">{game.name}</h1>
           <p className="mt-2 text-sm text-fg-muted break-words">By {game.creator.name}</p>
           <p className="mt-4 text-xs text-fg-subtle break-words">{game.genre ?? "Genre unavailable"}</p>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -84,11 +83,6 @@ export default async function GamePage({ params }: Props) {
         </header>
 
         <div className="min-w-0 space-y-8">
-          <nav aria-label="Game sections" className="flex flex-wrap gap-2 border-b border-line pb-4 text-xs">
-            {own && <a href="#your-analytics" className="rounded-full border border-line px-3 py-2 hover:bg-surface">Your analytics</a>}
-            <a href="#game-analysis" className="rounded-full border border-line px-3 py-2 hover:bg-surface">AI advice</a>
-            <a href="#public-activity" className="rounded-full border border-line px-3 py-2 hover:bg-surface">Public activity</a>
-          </nav>
           {own && <PrivateAnalytics game={own.game} metrics={own.metrics} />}
 
           <section id="game-analysis" aria-labelledby="game-analysis-heading" className="scroll-mt-8 rounded-2xl border border-line p-5 sm:p-6">
@@ -97,7 +91,6 @@ export default async function GamePage({ params }: Props) {
             <p className="mt-3 mb-5 max-w-2xl text-sm leading-6 text-fg-muted">Get a focused review of {privateAnalysis ? "your authorized private metrics and public activity" : "this game's public activity"}, with prioritized tests and a way to measure each one.</p>
             <Assistant connected={Boolean(process.env.DEEPSEEK_API_KEY)} analysisPrompt={prompt} />
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-fg-subtle">
-              <span>Uses credits · advice appears here · data gaps are called out</span>
               <Link href={`/chats?prompt=${encodeURIComponent(prompt)}`} className="inline-flex min-h-9 items-center text-fg-muted hover:text-fg hover:underline">Open a saved chat →</Link>
             </div>
             {own && !privateAnalysis && <p className="mt-2 text-xs leading-5 text-fg-muted">Private AI access is off or unavailable. <Link href={`/profile/settings/games#game-${own.game.id}`} className="text-fg underline">Manage AI access in Settings</Link>.</p>}
