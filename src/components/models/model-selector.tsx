@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Info, X } from "lucide-react";
 import type { ModelQuote, ModelsResponse, ModelSelection, ProviderId, PublicModel, RouteDecision, RouteReason } from "@/lib/models/types";
 import { claimAutoRecommendation, parseAutoRecommendationContext, UNKNOWN_RECOMMENDATION_CONTEXT } from "../../lib/models/auto-recommendation.ts";
+import { ModelPreview, type ModelEvaluation } from "./model-preview.tsx";
 
 const REASONS = {
   explicit_selection: "Your selected model is retained.",
@@ -22,7 +23,7 @@ const REASONS = {
 
 /** Official upstream marks; local masks preserve their paths and inherit the row's monochrome tone. */
 function ProviderMark({ provider }: { provider: ProviderId }) {
-  const image = `url("/brand/providers/${provider}.svg")`;
+  const image = { deepseek: 'url("/brand/providers/deepseek.svg")', openai: 'url("/brand/providers/openai.svg")', anthropic: 'url("/brand/providers/anthropic.svg")' }[provider];
   return <span aria-hidden="true" className="inline-block size-4 shrink-0 bg-current"
     style={{ maskImage: image, maskSize: "contain", maskRepeat: "no-repeat", maskPosition: "center",
       WebkitMaskImage: image, WebkitMaskSize: "contain", WebkitMaskRepeat: "no-repeat", WebkitMaskPosition: "center" }} />;
@@ -63,7 +64,7 @@ async function readRecommendationContext(signal: AbortSignal) {
  * Callers clear decision when the prompt, token budget or capability requirements change.
  */
 export function ModelSelector({
-  catalog, selection, onChange, decision = null, disabled = false, loading = false, error = null, id, className = "", compact = false,
+  catalog, selection, onChange, decision = null, disabled = false, loading = false, error = null, id, className = "", compact = false, evaluations = [],
 }: {
   catalog: ModelsResponse | null;
   selection: ModelSelection;
@@ -76,12 +77,18 @@ export function ModelSelector({
   className?: string;
   /** Compact composer pill keeps its explanatory status available to assistive technology. */
   compact?: boolean;
+  /** Optional shared-suite benchmark data. No production ratings are supplied today. */
+  evaluations?: readonly ModelEvaluation[];
 }) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
   const helpId = `${selectId}-help`, statusId = `${selectId}-status`, listId = `${selectId}-options`, recommendationId = `${selectId}-recommendation`;
   const trigger = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null);
+  const details = useRef<HTMLDivElement>(null), closeDetailsTimer = useRef<number | null>(null);
+  const focusDetails = useRef(false), skipDetailsFocus = useRef(false);
   const [open, setOpen] = useState(false), [active, setActive] = useState(0);
+  const [peekId, setPeekId] = useState<string | null>(null), [detailsPinned, setDetailsPinned] = useState(false);
+  const [detailsPosition, setDetailsPosition] = useState<{ top?: number; bottom?: number; left: number; width: number }>({ top: 8, left: 8, width: 224 });
   const [recommendationContext, setRecommendationContext] = useState(UNKNOWN_RECOMMENDATION_CONTEXT);
   const [recommendationShown, setRecommendationShown] = useState(false);
   const switchedAway = useRef(false);
@@ -100,14 +107,52 @@ export function ModelSelector({
   ];
   const selectedIndex = options.findIndex((option) => option.value === value);
   const enabledIndices = options.flatMap((option, index) => option.disabled ? [] : [index]);
+  const peekModel = models.find(model => model.id === peekId && model.id === model.modelId && model.rateCardVersion === catalog?.rateCardVersion &&
+    models.filter(entry => entry.id === model.id).length === 1);
+  const detailIndex = peekModel ? options.findIndex(option => option.value === peekModel.id) : options[active]?.provider ? active
+    : selectedIndex >= 0 && options[selectedIndex]?.provider ? selectedIndex : options.findIndex(option => option.provider);
+  const keepDetails = useCallback(() => { if (closeDetailsTimer.current !== null) { window.clearTimeout(closeDetailsTimer.current); closeDetailsTimer.current = null; } }, []);
+  const hideDetails = useCallback(() => { keepDetails(); setPeekId(null); setDetailsPinned(false); }, [keepDetails]);
+  function dismissDetails() { hideDetails(); skipDetailsFocus.current = document.activeElement !== trigger.current; trigger.current?.focus(); }
+  function leaveDetails() { keepDetails(); if (!detailsPinned) closeDetailsTimer.current = window.setTimeout(() => setPeekId(null), 180); }
+  function inspect(index: number, pinned = false, focus = false) {
+    keepDetails(); const option = options[index];
+    if (!option?.provider) { setPeekId(null); return; }
+    focusDetails.current = focus; setPeekId(option.value); setDetailsPinned(pinned);
+    if (focus && peekId === option.value && details.current) { details.current.focus(); focusDetails.current = false; }
+  }
+  function detailsKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissDetails(); return; }
+    // Browsing information includes unavailable models; selecting still uses the existing readiness gate.
+    if (event.target !== event.currentTarget || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const indices = options.flatMap((option, index) => option.provider ? [index] : []);
+    if (!indices.length) return;
+    event.preventDefault();
+    const index = event.key === "Home" ? indices[0] : event.key === "End" ? indices[indices.length - 1]
+      : indices[(indices.indexOf(detailIndex) + (event.key === "ArrowDown" ? 1 : -1) + indices.length) % indices.length];
+    inspect(index, true, true);
+  }
+  const locateDetails = useCallback(() => {
+    const rect = (visible ? popup.current : trigger.current)?.getBoundingClientRect();
+    if (!rect) return;
+    if (window.innerWidth < 620) {
+      const width = Math.min(320, window.innerWidth - 16);
+      setDetailsPosition({ bottom: 16, left: Math.max(8, (window.innerWidth - width) / 2), width });
+    } else {
+      const width = 224, right = rect.right + 8, left = rect.left - width - 8;
+      setDetailsPosition({ top: Math.max(8, Math.min(rect.top, window.innerHeight - 240)),
+        left: right + width <= window.innerWidth - 8 ? right : left >= 8 ? left : Math.max(8, window.innerWidth - width - 8), width });
+    }
+  }, [visible]);
   useEffect(() => {
     const controller = new AbortController();
     preferenceRequest.current = controller;
     void readRecommendationContext(controller.signal).then(value => { if (!controller.signal.aborted) setRecommendationContext(value); });
-    return () => preferenceRequest.current?.abort();
+    return () => { preferenceRequest.current?.abort(); if (closeDetailsTimer.current !== null) window.clearTimeout(closeDetailsTimer.current); };
   }, []);
   function dismissRecommendation() { setRecommendationShown(false); trigger.current?.focus(); }
   function changeSelection(next: ModelSelection) {
+    hideDetails();
     // Apply the deliberate choice immediately. Advice never blocks or substitutes it.
     onChange(next);
     if (next.mode === "auto") setRecommendationShown(false);
@@ -156,25 +201,33 @@ export function ModelSelector({
   function keyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (locked) return;
     if (event.key === "Escape") {
+      hideDetails();
       if (visible) { event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus(); }
       else if (recommendationShown) { event.preventDefault(); event.stopPropagation(); dismissRecommendation(); }
       return;
     }
     if (event.key === "Tab") { setOpen(false); return; }
-    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); if (visible) choose(active); else show(); return; }
+    if (event.key === "ArrowRight") {
+      if (detailIndex >= 0) { event.preventDefault(); inspect(detailIndex, true, true); }
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); if (visible) choose(active); else { show(); inspect(selectedIndex, true); } return; }
     if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       if (!enabledIndices.length) { show(0); return; }
-      if (event.key === "Home") show(enabledIndices[0]);
-      else if (event.key === "End") show(enabledIndices[enabledIndices.length - 1]);
+      if (event.key === "Home") { show(enabledIndices[0]); inspect(enabledIndices[0], true); }
+      else if (event.key === "End") { const last = enabledIndices[enabledIndices.length - 1]; show(last); inspect(last, true); }
       else if (!visible) show();
-      else setActive(enabledIndices[(enabledIndices.indexOf(active) + (event.key === "ArrowDown" ? 1 : -1) + enabledIndices.length) % enabledIndices.length]);
+      else {
+        const next = enabledIndices[(enabledIndices.indexOf(active) + (event.key === "ArrowDown" ? 1 : -1) + enabledIndices.length) % enabledIndices.length];
+        setActive(next); inspect(next, true);
+      }
     }
   }
   useEffect(() => {
     if (!visible) return;
     const outside = (event: PointerEvent) => {
-      if (!trigger.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) setOpen(false);
+      if (!trigger.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node) && !details.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", outside);
     window.addEventListener("resize", locate);
@@ -188,6 +241,29 @@ export function ModelSelector({
     window.addEventListener("scroll", locate, true);
     return () => { window.removeEventListener("resize", locate); window.removeEventListener("scroll", locate, true); };
   }, [recommendationShown]);
+  useEffect(() => {
+    if (!peekId) return;
+    const frame = window.requestAnimationFrame(locateDetails);
+    if (focusDetails.current) { details.current?.focus(); focusDetails.current = false; }
+    const outside = (event: PointerEvent) => {
+      if (!trigger.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node) && !details.current?.contains(event.target as Node)) hideDetails();
+    };
+    const focusOutside = (event: FocusEvent) => {
+      if (!trigger.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node) && !details.current?.contains(event.target as Node)) hideDetails();
+    };
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); hideDetails(); }
+    };
+    document.addEventListener("pointerdown", outside); document.addEventListener("focusin", focusOutside);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("resize", locateDetails); window.addEventListener("scroll", locateDetails, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", outside); document.removeEventListener("focusin", focusOutside);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", locateDetails); window.removeEventListener("scroll", locateDetails, true);
+    };
+  }, [peekId, visible, detailsPinned, locateDetails, hideDetails]);
   const autoDecision = decision?.reason === "auto_affordable" || decision?.reason === "auto_cache_scenario";
   const relevant = !!decision && !locked && (selection.mode === "auto"
     ? decision.status === "selected" ? autoDecision : decision.modelId === undefined
@@ -198,6 +274,7 @@ export function ModelSelector({
     ? models.find((model) => model.id === decision.fallback!.modelId) : undefined;
   const alternativeQuote = relevant && decision.status === "blocked" && decision.fallback && alternative && enabled(alternative, catalog) &&
     usableQuote(decision.fallback.quote, alternative.id, catalog) ? decision.fallback.quote : undefined;
+  const peekQuote = peekModel && quote?.modelId === peekModel.id ? quote : peekModel && alternativeQuote?.modelId === peekModel.id ? alternativeQuote : undefined;
 
   return (
     <div className={`min-w-0 ${className}`}>
@@ -205,6 +282,8 @@ export function ModelSelector({
       <button ref={trigger} id={selectId} value={value} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={visible}
         aria-controls={visible ? listId : undefined} aria-activedescendant={visible && options[active] ? `${listId}-${active}` : undefined}
         disabled={locked} aria-describedby={`${helpId} ${statusId}${recommendationShown ? ` ${recommendationId}` : ""}`} aria-busy={loading || undefined} onKeyDown={keyDown} onClick={() => visible ? setOpen(false) : show()}
+        onPointerEnter={event => { if (event.pointerType === "mouse" && selected && !visible && !recommendationShown) inspect(selectedIndex); }} onPointerLeave={leaveDetails}
+        onFocus={event => { if (skipDetailsFocus.current) { skipDetailsFocus.current = false; return; } if (selected && !visible && !recommendationShown && event.currentTarget.matches(":focus-visible")) inspect(selectedIndex, true); }}
         className="inline-flex min-h-7 pointer-coarse:min-h-11 max-w-full items-center gap-1.5 rounded-full bg-surface-hover px-[9px] text-[13px] text-fg outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
         {selected && <ProviderMark provider={selected.provider} />}<span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
       </button>
@@ -215,7 +294,9 @@ export function ModelSelector({
         <div className="overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10" style={{ maxHeight: Math.max(0, position.height - 40) }}>
           {options.map((option, index) => <div key={option.value} id={`${listId}-${index}`} role="option" data-index={index} aria-selected={value === option.value} aria-disabled={option.disabled || undefined}
             title={option.disabled ? option.description : undefined}
-            onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}
+            onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }}
+            onPointerEnter={event => { if (event.pointerType === "mouse") inspect(index); }} onPointerLeave={leaveDetails}
+            onClick={() => { if (option.disabled && window.matchMedia?.("(pointer: coarse)")?.matches) inspect(index, true, true); else choose(index); }}
             className={`flex ${option.value === "auto" ? "min-h-11" : "min-h-7"} pointer-coarse:min-h-11 items-center justify-between gap-3 rounded-lg px-1 ${option.disabled ? "cursor-not-allowed text-fg-muted" : "cursor-pointer text-fg"} ${index === active && option.value !== value && !option.disabled ? "bg-white/[0.04]" : ""}`}>
             <div className="flex min-w-0 items-center gap-2">
               {option.provider ? <ProviderMark provider={option.provider} /> : <span aria-hidden="true" className="size-4 shrink-0" />}
@@ -224,6 +305,23 @@ export function ModelSelector({
             {value === option.value && <Check className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />}
           </div>)}
         </div>
+      </div>, document.body)}
+      {visible && detailIndex >= 0 && createPortal(<button type="button" tabIndex={-1} aria-label={`About ${options[detailIndex].label}`}
+        onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => inspect(detailIndex, true, true)}
+        style={{ left: position.left + position.width - 42, top: (position.top ?? window.innerHeight - (position.bottom ?? 0) - position.height) + (window.matchMedia?.("(pointer: coarse)")?.matches ? -12 : 4) }}
+        className="fixed z-[101] inline-flex size-7 pointer-coarse:size-11 cursor-pointer items-center justify-center rounded-full text-fg-muted outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
+        <Info className="size-3.5 pointer-coarse:translate-y-2.5" aria-hidden="true" />
+      </button>, document.body)}
+      {peekModel && !locked && !recommendationShown && createPortal(<div ref={details} role="dialog" aria-label={`About ${peekModel.label}`} tabIndex={-1}
+        style={{ ...detailsPosition, maxHeight: window.innerHeight - 32 }}
+        onPointerEnter={keepDetails} onPointerLeave={leaveDetails} onKeyDown={detailsKeyDown}
+        className="fixed z-[110] overflow-y-auto rounded-[18px] border border-white/[0.06] bg-[#2b2a2b] p-3 shadow-lg outline-none">
+        <div className="mb-2 flex items-center gap-2">
+          <ProviderMark provider={peekModel.provider} /><h3 className="min-w-0 flex-1 text-[13px] font-normal text-fg">{peekModel.label}</h3>
+          <button type="button" aria-label="Close model details" onClick={dismissDetails}
+            className="-mr-2 inline-flex size-7 pointer-coarse:size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70"><X className="size-3.5" aria-hidden="true" /></button>
+        </div>
+        <ModelPreview model={peekModel} quote={peekQuote} evaluation={evaluations.find(value => value.modelId === peekModel.id)} />
       </div>, document.body)}
       {recommendationShown && selection.mode === "explicit" && recommendationContext.subscription === "none" &&
         createPortal(<div role="group" aria-label="Auto recommendation"
@@ -255,6 +353,7 @@ export function ModelSelector({
       <p id={helpId} className={compact ? "sr-only" : "mt-1.5 text-xs leading-5 text-fg-subtle"}>
         {selection.mode === "auto" ? "Auto considers enabled models, your request budget and compatible cache scenarios. Cache savings are not guaranteed."
           : "Your choice is retained. Unavailable models are not replaced automatically."}
+        <span className="sr-only"> Press Right Arrow for model details, then Up or Down Arrow to browse models.</span>
       </p>
       <div id={statusId} role="status" aria-live="polite" aria-atomic="true" className={compact && !alternativeQuote ? "sr-only" : "mt-1 text-xs leading-5 text-fg-muted"}>
         {loading ? <p>Loading model options. Your choice is retained.</p>

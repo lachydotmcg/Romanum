@@ -10,23 +10,24 @@ import { publicModels } from "../src/lib/models/readiness.ts";
 import { routeModel } from "../src/lib/models/route.ts";
 
 const componentUrl = new URL("../src/components/models/model-selector.tsx", import.meta.url).href;
+const previewUrl = new URL("../src/components/models/model-preview.tsx", import.meta.url).href;
 const virtual = source => ({ url: `data:text/javascript,${encodeURIComponent(source)}`, shortCircuit: true });
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (context.parentURL === componentUrl) {
       if (specifier === "react") return virtual(`import * as React from ${JSON.stringify(import.meta.resolve("react"))};
-        ${["useId", "useState", "useRef", "useEffect"].map(name => `export function ${name}(...args){return globalThis.__selectorHarness ? globalThis.__selectorHarness.${name}(...args) : React.${name}(...args);}`).join("\n")}`);
+        ${["useId", "useState", "useRef", "useEffect", "useCallback"].map(name => `export function ${name}(...args){return globalThis.__selectorHarness ? globalThis.__selectorHarness.${name}(...args) : React.${name}(...args);}`).join("\n")}`);
       if (specifier === "react-dom") return virtual(`import {createPortal as real} from ${JSON.stringify(import.meta.resolve("react-dom"))}; export function createPortal(children,container){return globalThis.__selectorHarness ? children : real(children,container);}`);
       if (specifier === "react/jsx-runtime") return virtual(`import * as runtime from ${JSON.stringify(import.meta.resolve("react/jsx-runtime"))};
         export const Fragment=runtime.Fragment;
-        function capture(type,props,key){if(globalThis.__selectorControls && (type==='button'||props.role==='option'||props.role==='listbox'||props.role==='group'))globalThis.__selectorControls.push({type,props,key});}
+        function capture(type,props,key){if(globalThis.__selectorControls && (type==='button'||props.role==='option'||props.role==='listbox'||props.role==='group'||props.role==='dialog'))globalThis.__selectorControls.push({type,props,key});}
         export function jsx(type,props,key){capture(type,props,key);return runtime.jsx(type,props,key);}
         export function jsxs(type,props,key){capture(type,props,key);return runtime.jsxs(type,props,key);}`);
     }
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
-    if (url === componentUrl) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
+    if (url === componentUrl || url === previewUrl) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX },
     }).outputText };
     return nextLoad(url, context);
@@ -49,15 +50,17 @@ function render(extra = {}) {
   const state = [], effects = [], changes = [], scrolled = [], listeners = new Map();
   let cursor = 0, markup = "", controls = [], focusCount = 0;
   const browser = { innerWidth: 640, innerHeight: 600, rect: { top: 500, bottom: 544, left: 40 },
+    requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {},
     localStorage: { getItem: key => { if (storageDenied) throw new Error("Storage unavailable"); return storage.get(key) ?? null; },
       setItem: (key, value) => { if (storageDenied) throw new Error("Storage unavailable"); storage.set(key, value); } },
     addEventListener: (name, fn) => listeners.set(`window:${name}`, fn), removeEventListener: name => listeners.delete(`window:${name}`) };
   const triggerNode = { getBoundingClientRect: () => browser.rect, focus: () => focusCount++, contains: target => target === triggerNode };
-  const popupNode = { contains: target => target === popupNode, querySelector: selector => ({ scrollIntoView: value => scrolled.push({ selector, value }) }) };
+  const popupNode = { contains: target => target === popupNode, getBoundingClientRect: () => ({ top: 172, left: 40, right: 295 }), querySelector: selector => ({ scrollIntoView: value => scrolled.push({ selector, value }) }) };
   const doc = { body: {}, addEventListener: (name, fn) => listeners.set(`document:${name}`, fn), removeEventListener: name => listeners.delete(`document:${name}`) };
   const props = { catalog, selection: { mode: "auto" }, onChange: selection => { changes.push(selection); props.selection = selection; }, ...componentProps };
   function slot(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return index; }
   const harness = {
+    useCallback(fn) { return fn; },
     useId() { return state[slot("fixture-model")]; },
     useRef(initial) { return state[slot({ current: initial })]; },
     useState(initial) { const index = slot(initial); return [state[index], value => { state[index] = typeof value === "function" ? value(state[index]) : value; }]; },
@@ -93,13 +96,15 @@ function render(extra = {}) {
     get markup() { return markup; },
     get trigger() { return controls.find(control => control.props.role === "combobox").props; },
     get list() { return controls.find(control => control.props.role === "listbox")?.props; },
+    get details() { return controls.find(control => control.props.role === "dialog")?.props; },
     get buttons() { return controls.filter(control => control.type === "button" && control.props.role !== "combobox").map(control => control.props); },
     get focusCount() { return focusCount; },
     option(value) { return controls.find(control => control.props.role === "option" && control.key === value)?.props; },
     clickTrigger() { act(() => result.trigger.onClick()); },
     choose(value) { if (!result.list) result.clickTrigger(); act(() => result.option(value)?.onClick()); },
     key(key) { const event = { key, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }; act(() => result.trigger.onKeyDown(event)); return event; },
-    alternative() { act(() => result.buttons[0]?.onClick()); },
+    detailsKey(key) { act(() => result.details?.onKeyDown({ key, target: null, currentTarget: null, preventDefault() {}, stopPropagation() {} })); },
+    alternative() { act(() => result.buttons.find(button => React.Children.toArray(button.children).join("").startsWith("Choose "))?.onClick()); },
     button(label) { act(() => result.buttons.find(button => button["aria-label"] === label || React.Children.toArray(button.children).join("") === label)?.onClick()); },
     escapeRecommendation() { act(() => controls.find(control => control.props.role === "group" && control.props["aria-label"] === "Auto recommendation")?.props.onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} })); },
     async ready() { await new Promise(resolve => setImmediate(resolve)); scope(redraw); },
@@ -131,6 +136,18 @@ test("row choices emit typed explicit or Auto selections and reject disabled or 
   result.choose("deepseek-flash"); result.choose("auto");
   for (const value of ["gpt-6.1-sol", "claude-opus-5-5", "unknown", ""]) result.choose(value);
   assert.deepEqual(result.changes, [{ mode: "explicit", modelId: "deepseek-flash" }, { mode: "auto" }]); result.dispose();
+});
+
+test("keyboard profile browsing includes unavailable models without changing the selection", () => {
+  for (const models of [catalog, { ...catalog, models: catalog.models.map(model => ({ ...model, executionEnabled: false, selectable: false, reason: "execution_disabled" })) }]) {
+  const result = render({ catalog: models }); result.key("ArrowRight");
+  assert.equal(result.details["aria-label"], "About DeepSeek Flash");
+  result.detailsKey("ArrowDown"); assert.equal(result.details["aria-label"], "About DeepSeek V4 Pro");
+  result.detailsKey("End"); assert.equal(result.details["aria-label"], "About Claude Fable 5.1");
+  result.detailsKey("Home"); assert.equal(result.details["aria-label"], "About DeepSeek Flash");
+  assert.equal(result.trigger.value, "auto"); assert.deepEqual(result.changes, []);
+  result.detailsKey("Escape"); assert.equal(result.details, undefined); result.dispose();
+  }
 });
 
 const preferenceScope = "a".repeat(64);
@@ -343,7 +360,7 @@ test("stale decisions, wrong versions and invalid prices never appear as estimat
 test("explicit routing reports minimum reservation without switching models", () => {
   const selection = { mode: "explicit", modelId: "deepseek-flash" }, result = render({ selection, decision: decide(selection, { availableCredits: 1 }) });
   assert.match(result.markup, /not enough credits for the minimum reservation/); assert.match(result.markup, /Reservation ceiling: 2 credits/);
-  assert.equal(result.buttons.length, 0); assert.deepEqual(result.changes, []); result.dispose();
+  assert.equal(result.buttons.filter(button => !button["aria-label"]?.startsWith("About ")).length, 0); assert.deepEqual(result.changes, []); result.dispose();
 });
 
 test("real closed SSR uses unique React IDs and escaped metadata without a document", () => {
