@@ -27,7 +27,9 @@ export type WorkflowAction = {
   proposal: ActionProposal; digest: string; status: WorkflowStatus;
   dispatchPhase: "pending" | "dispatching"; result: JsonObject | null;
   errorCode: string | null; expiresAt: string;
+  leaseExpiresAt: string | null; recoverable: boolean;
 };
+export type WorkflowCheckpoint = { actions: WorkflowAction[]; selection: Selection | null; requiresSelection: boolean };
 export class StudioWorkflowError extends Error {
   readonly code: "invalid" | "not_found" | "conflict" | "stale_selection" | "approval_expired" | "unavailable" | "limit";
   constructor(code: StudioWorkflowError["code"]) {

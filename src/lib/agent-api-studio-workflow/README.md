@@ -4,10 +4,11 @@ This is a code-only next milestone over the inspected Agent API (`93f743a`),
 mock integration (`cfcebc7`), Studio bridge (`b337202`) and stdio (`3db9239`).
 Those foundations remain separate, local prototypes. This module provides an
 owner-controlled request workflow; it does not enable a hosted agent, a real
-Studio connection, Luau execution or game editing. No route is mounted.
+Studio connection, Luau execution or game editing. The private page and route
+are now authored, compile-time disabled and undeployed.
 
 The isolated branch starts at verified production `8ae07c0`. It includes only
-those four foundation commits and this workflow. The dirty main checkout and
+those four foundation commits and this workflow's two milestones. The dirty main checkout and
 another agent's public MCP routes are outside its edit scope.
 
 ## Runnable fixture
@@ -17,6 +18,9 @@ With the repository's existing dependencies (no new installation):
 ```sh
 node scripts/agent-studio-workflow-demo.mjs
 node --test --test-concurrency=1 tests/agent-studio-workflow.test.mjs
+node --test --test-concurrency=1 tests/agent-studio-private-route.test.mjs
+node scripts/agent-studio-preview-build.mjs
+node scripts/agent-studio-browser-check.mjs
 node --test --test-concurrency=1 packages/studio-bridge/tests/*.test.mjs tests/agent-api.test.mjs tests/agent-studio-adapter.test.mjs tests/harness.test.mjs tests/harness-wait.test.mjs
 npx next typegen
 npx tsc --noEmit --incremental false
@@ -35,6 +39,36 @@ only the previously authored fixture child; they do not launch StudioMCP.
 migrations. It is **not** part of application migration discovery or startup.
 No production database was changed.
 
+## Review UI and offline preview
+
+`StudioWorkspace` is shared by the private project page and a standalone authored
+preview. Build with the command above and open `artifacts/studio-preview/index.html`
+directly in a browser. It starts no web server and needs no network, account,
+helper or credentials. Its explicitly labelled browser simulation stores only
+authored sample text/action IDs in tab session storage. Closing the tab resets
+that simulation; this is distinct from the durable SQL workflow.
+
+The flow explicitly selects one of two fixture Studios, inspects sample Luau,
+edits a replacement, shows a meaningful line diff, and asks for review of that
+exact change and target. Approval and execution are separate clicks. Stable
+review/execution/cancel/recovery keys survive UI reload without storing grants
+or private real project text. Read status polling never redispatches actions.
+Expiry, changed selection and unavailable connection disable new action controls.
+Cancellation and recovery remain available from durable status after disconnect,
+including for unfinished inspections. Unresolved actions take priority over
+recent history in the bounded checkpoint, so newer reads cannot hide an unknown
+write. Recovery never treats an uncertain write as safe to repeat.
+
+The browser check uses existing Chrome, an isolated profile, a local file URL,
+blocked HTTP/HTTPS requests and a debugging pipe (no TCP listener). It first
+checks the standalone simulation, then injects a gateway that calls the real
+private handler and SQL fixture directly in Node, without an HTTP server. It
+checks repeated approval/execution, reload during execution, cancellation,
+expired review and lease, disconnect, interrupted read recovery and layouts at
+1440/390/320px. Screenshots and `browser-checks.json` are generated in the same
+artifact directory. Existing Chrome must be available; `STUDIO_QA_BROWSER` can
+select another existing Chromium executable. No browser installation is attempted.
+
 ## Request contract and authentication boundary
 
 `studioWorkflowResponse` accepts `Request` objects and the existing private
@@ -47,7 +81,16 @@ projects/actions on the server. Bodies cannot set an owner, capability,
 connection, approval scope or hidden Studio target. Every response is private
 and `no-store`; raw upstream/storage errors and attempt tokens are excluded.
 Fixture tests inject authored account results; real session routing is not
-deployed or live-validated.
+deployed or live-validated. `privateStudioResponse` additionally requires an
+exact mutation Origin and verifies path project ownership before resolving a
+workflow. Body/query project IDs cannot switch the path's scope.
+
+`/agent-studio/[projectId]` and `/api/agent-studio/[projectId]` use existing
+`readAccount` and project storage. Their `STUDIO_WORKFLOW_ENABLED = false` gate
+is a code constant; no environment variable can activate it. The route's
+workflow resolver always returns null. A signed-in API request gets 503 without
+opening workflow storage or connecting to Studio. The page checks ownership and
+shows a disabled notice. No public MCP endpoint or project navigation is changed.
 
 All POST operations carry `projectId`, `key` (1–100 ASCII identifier characters)
 and `operation`. The key namespace spans all operations for that owner/project.
@@ -62,9 +105,11 @@ and `operation`. The key namespace spans all operations for that owner/project.
 | `cancel` | `actionId` | Revokes the durable claim before best-effort local abort. |
 | `recover` | `actionId` | Revokes only an expired running claim; never redispatches. |
 
-GET requires `projectId`, with optional `actionId`. It returns owned action
-evidence or fixture discovery. This is an **unmounted handler contract**, not
-a documented operational endpoint. `createFixtureStudioWorkflow` is disabled
+The inner fixture handler's GET requires `projectId`, with optional `actionId`.
+It returns owned action evidence or a durable checkpoint with fixture discovery.
+On discovery failure it still returns the checkpoint with `connectionAvailable:
+false`, empty sessions and no current selection. This is local tested code,
+not an operational endpoint. `createFixtureStudioWorkflow` is disabled
 unless explicitly enabled and accepts only the authored `MockStudioTransport`.
 It does not create credentials, pairing grants, listeners or helpers.
 
@@ -109,16 +154,33 @@ separately implemented trusted, evidence-backed operator reconciliation path.
 Bounds: 64 KiB streamed HTTP bodies, 30-second approvals, existing bridge message
 limits, 256 selections/actions per owner/project and 2,048 request receipts.
 Limits fail closed. Receipts are not evicted, since eviction would erase retry
-protection. Project deletion cascades this prototype's private records; a release
-must verify its account-export and closure integration before enabling storage.
+protection. The isolated schema reuses the existing closed-owner guard on all
+three tables. Service changes first acquire the existing closure advisory lock,
+then lock the owner's projects in stable order. A narrow project deletion guard
+refuses proposed/approved/running/uncertain work, preserving evidence during
+account closure; terminal records cascade with their project. Current closure
+HTTP would return its generic unavailable error for this SQL refusal; friendly
+unfinished-work mapping and account export remain integration owner work.
+
+`rollback.sql` is a reversible, reviewed artifact, never called by startup or a
+route. Invoke it in one transaction after stopping callers and reviewing/backup
+of fixture evidence. It takes project then workflow table locks, refuses
+unresolved actions, and removes only these added tables/function/trigger. The
+rollback/reapplication tests use disposable PGlite, preserving base projects and
+the existing account guard. Neither artifact is registered in the app migration
+runner or applied to an owner/production database. Real PostgreSQL concurrent
+DDL/closure validation remains required before activation.
 
 ## Minimal live validation and owner steps (not performed)
 
 1. Coordinate integration/deployment with the parent. Turn this isolated SQL
    schema into the next reviewed application migration, verify account export,
-   retention/closure and real PostgreSQL concurrency, then wire a private
-   session-authenticated handler and an owner review UI showing Studio/place,
-   exact edits, inspection evidence and expiry. Keep public MCP separate.
+   retention/closure and real PostgreSQL concurrency. Finish the export allowlist
+   and friendly unfinished-work handling with their owners. Review a separate
+   code change supplying an owner-established workflow resolver and enabling the
+   private route/page; no configuration-only activation exists. Validate real
+   sessions, project ownership and disconnect recovery through that binding.
+   Keep public MCP separate.
 2. With the owner's existing approved local Studio connection, validate only
    discovery and a read in an explicitly chosen disposable/test place: actual
    protocol/tool schemas, selected Studio/place identity and response bounds.

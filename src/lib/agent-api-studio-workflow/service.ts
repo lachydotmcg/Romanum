@@ -6,7 +6,7 @@ import { MockStudioTransport, validateFixtureInput, STATE_SCHEMA, EDIT_SCHEMA } 
 import type { Database, Sql } from "../history/database.ts";
 import { idSchema, ownerIdSchema } from "../creative/schema.ts";
 import { StudioWorkflowError, workflowRequest } from "./contracts.ts";
-import type { Selection, WorkflowAction, WorkflowRequest, WorkflowStatus } from "./contracts.ts";
+import type { Selection, WorkflowAction, WorkflowCheckpoint, WorkflowRequest, WorkflowStatus } from "./contracts.ts";
 
 type ActionRow = {
   id: string; selection_id: string; inspection_id: string | null;
@@ -33,6 +33,8 @@ function view(row: ActionRow): WorkflowAction {
     actionId: row.id, selectionId: row.selection_id, inspectionId: row.inspection_id,
     proposal: row.proposal, digest: row.digest, status: row.status, dispatchPhase: row.dispatch_phase,
     result: row.result, errorCode: row.error_code, expiresAt: iso(row.expires_at),
+    leaseExpiresAt: row.lease_until ? iso(row.lease_until) : null,
+    recoverable: row.status === "running" && row.lease_active === false,
   });
 }
 
@@ -71,6 +73,9 @@ export class StudioWorkflow {
     return rows[0];
   }
   async #ownerLock(sql: Sql): Promise<void> {
+    // Same lock order as account closure and its existing row guard triggers.
+    await sql.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [this.#ownerId]);
+    if ((await sql.query("SELECT 1 FROM account_closures WHERE owner_id=$1", [this.#ownerId])).rows.length) throw new StudioWorkflowError("not_found");
     // Projects are bounded to 100 per owner. Lock in a stable order so another
     // project cannot race the same owner's Studio uncertainty fence. No new
     // persistent lock/access record or database-wide lock is needed.
@@ -96,6 +101,16 @@ export class StudioWorkflow {
   async studios(projectId: string): Promise<Discovery> {
     await this.#project(this.#database, projectId);
     return this.#bridge.discover();
+  }
+  async checkpoint(projectId: string): Promise<WorkflowCheckpoint> {
+    await this.#project(this.#database, projectId);
+    // Unresolved work must survive any number of newer inspections. A bounded
+    // queue presents pending reads first too; cancelling one exposes the next.
+    const { rows } = await this.#database.query<ActionRow>(`SELECT ${ACTION_COLUMNS} FROM studio_workflow_actions WHERE project_id=$1 AND owner_id=$2
+      ORDER BY CASE WHEN effect='write' AND status IN ('proposed','approved','running','uncertain') THEN 0
+        WHEN status IN ('approved','running') THEN 1 ELSE 2 END,created_at DESC,id DESC LIMIT 32`, [projectId, this.#ownerId]);
+    const selected = this.#activeTarget ? (await this.#database.query<{ id: string; target: StudioTarget }>("SELECT id,target FROM studio_workflow_selections WHERE project_id=$1 AND owner_id=$2 AND target->>'connectionId'=$3 AND target->>'selectionId'=$4 LIMIT 1", [projectId, this.#ownerId, this.#bridge.connectionId, this.#activeTarget.selectionId])).rows[0] : undefined;
+    return { actions: rows.map(view), selection: selected ? { selectionId: selected.id, target: selected.target } : null, requiresSelection: !selected };
   }
 
   // Serialize idempotency and state changes with the existing owner's project.

@@ -47,3 +47,27 @@ CREATE TABLE studio_workflow_requests (
   FOREIGN KEY (project_id, owner_id) REFERENCES creative_projects(id, owner_id) ON DELETE CASCADE
 );
 CREATE INDEX studio_workflow_actions_owner_project ON studio_workflow_actions(owner_id, project_id, created_at);
+
+-- Reuse the reviewed app closure lock and stale-owner rejection. The service
+-- acquires that advisory lock before project/action locks to avoid inversion.
+CREATE TRIGGER account_closure_guard BEFORE INSERT OR UPDATE ON studio_workflow_selections
+  FOR EACH ROW EXECUTE FUNCTION romanum_reject_closed_owner();
+CREATE TRIGGER account_closure_guard BEFORE INSERT OR UPDATE ON studio_workflow_actions
+  FOR EACH ROW EXECUTE FUNCTION romanum_reject_closed_owner();
+CREATE TRIGGER account_closure_guard BEFORE INSERT OR UPDATE ON studio_workflow_requests
+  FOR EACH ROW EXECUTE FUNCTION romanum_reject_closed_owner();
+
+-- Existing closeAccount does not know these isolated tables yet. Preserve
+-- active/unknown action evidence rather than letting its project cascade erase it.
+CREATE FUNCTION romanum_guard_studio_project_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(OLD.owner_id, 0));
+  IF EXISTS (SELECT 1 FROM studio_workflow_actions WHERE project_id=OLD.id AND owner_id=OLD.owner_id
+             AND status IN ('proposed','approved','running','uncertain')) THEN
+    RAISE EXCEPTION 'unfinished Studio work requires review' USING ERRCODE='55000';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+CREATE TRIGGER studio_workflow_delete_guard BEFORE DELETE ON creative_projects
+  FOR EACH ROW EXECUTE FUNCTION romanum_guard_studio_project_delete();
