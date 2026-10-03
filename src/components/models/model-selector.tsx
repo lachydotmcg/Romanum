@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
-import type { ModelQuote, ModelsResponse, ModelSelection, PublicModel, RouteDecision, RouteReason } from "@/lib/models/types";
+import type { ModelQuote, ModelsResponse, ModelSelection, ProviderId, PublicModel, RouteDecision, RouteReason } from "@/lib/models/types";
 import { claimAutoRecommendation, parseAutoRecommendationContext, UNKNOWN_RECOMMENDATION_CONTEXT } from "../../lib/models/auto-recommendation.ts";
 
 const REASONS = {
@@ -19,6 +19,14 @@ const REASONS = {
   minimum_hold: "There are not enough credits for the minimum reservation.",
   no_ready_model: "No supported model is enabled for this request.",
 } satisfies Record<RouteReason, string>;
+
+/** Official upstream marks; local masks preserve their paths and inherit the row's monochrome tone. */
+function ProviderMark({ provider }: { provider: ProviderId }) {
+  const image = `url("/brand/providers/${provider}.svg")`;
+  return <span aria-hidden="true" className="inline-block size-4 shrink-0 bg-current"
+    style={{ maskImage: image, maskSize: "contain", maskRepeat: "no-repeat", maskPosition: "center",
+      WebkitMaskImage: image, WebkitMaskSize: "contain", WebkitMaskRepeat: "no-repeat", WebkitMaskPosition: "center" }} />;
+}
 
 function enabled(model: PublicModel | undefined, catalog: ModelsResponse | null): boolean {
   return !!model && !!catalog && catalog.models.filter((entry) => entry.id === model.id).length === 1 &&
@@ -86,9 +94,9 @@ export function ModelSelector({
   const locked = disabled || loading || !!error || catalog === null;
   const visible = open && !locked;
   const options = [
-    { value: "auto", label: "Auto", description: hasEnabled ? "Budget and cache aware." : "No enabled models", disabled: !hasEnabled },
-    ...(selection.mode === "explicit" && !selected ? [{ value: selection.modelId, label: selection.modelId, description: "Unavailable", disabled: true }] : []),
-    ...models.map((model) => ({ value: model.id, label: model.label, description: enabled(model, catalog) ? "" : unavailableReason(model, catalog!), disabled: !enabled(model, catalog) })),
+    { value: "auto", label: "Auto", provider: null, description: hasEnabled ? "Budget and cache aware." : "No enabled models", disabled: !hasEnabled },
+    ...(selection.mode === "explicit" && !selected ? [{ value: selection.modelId, label: selection.modelId, provider: null, description: "Unavailable", disabled: true }] : []),
+    ...models.map((model) => ({ value: model.id, label: model.label, provider: model.provider, description: enabled(model, catalog) ? "" : unavailableReason(model, catalog!), disabled: !enabled(model, catalog) })),
   ];
   const selectedIndex = options.findIndex((option) => option.value === value);
   const enabledIndices = options.flatMap((option, index) => option.disabled ? [] : [index]);
@@ -198,7 +206,7 @@ export function ModelSelector({
         aria-controls={visible ? listId : undefined} aria-activedescendant={visible && options[active] ? `${listId}-${active}` : undefined}
         disabled={locked} aria-describedby={`${helpId} ${statusId}${recommendationShown ? ` ${recommendationId}` : ""}`} aria-busy={loading || undefined} onKeyDown={keyDown} onClick={() => visible ? setOpen(false) : show()}
         className="inline-flex min-h-7 pointer-coarse:min-h-11 max-w-full items-center gap-1.5 rounded-full bg-surface-hover px-[9px] text-[13px] text-fg outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
-        <span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
+        {selected && <ProviderMark provider={selected.provider} />}<span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
       </button>
       {visible && createPortal(<div ref={popup} id={listId} role="listbox" aria-labelledby={`${listId}-heading`}
         style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width, maxHeight: position.height }}
@@ -209,7 +217,10 @@ export function ModelSelector({
             title={option.disabled ? option.description : undefined}
             onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}
             className={`flex ${option.value === "auto" ? "min-h-11" : "min-h-7"} pointer-coarse:min-h-11 items-center justify-between gap-3 rounded-lg px-1 ${option.disabled ? "cursor-not-allowed text-fg-muted" : "cursor-pointer text-fg"} ${index === active && option.value !== value && !option.disabled ? "bg-white/[0.04]" : ""}`}>
-            <div className="min-w-0"><p className="text-[13px] leading-5">{option.label}</p>{option.description && <p className={option.disabled ? "sr-only" : "text-[11px] leading-4 text-fg-muted"}>{option.description}</p>}</div>
+            <div className="flex min-w-0 items-center gap-2">
+              {option.provider ? <ProviderMark provider={option.provider} /> : <span aria-hidden="true" className="size-4 shrink-0" />}
+              <div className="min-w-0"><p className="text-[13px] leading-5">{option.label}</p>{option.description && <p className={option.disabled ? "sr-only" : "text-[11px] leading-4 text-fg-muted"}>{option.description}</p>}</div>
+            </div>
             {value === option.value && <Check className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />}
           </div>)}
         </div>
