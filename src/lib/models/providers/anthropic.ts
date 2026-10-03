@@ -6,9 +6,10 @@ import { getModel } from "../catalog.ts";
 import { costUsage, normalizeUsage } from "../usage.ts";
 import { canonicalTime, compileWire, safeJson } from "./wire.ts";
 import { NATIVE_INPUT_CAPACITY } from "./native-capacity.ts";
+import { providerFailureDiagnostic } from "./failure-diagnostics.ts";
 import type { NormalizedUsage } from "../types.ts";
 import type { AdapterErrorCode, AnthropicAdapterOptions, AnthropicCallOptions, AnthropicRequest,
-  AnthropicResult, AnthropicStopReason, AnthropicOutputBlock, JsonValue, ToolCall } from "./types.ts";
+  AnthropicResult, AnthropicStopReason, AnthropicOutputBlock, JsonValue, ProviderFailurePhase, ToolCall } from "./types.ts";
 
 export const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
@@ -396,6 +397,7 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions = {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error("Invalid adapter timeout.");
   return Object.freeze({ async complete(request: AnthropicRequest, callOptions: AnthropicCallOptions = {}): Promise<AnthropicResult> {
     let submitted = false, state: MessageState | undefined, reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let phase: ProviderFailurePhase = "pre_dispatch";
     let timer: ReturnType<typeof setTimeout> | undefined;
     let interruption: "cancelled" | "timeout" | undefined;
     const controller = new AbortController();
@@ -417,19 +419,26 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions = {}) {
       callOptions.signal?.addEventListener("abort", cancel, { once: true });
       timer = setTimeout(() => interrupt("timeout"), timeoutMs);
       state = new MessageState(snapshot, at, prefixHash(body.model, body.system, body.tools, snapshot.cacheTtl, body.messages), (text) => {
-        callOptions.onText?.(text);
+        const previousPhase = phase;
+        if (callOptions.onText) { phase = "response_consumer"; callOptions.onText(text); }
         if (controller.signal.aborted) fail(interruption ?? "cancelled");
+        phase = previousPhase;
       });
       submitted = true;
+      phase = "fetch";
       const response = await Promise.race([fetcher(ANTHROPIC_ENDPOINT, { method: "POST", redirect: "error", credentials: "omit", cache: "no-store",
         headers: { Authorization: `Bearer ${apiKey}`, "anthropic-version": ANTHROPIC_VERSION, "Content-Type": "application/json",
           Accept: body.stream ? "text/event-stream" : "application/json" }, body: compiled.json, signal: controller.signal }), aborted]);
+      phase = "response_headers";
       if (!response.ok) fail([401, 403, 402].includes(response.status) ? "provider_unavailable" : [429, 529].includes(response.status) ? "provider_busy" : "provider_error");
       if (!response.body || !response.headers.get("content-type")?.toLowerCase().startsWith(body.stream ? "text/event-stream" : "application/json")) fail("invalid_response");
       reader = response.body.getReader();
-      const read: Read = () => {
-        if (controller.signal.aborted) return Promise.reject(new Fault(interruption ?? "cancelled"));
-        return Promise.race([reader!.read(), aborted]);
+      const read: Read = async () => {
+        if (controller.signal.aborted) fail(interruption ?? "cancelled");
+        phase = "response_body";
+        const chunk = await Promise.race([reader!.read(), aborted]);
+        phase = "response_validation";
+        return chunk;
       };
       if (body.stream) await consumeStream(read, state); else await consumeJson(read, state);
       if (controller.signal.aborted) fail(interruption ?? "cancelled");
@@ -442,7 +451,8 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions = {}) {
     } catch (error) {
       const code = interruption ?? (error instanceof Fault ? error.code : "network_error");
       return { status: "failed", code, message: messages[code], submission: submitted ? "uncertain" : "not_submitted",
-        usage: state?.usage ?? null, usageComplete: state?.usageComplete ?? false };
+        usage: state?.usage ?? null, usageComplete: state?.usageComplete ?? false,
+        diagnostic: providerFailureDiagnostic(error, phase, code) };
     } finally {
       if (timer !== undefined) clearTimeout(timer);
       callOptions.signal?.removeEventListener("abort", cancel);

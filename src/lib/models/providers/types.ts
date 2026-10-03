@@ -37,6 +37,21 @@ export type AnthropicRequest = {
 export type AdapterErrorCode = "execution_disabled" | "missing_key" | "invalid_request" | "unsupported_capability"
   | "unsupported_model" | "cancelled" | "timeout" | "network_error" | "provider_unavailable" | "provider_busy"
   | "provider_error" | "invalid_response" | "model_mismatch" | "incomplete_stream" | "response_limit" | "consumer_error";
+/** Observed adapter operation, not an inferred DNS/TCP/TLS wire phase. */
+export type ProviderFailurePhase = "pre_dispatch" | "fetch" | "response_headers" | "response_body"
+  | "response_validation" | "response_consumer";
+export type ProviderFailureCauseClass = "dns" | "connect" | "tls" | "connection_reset" | "transport_timeout"
+  | "aborted" | "deadline" | "provider_status" | "adapter_rejected" | "consumer" | "unknown";
+export type ProviderTransportCode = "ENOTFOUND" | "EAI_AGAIN" | "ECONNREFUSED" | "ENETUNREACH" | "EHOSTUNREACH"
+  | "UND_ERR_CONNECT_TIMEOUT" | "ERR_TLS_CERT_ALTNAME_INVALID" | "CERT_HAS_EXPIRED" | "CERT_NOT_YET_VALID"
+  | "DEPTH_ZERO_SELF_SIGNED_CERT" | "SELF_SIGNED_CERT_IN_CHAIN" | "UNABLE_TO_VERIFY_LEAF_SIGNATURE"
+  | "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" | "ERR_SSL_WRONG_VERSION_NUMBER" | "ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE"
+  | "ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION" | "ECONNRESET" | "EPIPE" | "UND_ERR_SOCKET" | "ETIMEDOUT"
+  | "UND_ERR_HEADERS_TIMEOUT" | "UND_ERR_BODY_TIMEOUT" | "ABORT_ERR";
+/** Sanitized server diagnostics only: never raw errors, messages, URLs, payloads or credentials. */
+export type ProviderFailureDiagnostic = {
+  phase: ProviderFailurePhase; causeClass: ProviderFailureCauseClass; transportCode?: ProviderTransportCode;
+};
 export type AnthropicStopReason = "end_turn" | "tool_use" | "max_tokens" | "model_context_window_exceeded" | "refusal";
 export type AnthropicResult =
   | { status: "completed"; modelId: AnthropicModelId; messageId: string; text: string; toolCalls: ToolCall[];
@@ -44,7 +59,8 @@ export type AnthropicResult =
       continuation: AnthropicContinuation | null; evidence: AdapterEvidence; providerCostNanoUsd: number }
   | { status: "failed"; code: AdapterErrorCode; message: string;
       /** After submission, errors cannot prove that no bill was incurred. Never auto-release/retry. */
-      submission: "not_submitted" | "uncertain"; usage: NormalizedUsage | null; usageComplete: boolean };
+      submission: "not_submitted" | "uncertain"; usage: NormalizedUsage | null; usageComplete: boolean;
+      diagnostic?: ProviderFailureDiagnostic };
 export type AnthropicAdapterOptions = {
   /** Off by default. Trusted review gate only; never take this from request JSON/environment flags. */
   executionEnabled?: boolean; fetch?: typeof globalThis.fetch; getApiKey?: () => string | undefined;

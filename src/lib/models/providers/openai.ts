@@ -7,8 +7,9 @@ import { costUsage, normalizeUsage } from "../usage.ts";
 import type { NormalizedUsage } from "../types.ts";
 import { canonicalTime, compileWire, safeJson } from "./wire.ts";
 import { NATIVE_INPUT_CAPACITY } from "./native-capacity.ts";
+import { providerFailureDiagnostic } from "./failure-diagnostics.ts";
 import type { AdapterErrorCode, JsonValue, OpenAIAdapterOptions, OpenAICallOptions, OpenAIOutputItem,
-  OpenAIRequest, OpenAIResult, ToolCall } from "./types.ts";
+  OpenAIRequest, OpenAIResult, ProviderFailurePhase, ToolCall } from "./types.ts";
 
 export const OPENAI_ENDPOINT = "https://api.openai.com/v1/responses";
 export const OPENAI_ADAPTER_VERSION = "openai-responses-v1";
@@ -179,6 +180,7 @@ export function createOpenAIAdapter(options: OpenAIAdapterOptions = {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error("Invalid adapter timeout.");
   return Object.freeze({ async complete(request: OpenAIRequest, callOptions: OpenAICallOptions = {}): Promise<OpenAIResult> {
     let submitted = false, usage: NormalizedUsage | null = null, usageComplete = false;
+    let phase: ProviderFailurePhase = "pre_dispatch";
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined, timer: ReturnType<typeof setTimeout> | undefined;
     let interruption: "cancelled" | "timeout" | undefined;
     const controller = new AbortController();
@@ -199,16 +201,20 @@ export function createOpenAIAdapter(options: OpenAIAdapterOptions = {}) {
       callOptions.signal?.addEventListener("abort", cancel, { once: true });
       timer = setTimeout(() => interrupt("timeout"), timeoutMs);
       submitted = true;
+      phase = "fetch";
       const response = await Promise.race([fetcher(OPENAI_ENDPOINT, { method: "POST", redirect: "error", credentials: "omit", cache: "no-store",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
         body: compiled.json, signal: controller.signal }), aborted]);
+      phase = "response_headers";
       if (!response.ok) fail([401, 402, 403].includes(response.status) ? "provider_unavailable" : response.status === 429 ? "provider_busy" : "provider_error");
       if (!response.body || !response.headers.get("content-type")?.toLowerCase().startsWith("application/json")) fail("invalid_response");
       reader = response.body.getReader();
       const chunks: Uint8Array[] = []; let total = 0;
       for (;;) {
         if (controller.signal.aborted) fail(interruption ?? "cancelled");
+        phase = "response_body";
         const chunk = await Promise.race([reader.read(), aborted]);
+        phase = "response_validation";
         if (chunk.done) break;
         total += chunk.value.byteLength;
         if (total > OPENAI_LIMITS.responseBytes) fail("response_limit");
@@ -247,7 +253,8 @@ export function createOpenAIAdapter(options: OpenAIAdapterOptions = {}) {
           providerMessageId: envelope.id as string, pricingProfile: "standard-global-text-v1", terminalEvent: "completed" } };
     } catch (error) {
       const code = interruption ?? (error instanceof Fault ? error.code : "network_error");
-      return { status: "failed", code, message: `Model request: ${code}.`, submission: submitted ? "uncertain" : "not_submitted", usage, usageComplete };
+      return { status: "failed", code, message: `Model request: ${code}.`, submission: submitted ? "uncertain" : "not_submitted", usage, usageComplete,
+        diagnostic: providerFailureDiagnostic(error, phase, code) };
     } finally {
       if (timer !== undefined) clearTimeout(timer);
       callOptions.signal?.removeEventListener("abort", cancel);
