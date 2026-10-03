@@ -2,6 +2,7 @@ import type { ModelQuote, PublicModel } from "../../lib/models/types.ts";
 import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, PRICING_POLICIES } from "../../lib/credits/pricing-policy.ts";
 import { estimatedModelProfile } from "./model-ratings.ts";
 import { EstimatedModelDiamond, EstimatedProfileSources } from "./estimated-model-card.tsx";
+import { Coin } from "../coin.tsx";
 
 export type ModelEvaluation = {
   modelId: string;
@@ -75,13 +76,13 @@ export function ModelPreview({ model, quote, evaluation }: { model: PublicModel;
     {ratings ? <ModelStatDiamond evaluation={ratings} /> : hasProfile ? <EstimatedModelDiamond profile={profile} /> : <div className="flex flex-wrap gap-1.5">
       {strengths.map(label => <span key={String(label)} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-fg-muted">{label}</span>)}
     </div>}
-    {validQuote && <p className="text-xs text-fg">This call <span className="float-right">~{creditAmount(quote.estimatedCredits)} credits</span></p>}
+    {validQuote && <p className="text-xs text-fg">This call <span className="float-right inline-flex items-center gap-1"><Coin className="size-3 shrink-0" />~{creditAmount(quote.estimatedCredits)} credits</span></p>}
     {validPrices && creditRates && <div>
       <p className="mb-1.5 text-[10px] text-fg-muted">Estimated credits / 1M tokens</p>
       <dl className="grid grid-cols-3 gap-2 text-[11px]">
-        <div><dt className="text-fg-muted">Input</dt><dd className="mt-0.5 text-fg">{tokenCredits(creditRates.input)}</dd></div>
-        <div><dt className="text-fg-muted">Output</dt><dd className="mt-0.5 text-fg">{tokenCredits(creditRates.output)}</dd></div>
-        <div><dt className="text-fg-muted">Cache read</dt><dd className="mt-0.5 text-fg">{tokenCredits(creditRates.cacheRead)}</dd></div>
+        <div><dt className="text-fg-muted">Input</dt><dd className="mt-0.5 inline-flex items-center gap-1 text-fg"><Coin className="size-3 shrink-0" />{tokenCredits(creditRates.input)}</dd></div>
+        <div><dt className="text-fg-muted">Output</dt><dd className="mt-0.5 inline-flex items-center gap-1 text-fg"><Coin className="size-3 shrink-0" />{tokenCredits(creditRates.output)}</dd></div>
+        <div><dt className="text-fg-muted">Cache read</dt><dd className="mt-0.5 inline-flex items-center gap-1 text-fg"><Coin className="size-3 shrink-0" />{tokenCredits(creditRates.cacheRead)}</dd></div>
       </dl>
       <p className="mt-2 text-[10px] text-fg-muted">Romanum AI: provider cost × {PRICING_POLICIES[policy].markup}.</p>
       <p className="text-[10px] text-fg-muted">Usage and rounding apply.</p>

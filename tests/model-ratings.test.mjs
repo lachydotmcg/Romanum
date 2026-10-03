@@ -13,7 +13,7 @@ const url = new URL("../src/components/models/estimated-model-card.tsx", import.
 const hooks = registerHooks({ load(target, context, next) {
   return target === url ? { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(target), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX } }).outputText } : next(target, context);
 } });
-const { EstimatedModelDiamond, EstimatedProfileSources } = await import(url); hooks.deregister();
+const { EstimatedModelDiamond, EstimatedProfileSources, AutoModelRange } = await import(url); hooks.deregister();
 const catalog = publicModels({ DEEPSEEK_API_KEY: "fixture-only" });
 const model = id => catalog.models.find(row => row.id === id);
 const html = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
@@ -55,6 +55,13 @@ test("accessible chart announces each band and does not connect missing axes", (
   const partial = html(EstimatedModelDiamond, { profile: { ...profile, scores: { ...profile.scores, value: null } } });
   assert.match(partial, /Value unavailable/); assert.doesNotMatch(partial, /<polygon/); assert.match(partial, />—</);
   assert.equal(html(EstimatedModelDiamond, { profile: { ...profile, scores: { ...profile.scores, speed: 6 } } }), "");
+});
+test("Auto illustrates an adaptive range without assigning a score or observed routing performance",()=>{
+  const result=html(AutoModelRange,{});
+  assert.match(result,/Illustrative capability range/);assert.match(result,/can span 1 to 5/);
+  assert.match(result,/No model score or observed routing performance is shown/);
+  assert.match(result,/motion-reduce:hidden/);assert.match(result,/<animate/);
+  assert.doesNotMatch(result,/Estimated model profile| of 5/);
 });
 test("optional source details provide attribution, domain, tested effort and cost basis without credit claims", () => {
   const text = html(EstimatedProfileSources, { profile: estimatedModelProfile(model("gpt-6.1-sol")) });

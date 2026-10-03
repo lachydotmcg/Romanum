@@ -12,8 +12,11 @@ import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY } from "../src/lib/credit
 
 const url = new URL("../src/components/models/model-preview.tsx", import.meta.url).href;
 const estimateUrl = new URL("../src/components/models/estimated-model-card.tsx", import.meta.url).href;
-const hooks = registerHooks({load(target, context, next) {
-  return target === url || target === estimateUrl ? {format:"module",shortCircuit:true,source:ts.transpileModule(readFileSync(fileURLToPath(target),"utf8"),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText} : next(target,context);
+const coinUrl = new URL("../src/components/coin.tsx", import.meta.url).href;
+const hooks = registerHooks({resolve(specifier,context,next) {
+  return context.parentURL===coinUrl && specifier==="./wordmark-paths" ? next("./wordmark-paths.ts",context) : next(specifier,context);
+},load(target, context, next) {
+  return target === url || target === estimateUrl || target === coinUrl ? {format:"module",shortCircuit:true,source:ts.transpileModule(readFileSync(fileURLToPath(target),"utf8"),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText} : next(target,context);
 }});
 const {ModelPreview,ModelStatDiamond}=await import(url); hooks.deregister();
 const catalog=publicModels({DEEPSEEK_API_KEY:"fixture-only"});
@@ -27,6 +30,7 @@ test("production preview shows sourced coarse estimates and exact token rates wi
   assert.match(result,/Estimated/);assert.match(result,/Intelligence 4 of 5, Coding 5 of 5, Speed 3 of 5, Value 3 of 5/);
   assert.match(result,/Estimated credits \/ 1M tokens/);assert.match(result,/>500</);assert.match(result,/>2,500</);assert.match(result,/>25</);
   assert.match(result,/Usage and rounding apply/);
+  assert.equal((result.match(/<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"/g)??[]).length,3);
   assert.doesNotMatch(result,/Model evaluation|This call|Provider USD|verified|caution/i);
   assert.match(result,/Romanum AI: provider cost \u00d7 2\.5\./);
 });

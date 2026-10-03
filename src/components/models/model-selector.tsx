@@ -6,6 +6,7 @@ import { Check, ChevronDown, Info, X } from "lucide-react";
 import type { ModelQuote, ModelsResponse, ModelSelection, ProviderId, PublicModel, RouteDecision, RouteReason } from "@/lib/models/types";
 import { claimAutoRecommendation, parseAutoRecommendationContext, UNKNOWN_RECOMMENDATION_CONTEXT } from "../../lib/models/auto-recommendation.ts";
 import { ModelPreview, type ModelEvaluation } from "./model-preview.tsx";
+import { AutoModelRange } from "./estimated-model-card.tsx";
 
 const REASONS = {
   explicit_selection: "Your selected model is retained.",
@@ -22,8 +23,8 @@ const REASONS = {
 } satisfies Record<RouteReason, string>;
 
 /** Official upstream marks; local masks preserve their paths and inherit the row's monochrome tone. */
-function ProviderMark({ provider }: { provider: ProviderId }) {
-  const image = { deepseek: 'url("/brand/providers/deepseek.svg")', openai: 'url("/brand/providers/openai.svg")', anthropic: 'url("/brand/providers/anthropic.svg")' }[provider];
+function ModelMark({ provider }: { provider: ProviderId | "romanum" }) {
+  const image = { deepseek: 'url("/brand/providers/deepseek.svg")', openai: 'url("/brand/providers/openai.svg")', anthropic: 'url("/brand/providers/anthropic.svg")', romanum: 'url("/brand/romanum-wordmark-compact.svg")' }[provider];
   return <span aria-hidden="true" className="inline-block size-4 shrink-0 bg-current"
     style={{ maskImage: image, maskSize: "contain", maskRepeat: "no-repeat", maskPosition: "center",
       WebkitMaskImage: image, WebkitMaskSize: "contain", WebkitMaskRepeat: "no-repeat", WebkitMaskPosition: "center" }} />;
@@ -109,15 +110,16 @@ export function ModelSelector({
   const enabledIndices = options.flatMap((option, index) => option.disabled ? [] : [index]);
   const peekModel = models.find(model => model.id === peekId && model.id === model.modelId && model.rateCardVersion === catalog?.rateCardVersion &&
     models.filter(entry => entry.id === model.id).length === 1);
-  const detailIndex = peekModel ? options.findIndex(option => option.value === peekModel.id) : options[active]?.provider ? active
-    : selectedIndex >= 0 && options[selectedIndex]?.provider ? selectedIndex : options.findIndex(option => option.provider);
+  const peekAuto = peekId === "auto";
+  const detailIndex = peekAuto ? 0 : peekModel ? options.findIndex(option => option.value === peekModel.id) : options[active]?.provider || options[active]?.value === "auto" ? active
+    : selectedIndex >= 0 && (options[selectedIndex]?.provider || options[selectedIndex]?.value === "auto") ? selectedIndex : 0;
   const keepDetails = useCallback(() => { if (closeDetailsTimer.current !== null) { window.clearTimeout(closeDetailsTimer.current); closeDetailsTimer.current = null; } }, []);
   const hideDetails = useCallback(() => { keepDetails(); setPeekId(null); setDetailsPinned(false); }, [keepDetails]);
   function dismissDetails() { hideDetails(); skipDetailsFocus.current = document.activeElement !== trigger.current; trigger.current?.focus(); }
   function leaveDetails() { keepDetails(); if (!detailsPinned) closeDetailsTimer.current = window.setTimeout(() => setPeekId(null), 180); }
   function inspect(index: number, pinned = false, focus = false) {
     keepDetails(); const option = options[index];
-    if (!option?.provider) { setPeekId(null); return; }
+    if (!option || (!option.provider && option.value !== "auto")) { setPeekId(null); return; }
     focusDetails.current = focus; setPeekId(option.value); setDetailsPinned(pinned);
     if (focus && peekId === option.value && details.current) { details.current.focus(); focusDetails.current = false; }
   }
@@ -125,7 +127,7 @@ export function ModelSelector({
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissDetails(); return; }
     // Browsing information includes unavailable models; selecting still uses the existing readiness gate.
     if (event.target !== event.currentTarget || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    const indices = options.flatMap((option, index) => option.provider ? [index] : []);
+    const indices = options.flatMap((option, index) => option.provider || option.value === "auto" ? [index] : []);
     if (!indices.length) return;
     event.preventDefault();
     const index = event.key === "Home" ? indices[0] : event.key === "End" ? indices[indices.length - 1]
@@ -282,10 +284,10 @@ export function ModelSelector({
       <button ref={trigger} id={selectId} value={value} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={visible}
         aria-controls={visible ? listId : undefined} aria-activedescendant={visible && options[active] ? `${listId}-${active}` : undefined}
         disabled={locked} aria-describedby={`${helpId} ${statusId}${recommendationShown ? ` ${recommendationId}` : ""}`} aria-busy={loading || undefined} onKeyDown={keyDown} onClick={() => visible ? setOpen(false) : show()}
-        onPointerEnter={event => { if (event.pointerType === "mouse" && selected && !visible && !recommendationShown) inspect(selectedIndex); }} onPointerLeave={leaveDetails}
-        onFocus={event => { if (skipDetailsFocus.current) { skipDetailsFocus.current = false; return; } if (selected && !visible && !recommendationShown && event.currentTarget.matches(":focus-visible")) inspect(selectedIndex, true); }}
+        onPointerEnter={event => { if (event.pointerType === "mouse" && (selected || selection.mode === "auto") && !visible && !recommendationShown) inspect(selectedIndex); }} onPointerLeave={leaveDetails}
+        onFocus={event => { if (skipDetailsFocus.current) { skipDetailsFocus.current = false; return; } if ((selected || selection.mode === "auto") && !visible && !recommendationShown && event.currentTarget.matches(":focus-visible")) inspect(selectedIndex, true); }}
         className="inline-flex min-h-7 pointer-coarse:min-h-11 max-w-full items-center gap-1.5 rounded-full bg-surface-hover px-[9px] text-[13px] text-fg outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
-        {selected && <ProviderMark provider={selected.provider} />}<span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
+        {selected ? <ModelMark provider={selected.provider} /> : selection.mode === "auto" && <ModelMark provider="romanum" />}<span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
       </button>
       {visible && createPortal(<div ref={popup} id={listId} role="listbox" aria-labelledby={`${listId}-heading`}
         style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width, maxHeight: position.height }}
@@ -299,7 +301,7 @@ export function ModelSelector({
             onClick={() => { if (option.disabled && window.matchMedia?.("(pointer: coarse)")?.matches) inspect(index, true, true); else choose(index); }}
             className={`flex ${option.value === "auto" ? "min-h-11" : "min-h-7"} pointer-coarse:min-h-11 items-center justify-between gap-3 rounded-lg px-1 ${option.disabled ? "cursor-not-allowed text-fg-muted" : "cursor-pointer text-fg"} ${index === active && option.value !== value && !option.disabled ? "bg-white/[0.04]" : ""}`}>
             <div className="flex min-w-0 items-center gap-2">
-              {option.provider ? <ProviderMark provider={option.provider} /> : <span aria-hidden="true" className="size-4 shrink-0" />}
+              {option.provider ? <ModelMark provider={option.provider} /> : option.value === "auto" ? <ModelMark provider="romanum" /> : <span aria-hidden="true" className="size-4 shrink-0" />}
               <div className="min-w-0"><p className="text-[13px] leading-5">{option.label}</p>{option.description && <p className={option.disabled ? "sr-only" : "text-[11px] leading-4 text-fg-muted"}>{option.description}</p>}</div>
             </div>
             {value === option.value && <Check className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />}
@@ -312,16 +314,17 @@ export function ModelSelector({
         className="fixed z-[101] inline-flex size-7 pointer-coarse:size-11 cursor-pointer items-center justify-center rounded-full text-fg-muted outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
         <Info className="size-3.5 pointer-coarse:translate-y-2.5" aria-hidden="true" />
       </button>, document.body)}
-      {peekModel && !locked && !recommendationShown && createPortal(<div ref={details} role="dialog" aria-label={`About ${peekModel.label}`} tabIndex={-1}
+      {(peekModel || peekAuto) && !locked && !recommendationShown && createPortal(<div ref={details} role="dialog" aria-label={`About ${peekAuto ? "Auto" : peekModel!.label}`} tabIndex={-1}
         style={{ ...detailsPosition, maxHeight: Math.max(0, window.innerHeight - (detailsPosition.top ?? 16) - 16) }}
         onPointerEnter={keepDetails} onPointerLeave={leaveDetails} onKeyDown={detailsKeyDown}
         className="fixed z-[110] overflow-y-auto rounded-[18px] border border-white/[0.06] bg-[#2b2a2b] p-3 shadow-lg outline-none">
         <div className="mb-2 flex items-center gap-2">
-          <ProviderMark provider={peekModel.provider} /><h3 className="min-w-0 flex-1 text-[13px] font-normal text-fg">{peekModel.label}</h3>
+          <ModelMark provider={peekAuto ? "romanum" : peekModel!.provider} /><h3 className="min-w-0 flex-1 text-[13px] font-normal text-fg">{peekAuto ? "Auto" : peekModel!.label}</h3>
           <button type="button" aria-label="Close model details" onClick={dismissDetails}
             className="-mr-2 inline-flex size-7 pointer-coarse:size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70"><X className="size-3.5" aria-hidden="true" /></button>
         </div>
-        <ModelPreview model={peekModel} quote={peekQuote} evaluation={evaluations.find(value => value.modelId === peekModel.id)} />
+        {peekAuto ? <div className="space-y-3"><p className="text-xs leading-5 text-fg-muted">Balances model capability with price.</p><AutoModelRange /><p className="text-[11px] leading-4 text-fg-muted">Adapts to the request and enabled models.</p></div>
+          : <ModelPreview model={peekModel!} quote={peekQuote} evaluation={evaluations.find(value => value.modelId === peekModel!.id)} />}
       </div>, document.body)}
       {recommendationShown && selection.mode === "explicit" && recommendationContext.subscription === "none" &&
         createPortal(<div role="group" aria-label="Auto recommendation"
@@ -330,6 +333,7 @@ export function ModelSelector({
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissRecommendation(); }
         }}>
           <div className="flex items-start gap-2">
+            <span className="mt-1"><ModelMark provider="romanum" /></span>
             <p id={recommendationId} role="status" aria-live="polite" className="flex-1 py-1 text-xs leading-[18px] text-fg-muted">
               Auto balances model capability with price.
             </p>

@@ -2,6 +2,8 @@
 
 The selector keeps its compact rows and composer layout. Mouse hover opens a hoverable card beside the picker; keyboard users enter it with Right Arrow and browse all model profiles with Up/Down or Home/End. Escape or Close restores the selector focus. Touch uses a bounded bottom sheet: unavailable rows open information, and the picker header's information button opens the current profile. Inspecting a profile never selects, enables or executes a model.
 
+Auto reuses the canonical compact Romanum wordmark in its trigger, row and preview. Its animated 1–5 capability range is explicitly illustrative, with no model score or observed routing performance; reduced-motion users keep the static range. Credit figures reuse the existing Romanum coin. DeepSeek Flash and V4 Pro remain catalog rows even though their unmatched rating versions have no radar; Pro remains unsupported.
+
 Profiles use the existing public catalog's capabilities, official model links and server-priced customer credits per million tokens. Input, output and cache-read rates stay separate. Standard rates include the current 2.5 markup and unchanged $0.01 credit unit; a matching historical quote retains its original policy. These are token-rate estimates: usage, fractional carry and rounding determine the final charge. A call estimate appears only for an actual matching server quote and rate-card version. The browser formats matching credit-rate metadata without deriving credits from provider USD, inventing cache-write prices or changing billing, reservations, routing or cache policy.
 
 Qualitative task descriptions were checked on 2026-10-03 against these primary model guides:

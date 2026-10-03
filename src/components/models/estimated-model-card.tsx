@@ -4,6 +4,27 @@ const axes = ["intelligence", "coding", "speed", "value"] as const;
 const labels = { intelligence: "Intelligence", coding: "Coding", speed: "Speed", value: "Value" };
 const readable = (score: number | null) => score === null ? "unavailable" : `${score} of 5`;
 
+/** Decorative Auto illustration. It supplies no rating, route decision or performance data. */
+export function AutoModelRange() {
+  return <div>
+    <p className="mb-1 flex justify-between text-[10px] text-fg-muted"><span>Illustrative capability range</span><span>1–5</span></p>
+    <svg viewBox="0 0 200 166" role="img" aria-label="Illustrative Auto capability range: Intelligence, Coding, Speed and Value can span 1 to 5. No model score or observed routing performance is shown." className="w-full text-fg-muted">
+      <path d="M100 28 152 80 100 132 48 80Z M100 69.6 89.6 80 100 90.4 110.4 80Z" fill="currentColor" fillOpacity=".08" fillRule="evenodd" />
+      {[1, 2, 3, 4, 5].map(level => <path key={level} d={`M100 ${80 - level * 10.4} ${100 + level * 10.4} 80 100 ${80 + level * 10.4} ${100 - level * 10.4} 80Z`} fill="none" stroke="currentColor" strokeOpacity={level === 5 ? ".3" : ".14"} />)}
+      <path d="M100 28V132M48 80H152" stroke="currentColor" strokeOpacity=".12" />
+      <polygon aria-hidden="true" className="motion-reduce:hidden" points="100,38.4 131.2,80 100,111.2 58.4,80" fill="currentColor" fillOpacity=".12" stroke="currentColor" strokeWidth="1.25">
+        <animate attributeName="points" values="100,38.4 131.2,80 100,111.2 58.4,80;100,59.2 152,80 100,100.8 68.8,80;100,28 120.8,80 100,132 79.2,80;100,38.4 131.2,80 100,111.2 58.4,80" dur="8s" repeatCount="indefinite" />
+      </polygon>
+      <g fill="currentColor" fontSize="10" fontFamily="inherit">
+        <text x="100" y="10" textAnchor="middle">Intelligence</text><text x="100" y="23" textAnchor="middle">1–5</text>
+        <text x="160" y="76">Coding</text><text x="176" y="90" textAnchor="middle">1–5</text>
+        <text x="100" y="148" textAnchor="middle">Value</text><text x="100" y="162" textAnchor="middle">1–5</text>
+        <text x="40" y="76" textAnchor="end">Speed</text><text x="24" y="90" textAnchor="middle">1–5</text>
+      </g>
+    </svg>
+  </div>;
+}
+
 export function EstimatedModelDiamond({ profile }: { profile: ModelProfile }) {
   if (!axes.every(axis => profile.scores[axis] === null || (Number.isInteger(profile.scores[axis]) && profile.scores[axis]! >= 1 && profile.scores[axis]! <= 5))) return null;
   if (!axes.some(axis => profile.scores[axis] !== null)) return null;

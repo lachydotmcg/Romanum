@@ -12,9 +12,11 @@ import { routeModel } from "../src/lib/models/route.ts";
 const componentUrl = new URL("../src/components/models/model-selector.tsx", import.meta.url).href;
 const previewUrl = new URL("../src/components/models/model-preview.tsx", import.meta.url).href;
 const estimateUrl = new URL("../src/components/models/estimated-model-card.tsx", import.meta.url).href;
+const coinUrl = new URL("../src/components/coin.tsx", import.meta.url).href;
 const virtual = source => ({ url: `data:text/javascript,${encodeURIComponent(source)}`, shortCircuit: true });
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (context.parentURL === coinUrl && specifier === "./wordmark-paths") return nextResolve("./wordmark-paths.ts",context);
     if (context.parentURL === componentUrl) {
       if (specifier === "react") return virtual(`import * as React from ${JSON.stringify(import.meta.resolve("react"))};
         ${["useId", "useState", "useRef", "useEffect", "useCallback"].map(name => `export function ${name}(...args){return globalThis.__selectorHarness ? globalThis.__selectorHarness.${name}(...args) : React.${name}(...args);}`).join("\n")}`);
@@ -28,7 +30,7 @@ const hooks = registerHooks({
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
-    if (url === componentUrl || url === previewUrl || url === estimateUrl) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
+    if (url === componentUrl || url === previewUrl || url === estimateUrl || url === coinUrl) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX },
     }).outputText };
     return nextLoad(url, context);
@@ -126,6 +128,7 @@ test("pill opens a labeled charcoal list above the trigger with checks and disab
   assert.equal(result.trigger["aria-expanded"], true); assert.equal(result.list.id, result.trigger["aria-controls"]);
   assert.equal(result.list.style.width, 255); assert.ok(result.list.style.bottom > 0); assert.equal(result.list.style.top, undefined);
   assert.equal(result.option("auto")["aria-selected"], true); assert.match(result.markup, /Budget and cache aware/);
+  assert.equal((result.markup.match(/romanum-wordmark-compact\.svg/g)??[]).length,4);
   assert.equal(result.option("deepseek-flash")["aria-disabled"], undefined);
   assert.equal(result.option("gpt-6.1-sol")["aria-disabled"], true); assert.match(result.markup, /Not configured/);
   assert.match(result.markup, /Request estimate not available/); assert.doesNotMatch(result.markup, /fixture-only|API_KEY|Estimated cost:/);
@@ -142,10 +145,14 @@ test("row choices emit typed explicit or Auto selections and reject disabled or 
 test("keyboard profile browsing includes unavailable models without changing the selection", () => {
   for (const models of [catalog, { ...catalog, models: catalog.models.map(model => ({ ...model, executionEnabled: false, selectable: false, reason: "execution_disabled" })) }]) {
   const result = render({ catalog: models }); result.key("ArrowRight");
+  assert.equal(result.details["aria-label"], "About Auto");
+  assert.match(result.markup,/Illustrative capability range/);
+  assert.doesNotMatch(result.markup,/Estimated model profile|observed routing performance is shown\. Higher/);
+  result.detailsKey("ArrowDown");
   assert.equal(result.details["aria-label"], "About DeepSeek Flash");
   result.detailsKey("ArrowDown"); assert.equal(result.details["aria-label"], "About DeepSeek V4 Pro");
   result.detailsKey("End"); assert.equal(result.details["aria-label"], "About Claude Fable 5.1");
-  result.detailsKey("Home"); assert.equal(result.details["aria-label"], "About DeepSeek Flash");
+  result.detailsKey("Home"); assert.equal(result.details["aria-label"], "About Auto");
   assert.equal(result.trigger.value, "auto"); assert.deepEqual(result.changes, []);
   result.detailsKey("Escape"); assert.equal(result.details, undefined); result.dispose();
   }
@@ -162,6 +169,7 @@ test("verified non-subscriber gets one optional recommendation without delaying 
   assert.deepEqual(result.changes, [{ mode: "explicit", modelId: "deepseek-flash" }]);
   assert.equal(result.trigger.value, "deepseek-flash");
   assert.match(result.markup, /Auto balances model capability with price/);
+  assert.match(result.markup,/romanum-wordmark-compact\.svg/);
   assert.match(result.markup, /Keep choice: .*DeepSeek Flash/);
   assert.match(result.markup, /aria-label="Dismiss Auto recommendation"/);
   assert.equal(result.storage.size, 1);
