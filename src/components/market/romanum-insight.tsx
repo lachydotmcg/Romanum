@@ -5,6 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import { prefillAssistant } from "@/components/assistant/prefill";
 import type { Insight } from "@/lib/insights/store";
 import type { Recommendation } from "@/lib/insights/store";
+import type { MarketTrendEvidence } from "@/lib/insights/trends";
 import { Wordmark } from "@/components/wordmark";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
@@ -20,6 +21,58 @@ const chartNames = {
   "top-playing-now": "Top Playing Now", "top-trending": "Top Trending",
   "up-and-coming": "Up-and-Coming", "top-earning": "Top Earning",
 };
+
+const players = (count: number) => Math.round(count).toLocaleString("en-US");
+const share = (value: number | null) => value === null ? "unknown" : `${(value * 100).toFixed(1)}%`;
+
+function TrendEvidence({ evidence }: { evidence: MarketTrendEvidence }) {
+  const { sample, windows, comparison } = evidence;
+  const groups = sample ? [
+    ...sample.groups.filter(group => group.kind === "genre").slice(0, 3),
+    ...sample.groups.filter(group => group.kind === "title_pattern").slice(0, 3),
+  ] : [];
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <h5 className="font-medium text-fg">Recorded chart activity</h5>
+      <p className="mt-1">{evidence.summary}</p>
+      <p>Evidence assembled <time dateTime={evidence.assembledAt}>{observedTime(evidence.assembledAt)}</time>.</p>
+      <ul className="mt-2 space-y-1">
+        {(["recent", "baseline"] as const).map(key => (
+          <li key={key}>
+            {key === "recent" ? "Recent" : "Week-earlier baseline"}: {observedTime(windows[key].from)} to {observedTime(windows[key].to)} (end excluded).
+            {" "}{windows[key].completeSlots}/{windows[key].expectedSlots} complete five-minute slots.
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1">{comparison.pairedSlots}/{windows.recent.expectedSlots} matching complete slots; {comparison.stableGames} games with unchanged membership and classification throughout those slots.</p>
+      {comparison.excludedForMembershipChange > 0 && <p>{comparison.excludedForMembershipChange} games excluded for changing sample membership.</p>}
+      {comparison.excludedForSourceChange > 0 && <p>{comparison.excludedForSourceChange} games excluded for changing measurement chart.</p>}
+      {comparison.excludedForClassificationChange > 0 && <p>{comparison.excludedForClassificationChange} games excluded for changed genre or title-pattern labels.</p>}
+      {evidence.freshness.latestObservedAt && <p className="mt-2">
+        Latest chart retrieval: <time dateTime={evidence.freshness.latestObservedAt}>{observedTime(evidence.freshness.latestObservedAt)}</time>.
+        {!evidence.freshness.latestCompletedSlotRecorded && " The latest completed slot lacks a complete chart sample."}
+      </p>}
+      {sample && <>
+        <p className="mt-2">Latest recorded sample: {sample.games} games, {players(sample.observedPlayers)} observed players; {sample.observations.length}/4 charts complete.</p>
+        <ul className="mt-1 space-y-2">
+          {groups.map(group => <li key={`${group.kind}:${group.key}`}>
+            <span className="text-fg">{group.label}</span> ({group.kind === "genre" ? "genre" : "title pattern"}): {group.competition.sampledGames} sampled games,
+            {" "}{players(group.activity.observedPlayers)} players, median {players(group.activity.medianPlayersPerGame ?? 0)}, largest-game share {share(group.concentration.largestGameShare)}.
+            {group.representatives[0] && <p>Example: <a href={`https://www.roblox.com/games/${group.representatives[0].rootPlaceId}`} target="_blank" rel="noopener noreferrer" className={`rounded-sm text-fg hover:underline ${FOCUS}`}>{group.representatives[0].name}</a></p>}
+          </li>)}
+        </ul>
+      </>}
+      {comparison.groups && <ul className="mt-2 space-y-1">
+        {comparison.groups.slice(0, 6).map(group => <li key={`${group.kind}:${group.key}`}>
+          {group.label}: {players(group.recentMeanPlayers)} vs {players(group.baselineMeanPlayers)} average observed players across the same {group.cohortUniverseIds.length} sampled games (recent vs baseline).
+        </li>)}
+      </ul>}
+      <p className="mt-2">Counts describe chart visibility and player concentration; unmet demand, saturation and causes remain unknown. Genres and overlapping title patterns are separate.</p>
+      <p>Each slot samples at most ten non-sponsored games per chart and counts each universe once. Comparisons require every requested slot and use games present throughout both windows with unchanged measurement charts and labels. Names do not verify gameplay.</p>
+      <p>No social activity is measured. Inspect representative games and playtest the core loop.</p>
+    </div>
+  );
+}
 
 function IdeaEvidence({ idea }: { idea: Recommendation }) {
   if (!idea.evidence || !idea.research) return null;
@@ -163,6 +216,7 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
             ) : <p className="mt-2">Earlier insight: evidence links and retrieval times were not recorded.</p>}
             <p>Generated <time dateTime={insight.content.generatedAt}>{observedTime(insight.content.generatedAt)}</time></p>
             {insight.content.recommendations.map((idea) => <IdeaEvidence key={idea.title} idea={idea} />)}
+            {insight.trendEvidence && <TrendEvidence evidence={insight.trendEvidence} />}
             <p className="mt-3">Charts and names don&apos;t verify growth, market gaps or gameplay. Search matches are candidates. Empty results do not prove novelty. Compare gameplay directly.</p>
           </details>
 
