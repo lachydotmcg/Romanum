@@ -41,6 +41,8 @@ History is available only where the PostgreSQL collector has recorded observatio
 
 Run the application with `npm run dev`, then run `npm run mcp:smoke`. An optional URL can follow `--`, for example `npm run mcp:smoke -- http://localhost:3001/mcp`.
 
+For a protocol-only deployment check, run `node scripts/mcp-transport-smoke.mjs https://romanum.dev/mcp`. It verifies legacy initialization and 2026-07-28 discovery, lists read-only tools and retrieves metric definitions without contacting Roblox or calling a paid model. A host rejection is reported with its HTTP status and Netlify request ID.
+
 The smoke test uses the official MCP client, reads actual Roblox data and stored history through all ten tools, checks modelled earnings, resolves a game link, checks cache timestamps, and verifies both legacy and 2026-07-28 protocol connections. `npm test` covers protocol contracts, invalid inputs, resource boundaries, caching, history storage, origin/host validation, body size, quotas and concurrency without external network access.
 
 The website, integrated assistant and MCP share `src/lib/public-data.ts`. Public tool schemas and handlers live in `src/lib/public-tools.ts`; MCP protocol and HTTP handling live in `src/lib/mcp/`. Only the integrated assistant calls the model provider. Its chart-rendering tool is not exposed through MCP. Private owner analytics are available only in authenticated Ask Romanum and Chats after a separate per-game AI-analysis opt-in; those tool definitions and results are never registered with public MCP.
@@ -50,6 +52,8 @@ The implementation uses the [official TypeScript SDK](https://github.com/modelco
 ## Hosting configuration
 
 Before exposing the endpoint, set `MCP_PUBLIC_URL` to its canonical HTTPS URL ending in `/mcp`. Without it, the server accepts only loopback hostnames. The reverse proxy must preserve the canonical Host header. Preview domains are not automatically trusted.
+
+On Netlify, set this variable in the site's environment configuration with the **Functions** scope and the intended deploy context, then build and deploy again. Build-only values and values in `netlify.toml` do not supply the function's runtime environment. For a deployment whose approved canonical endpoint is `https://romanum.dev/mcp`, configure exactly that value for production; other Netlify aliases and preview hostnames will continue to return `403 Host not allowed.`. A separate preview deployment needs its own explicitly approved `MCP_PUBLIC_URL` for its exact hostname. See Netlify's [environment variable scopes](https://docs.netlify.com/build/environment-variables/overview/#scopes).
 
 Optional configuration:
 
