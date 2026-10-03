@@ -44,9 +44,12 @@ export async function imageLibraryResponse(request: Request, deps: ImageLibraryD
     const result = await storage.file(account.ownerId, id);
     if (result.status === "expired") return fail(410, "Image is no longer available.");
     if (result.status !== "ready") return fail(404, "Image not found.");
-    const shape = inspectPng(result.bytes);
-    if (shape.width !== image.width || shape.height !== image.height) return fail(404, "Image not found.");
-    const bytes = thumbnail ? await sharp(result.bytes, { limitInputPixels: 8_388_608 }).resize(512, 512, { fit: "inside", withoutEnlargement: true }).png().toBuffer() : result.bytes;
+    let bytes;
+    try {
+      const shape = inspectPng(result.bytes);
+      if (shape.width !== image.width || shape.height !== image.height) return fail(404, "Image not found.");
+      bytes = thumbnail ? await sharp(result.bytes, { limitInputPixels: 8_388_608 }).resize(512, 512, { fit: "inside", withoutEnlargement: true }).png().toBuffer() : result.bytes;
+    } catch { return fail(404, "Image not found."); }
     return new Response(new Uint8Array(bytes), { headers: {
       ...IMAGE_LIBRARY_HEADERS, "Content-Type": "image/png", "Content-Length": String(bytes.byteLength),
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${image.id}${thumbnail ? "-preview" : ""}.png"`,

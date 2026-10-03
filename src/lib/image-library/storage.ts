@@ -58,7 +58,7 @@ export function databaseImageLibraryStorage(sql: Sql): ImageLibraryStorage {
       const owner = ownerIdSchema.parse(ownerId);
       const query = validateImageLibraryQuery(input);
       const { rows } = await sql.query<Row>(`SELECT ${COLUMNS} ${FROM} WHERE ${OWNED}
-        AND ($2::text='' OR strpos(lower(concat_ws(' ',p.name,${TITLE},g.provider_model)),lower($2))>0)
+        AND ($2::text='' OR strpos(lower(concat_ws(' ',p.name,${TITLE},COALESCE(g.provider_model,a.metadata->>'model'))),lower($2))>0)
         AND ($3::text='all' OR ${KIND}=$3) AND ($4::text='all' OR COALESCE(g.stage,a.metadata->>'stage')=$4)
         AND ($5::uuid IS NULL OR a.project_id=$5)
         AND ($6::timestamptz IS NULL OR (a.created_at,a.id)<($6::timestamptz,$7::uuid))

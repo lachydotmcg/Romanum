@@ -4,14 +4,16 @@ import { SignInButton } from "@/components/account/sign-in";
 import { ImageLibraryHeading, ImageLibraryView } from "@/components/image-library/image-library";
 import { oauthClient } from "@/lib/accounts/roblox-oauth";
 import { imageLibraryDependencies } from "@/lib/image-library/server";
-import { imageLibrarySearchParams, parseImageLibraryQuery } from "@/lib/image-library/query";
+import { IMAGE_LIBRARY_PAGE_SIZE, imageLibrarySearchParams, parseImageLibraryQuery } from "@/lib/image-library/query";
 import type { ImageLibraryPage, ImageLibraryQuery } from "@/lib/image-library/types";
 
 export const metadata: Metadata = { title: "Image library", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 export default async function ImagesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await connection();
-  const account = await imageLibraryDependencies.account();
+  let account;
+  try { account = await imageLibraryDependencies.account(); }
+  catch { return <ImageLibraryView query={{ q: "", kind: "all", stage: "all", projectId: null, limit: IMAGE_LIBRARY_PAGE_SIZE, after: null }} page={{ images: [], nextCursor: null }} state="unavailable" />; }
   if (!account) return <><ImageLibraryHeading /><section className="rounded-xl border border-line bg-surface p-8"><h2 className="text-base font-medium">Sign in to view your images</h2><p className="my-3 text-sm text-fg-muted">Your saved images are private to your account.</p>{oauthClient() ? <SignInButton /> : <p className="text-sm text-fg-muted">Sign-in unavailable.</p>}</section></>;
   let query: ImageLibraryQuery;
   try { query = parseImageLibraryQuery(imageLibrarySearchParams(await searchParams), account.ownerId); }

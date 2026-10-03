@@ -26,12 +26,20 @@ Generation details constrain job and workflow ownership too. All API responses
 are private/no-store and vary by Cookie; files use PNG/nosniff/sandbox headers.
 Nothing modifies existing authentication settings or global navigation.
 
+Downloads check the current-session response before saving a temporary PNG blob;
+authentication, missing, expired and unavailable responses stay visible as errors.
+Temporary browser blob URLs are revoked after saving. Preview failures are scoped
+to their source, so navigating to another image can recover from a missing file.
+
 Search is at most 80 characters; URLs are at most 2,048 characters. Unknown or
 repeated parameters are rejected. Pages default to 12 and cap at 24 images;
 keyset cursors preserve microseconds and bind owner and filters. Lists select no
 image bytes or prompt bodies. Detail prompts cap at 8,000 characters. Original
 images retain the existing 10 MiB/8,388,608-pixel envelope bounds; stored checksum
 and dimensions are checked. Thumbnail decoding uses the same pixel bound.
+An invalid PNG envelope or undecodable thumbnail returns a private 404; database
+failures remain 503. Original downloads preserve stored bytes after envelope and
+checksum checks; they are not a full PNG decode or re-encoding operation.
 
 `ImageLibraryStorage` is the small read-only adapter boundary. No database means
 explicit unavailable state, never an empty successful library or fabricated

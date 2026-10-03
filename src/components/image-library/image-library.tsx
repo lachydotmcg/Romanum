@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Download, Images, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ArrowRight, Images, LockKeyhole } from "lucide-react";
 import type { ImageLibraryPage, ImageLibraryQuery, LibraryImage, LibraryImageDetail } from "@/lib/image-library/types";
 import { ImagePreview } from "./image-preview";
+import { DownloadImage } from "./download-image";
 
 const FOCUS = "outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70";
 const kindLabel = { thumbnail: "Thumbnail", ui: "UI image", other: "Image" };
@@ -35,12 +36,12 @@ function ImageCard({ image }: { image: LibraryImage }) {
     <div className="p-4">
       <div className="flex flex-wrap gap-2 text-xs text-fg-muted"><span>{kindLabel[image.generation.kind]}{image.generation.stage ? ` · ${stageLabel[image.generation.stage]}` : ""}</span>
         {image.generation.mode === "test" && <span className="rounded border border-line-strong px-1.5">Test output</span>}</div>
-      <h2 className="mt-2 line-clamp-2 text-sm font-semibold"><Link href={`/images/${image.id}`} className={`rounded-sm hover:underline ${FOCUS}`}>{image.title}</Link></h2>
+      <h2 className="mt-2 line-clamp-2 break-words text-sm font-semibold"><Link href={`/images/${image.id}`} className={`rounded-sm hover:underline ${FOCUS}`}>{image.title}</Link></h2>
       <p className="mt-1 truncate text-xs text-fg-muted">{image.projectName}</p>
       <p className="mt-2 text-xs text-fg-muted">{image.width} × {image.height} · {image.generation.model ?? "Model not recorded"}</p>
       <time dateTime={image.createdAt} className="mt-1 block text-xs text-fg-subtle">{date(image.createdAt)}</time>
       <div className="mt-4 flex items-center justify-between gap-3 text-xs"><Link href={`/images/${image.id}`} className={`rounded-sm hover:underline ${FOCUS}`}>View details</Link>
-        <a href={`/api/image-library/${image.id}/file?download=1`} download className={`inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 hover:bg-surface-hover ${FOCUS}`} aria-label={`Download ${image.title}`}><Download className="size-3.5" aria-hidden="true" />Download</a></div>
+        <DownloadImage key={image.id} id={image.id} title={image.title} /></div>
     </div>
   </article>;
 }
@@ -49,7 +50,7 @@ export function ImageLibraryView({ query, page, state = "ready" }: { query: Imag
   const filtered = Boolean(query.q || query.kind !== "all" || query.stage !== "all" || query.projectId);
   return <><ImageLibraryHeading />
     <form action="/images" method="get" className="mb-6 flex flex-wrap items-end gap-3">
-      <label className="min-w-48 flex-1 text-xs text-fg-muted">Search images
+      <label className="min-w-0 basis-48 flex-1 text-xs text-fg-muted">Search images
         <input name="q" type="search" defaultValue={query.q} maxLength={80} placeholder="Search titles, projects or models" className={`mt-1.5 min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg ${FOCUS}`} /></label>
       <label className="text-xs text-fg-muted">Type<select name="kind" defaultValue={query.kind} className={`mt-1.5 block min-h-11 rounded-lg border border-line bg-surface px-3 text-sm text-fg ${FOCUS}`}>
         <option value="all">All image types</option><option value="thumbnail">Thumbnails</option><option value="ui">UI images</option><option value="other">Other images</option></select></label>
@@ -80,11 +81,11 @@ export function ImageLibraryView({ query, page, state = "ready" }: { query: Imag
 
 export function ImageDetailView({ image }: { image: LibraryImageDetail }) {
   return <><Link href="/images" className={`mb-5 inline-flex min-h-10 items-center gap-2 rounded-md text-sm text-fg-muted hover:text-fg ${FOCUS}`}><ArrowLeft className="size-4" aria-hidden="true" />Image library</Link>
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">{image.title}</h1><p className="mt-2 text-sm text-fg-muted">{image.projectName} · Private to you</p></div>
-      <a href={`/api/image-library/${image.id}/file?download=1`} download className={`inline-flex min-h-11 items-center gap-2 rounded-lg bg-fg px-4 text-sm font-medium text-canvas hover:bg-white ${FOCUS}`}><Download className="size-4" aria-hidden="true" />Download PNG</a></div>
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 basis-64 flex-1"><h1 className="break-words text-2xl font-semibold tracking-tight">{image.title}</h1><p className="mt-2 break-words text-sm text-fg-muted">{image.projectName} · Private to you</p></div>
+      <DownloadImage key={image.id} id={image.id} title={image.title} prominent /></div>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-      <div className="flex min-h-64 items-center justify-center rounded-xl border border-line bg-surface p-4"><ImagePreview id={image.id} title={image.title} thumbnail={false} /></div>
-      <section aria-labelledby="image-details" className="rounded-xl border border-line bg-surface p-5"><h2 id="image-details" className="text-sm font-semibold">Generation details</h2>
+      <div className="flex min-h-64 min-w-0 items-center justify-center rounded-xl border border-line bg-surface p-4"><ImagePreview id={image.id} title={image.title} thumbnail={false} /></div>
+      <section aria-labelledby="image-details" className="min-w-0 rounded-xl border border-line bg-surface p-5"><h2 id="image-details" className="text-sm font-semibold">Generation details</h2>
         <dl className="mt-4 space-y-3 text-sm">{[
           ["Type", kindLabel[image.generation.kind]], ["Stage", image.generation.stage ? stageLabel[image.generation.stage] : "Not recorded"],
           ["Model", image.generation.model ?? "Not recorded"], ["Provider", image.generation.provider ?? "Not recorded"],

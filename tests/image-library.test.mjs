@@ -175,6 +175,22 @@ test("empty libraries are successful, storage failures are explicitly unavailabl
   }
 });
 
+test("invalid envelopes and undecodable previews are missing files while storage failures remain unavailable", async () => {
+  const broken = Buffer.alloc(45);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(broken);
+  broken.writeUInt32BE(13, 8); broken.write("IHDR", 12);
+  broken.writeUInt32BE(768, 16); broken.writeUInt32BE(512, 20); broken.write("IEND", 37);
+  for (const bytes of [new Uint8Array(45), broken]) {
+    const adapter = { ...storage, file: async () => ({ status: "ready", bytes, mimeType: "image/png" }) };
+    const response = await imageLibraryResponse(request("?variant=thumbnail"), deps(OWNER, adapter), own, true);
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.deepEqual(await response.json(), { error: "Image not found." });
+  }
+  const adapter = { ...storage, file: async () => { throw new Error("private storage unavailable"); } };
+  assert.equal((await imageLibraryResponse(request("?variant=thumbnail"), deps(OWNER, adapter), own, true)).status, 503);
+});
+
 test("saved prompts remain owner-only and are bounded independently of list metadata", async () => {
   const id = await asset(OWNER, project, "Long private prompt", { lineage: true, prompt: "p".repeat(9000) });
   const detail = await storage.detail(OWNER, id);
@@ -183,4 +199,12 @@ test("saved prompts remain owner-only and are bounded independently of list meta
   const response = await imageLibraryResponse(request(), deps(), id);
   assert.equal((await response.json()).image.prompt.length, 8000);
   assert.equal((await imageLibraryResponse(request(), deps(OTHER), id)).status, 404);
+});
+
+test("model search includes saved copies whose recorded model is in asset metadata", async () => {
+  const id = await asset(OWNER, project, "Generated copy with recorded model");
+  await db.query("UPDATE creative_assets SET metadata=metadata || $2::jsonb WHERE id=$1", [id, JSON.stringify({ model: "copied-model" })]);
+  assert.equal((await storage.detail(OWNER, id)).generation.model, "copied-model");
+  assert.deepEqual((await storage.list(OWNER, query("q=copied-model"))).images.map(image => image.id), [id]);
+  assert.deepEqual((await storage.list(OTHER, query("q=copied-model", OTHER))).images, []);
 });

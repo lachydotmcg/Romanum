@@ -44,10 +44,35 @@ test("library cards render private authorized paths, truthful metadata and bound
   assert.match(markup, /name="kind"/);
   assert.match(markup, /name="stage"/);
   assert.match(markup, new RegExp(`/api/image-library/${image.id}/file\\?variant=thumbnail`));
-  assert.match(markup, new RegExp(`/api/image-library/${image.id}/file\\?download=1`));
+  assert.match(markup, /<button type="button" aria-label="Download/);
   assert.match(markup, /Next page/);
   assert.ok(!markup.includes("<script>owner title</script>"));
   assert.ok(!markup.includes("https://"));
+});
+
+test("download requests save only successful bounded PNGs and preserve current-session private fetch semantics", async () => {
+  const { requestImageDownload } = await import("../src/components/image-library/download-image.tsx");
+  const originalFetch = globalThis.fetch;
+  try {
+    const bytes = new Uint8Array(45);
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, `/api/image-library/${image.id}/file?download=1`);
+      assert.equal(options.credentials, "same-origin");
+      assert.equal(options.cache, "no-store");
+      assert.equal(options.redirect, "error");
+      assert.ok(options.signal instanceof AbortSignal);
+      return new Response(bytes, { headers: { "Content-Type": "image/png" } });
+    };
+    assert.equal((await requestImageDownload(image.id)).size, bytes.length);
+    for (const [status, message] of [[401, /Sign in again/], [404, /Image not found/], [410, /no longer available/], [503, /download unavailable/]]) {
+      globalThis.fetch = async () => new Response("private storage failure", { status });
+      await assert.rejects(requestImageDownload(image.id), message);
+    }
+    for (const response of [new Response("private API error", { headers: { "Content-Type": "application/json" } }), new Response(bytes, { headers: { "Content-Type": "image/png", "Content-Length": String(10 * 1024 * 1024 + 1) } }), new Response(new Uint8Array(1), { headers: { "Content-Type": "image/png" } })]) {
+      globalThis.fetch = async () => response;
+      await assert.rejects(requestImageDownload(image.id), /download unavailable/);
+    }
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("empty, no-results and unavailable views remain visibly distinct", () => {
