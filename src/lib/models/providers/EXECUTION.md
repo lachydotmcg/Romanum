@@ -1,4 +1,16 @@
-# Disabled native provider execution
+# Native provider execution
+
+## Authorized activation release
+
+The owner explicitly approved enabling all three supported OpenAI and four supported Anthropic models for everyone and deploying them together with the reviewed Auto preview and credit marks. DeepSeek V4 Pro remains unsupported. The existing ownership checks, wallet reservations, pricing, credentials, tool permissions and no-retry behavior remain in force.
+
+This release uses a temporary Netlify production build command to run `scripts/native-provider-release.mjs <exact-release-commit>` before the normal build. Netlify's existing production `DATABASE_URL` is scoped to both builds and functions with one production value and no repository override. The script verifies site/context/commit, the previously checked target and role fingerprints, the 001–022 checksums and privileges, then uses the normal migration runner to apply only additive migration 023. It verifies both accounting tables and privileges afterward. A failed prerequisite stops publication. The normal build command is restored after this release; future builds do not automatically apply migrations.
+
+The public catalog and native execution check accounting-table availability through the actual database role. Missing tables or privileges disable native choices and prevent transport or wallet mutations. Flash retains its existing path. No diagnostic endpoint, role grant or credential export is added.
+
+Live verification remains a release result, not a claim made by this document. The provider worker owns the cumulative $2 probe budget, retaining the earlier uncertain allowance and successful Luna round; the integrator does not duplicate those calls. Positive cache, images, encrypted reasoning and every individual model's live capabilities remain unverified unless specifically recorded in that result. The historical disabled-engine milestone and approvals below are retained for provenance.
+
+## Historical disabled-engine milestone
 
 The shared Ask/Chats engine now executes the exact selected OpenAI Responses or Anthropic Messages model through `assistant/provider-execution.ts` and the existing application tool loop. All seven native provider entries in `RELEASED_EXECUTION_REVIEWS` remain `executionEnabled:false`. Keys, imports, selector choices, browser assertions and environment flags cannot enable them. DeepSeek Flash retains its released streaming and billing path; DeepSeek V4 Pro remains unsupported.
 

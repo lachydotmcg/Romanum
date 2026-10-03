@@ -66,7 +66,7 @@ async function fixture(t, { modelId = "gpt-6-luna", enabled = true, credits = 10
   const ownerId = `fixture:${randomUUID()}`, context = { conversationId: randomUUID(), runId: null };
   await grantCredits(db, { ownerId, amount: credits, operationId: `fixture-grant:${ownerId}` });
   const f = { db, ownerId, context, modelId, at, environment: { OPENAI_API_KEY: "synthetic-only", ANTHROPIC_API_KEY: "synthetic-only" },
-    reviews: enabled ? reviews : undefined, requests: [], storage: 0, deepseekClients: 0 };
+    reviews: enabled ? reviews : Object.fromEntries(modelIds.map(id => [id, { adapterSupported: true, executionEnabled: false }])), requests: [], storage: 0, deepseekClients: 0 };
   const fetcher = async (url, init) => {
     const body = JSON.parse(init.body);
     assert.equal(url, modelId.startsWith("gpt-") ? "https://api.openai.com/v1/responses" : "https://api.anthropic.com/v1/messages");
@@ -139,7 +139,7 @@ test("actual Ask model mismatch executes no tool and retains its dispatched hold
   assert.doesNotMatch(JSON.stringify(stream), /synthetic-only|API_KEY|model_mismatch|diagnostic/);
 });
 
-test("browser enable claims cannot activate default native execution at the actual Ask boundary", async t => {
+test("browser enable claims cannot override a disabled server review at the actual Ask boundary", async t => {
   const f = await fixture(t, { enabled: false });
   const response = await ask.POST(askRequest(f.modelId, { executionEnabled: true, adapterSupported: true, configured: true,
     environment: { OPENAI_API_KEY: "browser-forgery" }, reviews: { [f.modelId]: { adapterSupported: true, executionEnabled: true } } }));

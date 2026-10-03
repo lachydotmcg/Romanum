@@ -263,8 +263,9 @@ test("subscription advice does not gate any otherwise supported catalog model", 
   }
 });
 
-test("configured keys alone never enable frontier or Anthropic execution", () => {
-  const configured = publicModels({ DEEPSEEK_API_KEY: "fixture-only", OPENAI_API_KEY: "fixture-only", ANTHROPIC_API_KEY: "fixture-only" });
+test("configured keys cannot override disabled native server reviews", () => {
+  const configured = publicModels({ DEEPSEEK_API_KEY: "fixture-only", OPENAI_API_KEY: "fixture-only", ANTHROPIC_API_KEY: "fixture-only" },
+    Object.fromEntries(catalog.models.map(model => [model.id, { adapterSupported: model.id !== "deepseek-v4-pro", executionEnabled: model.id === "deepseek-flash" }])));
   const result = render({ catalog: configured });
   for (const model of configured.models.filter(model => model.id !== "deepseek-flash")) { assert.equal(result.option(model.id)["aria-disabled"], true); result.choose(model.id); }
   assert.match(result.markup, /Integration not supported/); assert.deepEqual(result.changes, []); result.dispose();

@@ -17,14 +17,14 @@ const binding = { ownerId: "owner-a", conversationId: "chat-a", modelId: "gpt-6.
   prefixHash: "a".repeat(64), toolSchemaHash: "b".repeat(64), settingsHash: "c".repeat(64) };
 const cache = { binding, observedAt: "2026-10-02T11:55:00.000Z", expiresAt: "2026-10-02T12:25:00.000Z", cacheReadTokens: 100000 };
 
-test("Auto selects a ready affordable compatible model; new models are disabled by the actual defaults", () => {
+test("Auto selects a ready affordable compatible model from the reviewed release", () => {
   const auto = routeModel(request(), ready());
   assert.equal(auto.status, "selected");
   assert.equal(auto.modelId, "gpt-6-luna");
   assert.ok(auto.quote.reservationCredits <= 10);
   const defaults = routeModel(request(), readModelReadiness({ DEEPSEEK_API_KEY: "fixture", OPENAI_API_KEY: "fixture" }));
-  assert.equal(defaults.modelId, "deepseek-flash");
-  assert.equal(routeModel(request(), readModelReadiness({ OPENAI_API_KEY: "fixture" })).reason, "no_ready_model");
+  assert.equal(defaults.modelId, "gpt-6-luna");
+  assert.equal(routeModel(request(), readModelReadiness({ OPENAI_API_KEY: "fixture" })).modelId, "gpt-6-luna");
   assert.equal(routeModel(request({ capabilities: { images: true } }), ready(["deepseek-v4-pro"])).reason, "capability_mismatch");
 });
 

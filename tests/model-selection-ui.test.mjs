@@ -7,7 +7,7 @@ import path from "node:path";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { publicModels } from "../src/lib/models/readiness.ts";
+import { publicModels, RELEASED_EXECUTION_REVIEWS } from "../src/lib/models/readiness.ts";
 import { routeModel } from "../src/lib/models/route.ts";
 
 const root = fileURLToPath(new URL("../src/", import.meta.url));
@@ -45,7 +45,9 @@ const { Transcript } = await import("../src/components/assistant/transcript.tsx"
 const { applyEvent, newTurn } = await import("../src/components/assistant/turns.ts");
 hooks.deregister();
 
-const catalog = publicModels({ DEEPSEEK_API_KEY: "fixture-only", OPENAI_API_KEY: "fixture-only", ANTHROPIC_API_KEY: "fixture-only" });
+// Explicit disabled reviews exercise metadata refresh and unavailable-choice behavior.
+const catalog = publicModels({ DEEPSEEK_API_KEY: "fixture-only", OPENAI_API_KEY: "fixture-only", ANTHROPIC_API_KEY: "fixture-only" },
+  Object.fromEntries(Object.entries(RELEASED_EXECUTION_REVIEWS).map(([id, review]) => [id, { ...review, executionEnabled: id === "deepseek-flash" }])));
 const resolvedAt = "2026-10-02T12:00:00.000Z";
 const decision = selection => routeModel({ selection, availableCredits: 100, at: resolvedAt,
   budget: { inputTokens: 1000, maxInputTokens: 2000, outputTokens: 500, maxOutputTokens: 1000 } }, catalog.models);

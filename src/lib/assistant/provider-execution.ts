@@ -7,6 +7,7 @@ import { createAccountingContract } from "../models/execution-accounting/decisio
 import { adapterOutcome } from "../models/execution-accounting/adapter-evidence.ts";
 import { getModel } from "../models/catalog.ts";
 import { readModelReadiness, RELEASED_EXECUTION_REVIEWS } from "../models/readiness.ts";
+import { providerAccountingAvailable } from "../models/provider-schema.ts";
 import type { ExecutionReviews } from "../models/types.ts";
 import { compileOpenAIRequest, createOpenAIAdapter } from "../models/providers/openai.ts";
 import { compileAnthropicRequest, createAnthropicAdapter } from "../models/providers/anthropic.ts";
@@ -67,6 +68,7 @@ export function createAssistantProviderExecution(db: Database, context: Provider
     if (model.provider === "deepseek" || raw.model !== modelId || !Number.isSafeInteger(callOptions.step) || callOptions.step < 0) throw new Error("Invalid pinned native attempt.");
     revalidateAssistantModel(pinned, raw, environment, reviews, policy);
     callOptions.signal.throwIfAborted();
+    if (!await providerAccountingAvailable(db)) throw new Error("The selected model is unavailable. Choose another model to continue.");
     const request = freezeWire(JSON.parse(safeJson(raw, 8 * 1024 * 1024, true)) as Request);
     if (firstUser === null) firstUser = request.messages.findLastIndex(message => message.role === "user");
     if (firstUser < 0) throw new Error("A user request is required.");

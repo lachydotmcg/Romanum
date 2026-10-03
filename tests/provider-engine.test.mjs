@@ -199,7 +199,7 @@ test("old Chat Completions tool history is visible context; forged browser reaso
   assert.ok(!f.requests[0].body.input.some(item => item.type === "function_call"));
 });
 
-test("the production billing factory keeps native dispatch disabled even with a previously reviewed route", async t => {
+test("the production billing factory requires its own configured credentials even with a previously reviewed route", async t => {
   const f = await fixture(t);
   await f.run({ billing: assistantBilling(f.db, f.ownerId, "chat", f.context) });
   assert.equal(f.requests.length, 0); assert.equal((await rows(f)).length, 0); assert.equal((await charges(f)).length, 0);
@@ -239,4 +239,16 @@ test("a failed ledger capture preserves final usage for accounting-only recovery
   const replay = await settleProviderAttempt(f.db, attempt.attempt_id, f.ownerId, contract);
   assert.equal(replay.priceNanoUsd, 0); assert.equal(replay.chargedCredits, 0); assert.equal((await charges(f)).length, 1);
   await f.run(); assert.equal(f.requests.length, 1); assert.equal(f.tools.length, 0);
+});
+
+test("missing migration 023 stops native execution before transport or wallet mutation", async t => {
+  const f = await fixture(t);
+  await f.db.exec("DROP TABLE provider_final_claims; DROP TABLE provider_attempts;");
+  const before = JSON.stringify(await f.db.query("SELECT * FROM credits_accounts ORDER BY owner_id"));
+  await f.run();
+  assert.equal(f.requests.length, 0);
+  assert.equal((await charges(f)).length, 0);
+  assert.equal(JSON.stringify(await f.db.query("SELECT * FROM credits_accounts ORDER BY owner_id")), before);
+  assert.equal((await f.db.query("SELECT count(*)::int AS n FROM usage_holds")).rows[0].n, 0);
+  assert.equal(f.events.at(-1).type, "error");
 });
