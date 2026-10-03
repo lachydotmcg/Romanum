@@ -11,6 +11,7 @@ import { routeModel } from "../src/lib/models/route.ts";
 
 const componentUrl = new URL("../src/components/models/model-selector.tsx", import.meta.url).href;
 const previewUrl = new URL("../src/components/models/model-preview.tsx", import.meta.url).href;
+const estimateUrl = new URL("../src/components/models/estimated-model-card.tsx", import.meta.url).href;
 const virtual = source => ({ url: `data:text/javascript,${encodeURIComponent(source)}`, shortCircuit: true });
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -27,7 +28,7 @@ const hooks = registerHooks({
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
-    if (url === componentUrl || url === previewUrl) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
+    if (url === componentUrl || url === previewUrl || url === estimateUrl) return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX },
     }).outputText };
     return nextLoad(url, context);

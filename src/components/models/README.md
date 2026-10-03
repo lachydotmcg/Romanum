@@ -14,4 +14,6 @@ Qualitative task descriptions were checked on 2026-10-03 against these primary m
 
 The optional Sources disclosure contains source links and dates. Provider asset provenance and retained notices are in [the provider marks README](../../../public/brand/providers/README.md).
 
-`ModelStatDiamond` supports Reasoning, Coding, Speed and Value on a shared, documented, higher-is-better 0–100 scale. An evaluation needs a model ID, finite bounded scores, a dated HTTPS source and methodology. Production has no comparable evaluation registry yet; it displays strengths and actual prices. Model family claims and token prices do not become cross-provider scores. Synthetic fixtures exercise chart rendering in tests and are rejected by default, including by `ModelPreview`.
+Estimated profiles use coarse, explicitly estimated 1–5 Intelligence, Coding, Speed and Value bands. Source settings, dates, attribution and method are under Sources; the full basis is in [RATINGS.md](RATINGS.md). Unknown versions retain qualitative strengths and prices rather than zero or borrowed scores. A changed reference price withholds only Value. Inspecting a profile preserves the model choice and execution readiness. The preview hook is delivered separately for the pricing worker to integrate, because that worker owns the same preview file.
+
+The separate `ModelStatDiamond` supports future shared-scale 0–100 evaluations with a model ID, finite bounded scores, dated HTTPS source and methodology. Synthetic fixtures remain test-only and are rejected by default.

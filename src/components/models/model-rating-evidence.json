@@ -1,0 +1,135 @@
+{
+  "gpt-6-luna": {
+    "intelligence": {
+      "model_name": "gpt-6-luna-max",
+      "rating": 1442.8801590310995,
+      "rating_lower": 1436.3449138239384,
+      "rating_upper": 1449.4154042382609,
+      "rank": 90,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "gpt-6-luna-max",
+      "rating": 1578.7133557951634,
+      "rating_lower": 1570.1952977055819,
+      "rating_upper": 1587.2314138847448,
+      "rank": 32,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 5
+  },
+  "gpt-6.1-sol": {
+    "intelligence": {
+      "model_name": "gpt-6.1-sol-max",
+      "rating": 1483.2124603186985,
+      "rating_lower": 1472.5862896354745,
+      "rating_upper": 1493.8386310019223,
+      "rank": 21,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "gpt-6.1-sol-max",
+      "rating": 1757.8125808243285,
+      "rating_lower": 1740.978754351071,
+      "rating_upper": 1774.646407297586,
+      "rank": 4,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 3
+  },
+  "gpt-6-astra": {
+    "intelligence": {
+      "model_name": "gpt-6-astra-max",
+      "rating": 1477.11090776938,
+      "rating_lower": 1470.2491269588413,
+      "rating_upper": 1483.9726885799187,
+      "rank": 29,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "gpt-6-astra-max",
+      "rating": 1787.6659051450358,
+      "rating_lower": 1777.380705646016,
+      "rating_upper": 1797.9511046440557,
+      "rank": 2,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 2
+  },
+  "claude-haiku-4-5-20251001": {
+    "intelligence": {
+      "model_name": "claude-haiku-4-5-20251001",
+      "rating": 1413.7816938671542,
+      "rating_lower": 1411.3467800567314,
+      "rating_upper": 1416.216607677577,
+      "rank": 142,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "claude-haiku-4-5-20251001",
+      "rating": 1329.3833567488794,
+      "rating_lower": 1324.4963453323578,
+      "rating_upper": 1334.270368165401,
+      "rank": 114,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 5
+  },
+  "claude-sonnet-5-5": {
+    "intelligence": {
+      "model_name": "claude-sonnet-5.5-xhigh",
+      "rating": 1471.0113283481612,
+      "rating_lower": 1460.580408466361,
+      "rating_upper": 1481.4422482299615,
+      "rank": 45,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "claude-sonnet-5.5-xhigh",
+      "rating": 1786.2627611922856,
+      "rating_lower": 1768.07930256045,
+      "rating_upper": 1804.4462198241213,
+      "rank": 3,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 4
+  },
+  "claude-opus-5-5": {
+    "intelligence": {
+      "model_name": "claude-opus-5.5-high",
+      "rating": 1503.695568013531,
+      "rating_lower": 1494.629254586802,
+      "rating_upper": 1512.7618814402601,
+      "rank": 4,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "claude-opus-5.5-max",
+      "rating": 1815.3614916224676,
+      "rating_lower": 1799.2810917612887,
+      "rating_upper": 1831.4418914836465,
+      "rank": 1,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 3
+  },
+  "claude-fable-5-1": {
+    "intelligence": {
+      "model_name": "claude-fable-5.1-max",
+      "rating": 1501.1356497681938,
+      "rating_lower": 1494.7308229739965,
+      "rating_upper": 1507.5404765623914,
+      "rank": 6,
+      "leaderboard_publish_date": "2026-10-02"
+    },
+    "coding": {
+      "model_name": "claude-fable-5.1-max",
+      "rating": 1749.2435972083101,
+      "rating_lower": 1739.6776349706254,
+      "rating_upper": 1758.8095594459946,
+      "rank": 5,
+      "leaderboard_publish_date": "2026-10-01"
+    },
+    "speed": 2
+  }
+}

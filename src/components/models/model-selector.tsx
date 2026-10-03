@@ -313,7 +313,7 @@ export function ModelSelector({
         <Info className="size-3.5 pointer-coarse:translate-y-2.5" aria-hidden="true" />
       </button>, document.body)}
       {peekModel && !locked && !recommendationShown && createPortal(<div ref={details} role="dialog" aria-label={`About ${peekModel.label}`} tabIndex={-1}
-        style={{ ...detailsPosition, maxHeight: window.innerHeight - 32 }}
+        style={{ ...detailsPosition, maxHeight: Math.max(0, window.innerHeight - (detailsPosition.top ?? 16) - 16) }}
         onPointerEnter={keepDetails} onPointerLeave={leaveDetails} onKeyDown={detailsKeyDown}
         className="fixed z-[110] overflow-y-auto rounded-[18px] border border-white/[0.06] bg-[#2b2a2b] p-3 shadow-lg outline-none">
         <div className="mb-2 flex items-center gap-2">
