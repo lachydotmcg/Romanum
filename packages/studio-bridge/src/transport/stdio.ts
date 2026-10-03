@@ -99,7 +99,9 @@ class StdioChannel implements StdioBridgeTransport {
       const timer = setTimeout(() => { this.#fail("startup_timeout"); reject(new StdioTransportError("startup_timeout")); }, this.#startupTimeout);
       let child: ChildProcessWithoutNullStreams;
       try {
-        child = spawn(this.#launch.command, this.#launch.args, { cwd: this.#launch.cwd, env: this.#sdk.environment(), shell: false, windowsHide: true, detached: false, stdio: "pipe" });
+        // Next.js augments ProcessEnv with mandatory NODE_ENV. Native peers
+        // intentionally receive only the SDK's bounded environment allowlist.
+        child = spawn(this.#launch.command, this.#launch.args, { cwd: this.#launch.cwd, env: this.#sdk.environment() as NodeJS.ProcessEnv, shell: false, windowsHide: true, detached: false, stdio: "pipe" });
       } catch {
         clearTimeout(timer);
         this.#fail("child_error");

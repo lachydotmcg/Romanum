@@ -25,6 +25,12 @@ export interface BridgeOptions {
   timeoutMs?: number;
 }
 export interface RequestOptions { signal?: AbortSignal; timeoutMs?: number }
+export interface ExecuteOptions extends RequestOptions {
+  /** Trusted durable caller: commit its attempt/dispatch fence after discovery,
+   * before tools/call. Throwing prevents dispatch. Never a remote/model callback.
+   */
+  beforeDispatch?: () => Promise<void>;
+}
 type Pending = { resolve: (result: Json) => void; reject: (error: BridgeError) => void; cleanup: () => void };
 type ActionRecord = { proposal: ActionProposal; status: ActionStatus };
 type RequestBody = ClientRequest extends infer R ? R extends ClientRequest ? Omit<R, "jsonrpc" | "id"> : never : never;
@@ -162,7 +168,7 @@ export class StudioBridge {
 
   actionStatus(actionId: string): ActionStatus | undefined { return this.#actions.get(actionId)?.status; }
 
-  async execute(actionId: string, options: RequestOptions = {}): Promise<JsonObject> {
+  async execute(actionId: string, options: ExecuteOptions = {}): Promise<JsonObject> {
     this.#ensureReady();
     const record = this.#actions.get(actionId);
     if (!record) throw new BridgeError("invalid_input");
@@ -183,6 +189,9 @@ export class StudioBridge {
       if (!capability || capability.version !== action.version) throw new BridgeError("capability_changed");
       const args = { ...action.input, studio_id: action.target.studioId };
       this.#validateArgs(capability.inputSchema, args);
+      await options.beforeDispatch?.();
+      // The durable fence may await storage; recheck local binding afterward.
+      this.#checkTarget(action.target);
       const result = await this.#request({ method: "tools/call", params: { name: action.tool, arguments: args } }, deadline, options.signal, () => { dispatched = true; });
       if (!object(result) || (result.isError !== undefined && typeof result.isError !== "boolean")) throw new BridgeError("protocol_error");
       if (result.isError === true) throw new BridgeError("remote_error");
