@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Database } from "../history/database.ts";
+import type { MarketTrendEvidence } from "./trends.ts";
 import { competitorResearchSchema, designProposalSchema, designTitleSchema, marketEvidenceSchema, recommendationEvidenceSchema, renderDesignProposal } from "./evidence.ts";
 
 // Romanum insight: each day's recommended titles and indie radar, generated once and shared by everyone.
@@ -73,7 +74,8 @@ export const insightContentSchema = z.object({
 export type Recommendation = z.infer<typeof recommendationSchema>;
 export type RadarItem = z.infer<typeof radarItemSchema>;
 export type InsightContent = z.infer<typeof insightContentSchema>;
-export type Insight = { day: string; content: InsightContent };
+// Trend evidence is computed from recorded public history when read, separate from the saved AI proposal.
+export type Insight = { day: string; content: InsightContent; trendEvidence?: MarketTrendEvidence };
 
 /** The insight's day: the UTC date, so everyone shares one insight a day. */
 export const insightDay = (at: Date) => at.toISOString().slice(0, 10);
