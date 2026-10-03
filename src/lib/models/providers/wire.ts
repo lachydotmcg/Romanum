@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 
 /** Strict JSON snapshot: no getters, lossy values, exotic prototypes or cyclic private data. */
-export function safeJson(value: unknown, maxBytes: number): string {
+export function safeJson(value: unknown, maxBytes: number, serverSchemaMetadata = false): string {
   let nodes = 0;
   const ancestors = new Set<object>();
   function walk(item: unknown, depth: number): void {
@@ -19,6 +19,11 @@ export function safeJson(value: unknown, maxBytes: number): string {
     const descriptors = Object.getOwnPropertyDescriptors(item);
     for (const [key, descriptor] of Object.entries(descriptors)) {
       if (Array.isArray(item) && key === "length") continue;
+      // Zod adds non-enumerable Standard Schema methods to server-generated JSON schemas.
+      // Omit only this known data descriptor; never invoke metadata or a getter. Native adapters stay strict.
+      if (serverSchemaMetadata && key === "~standard" && !descriptor.enumerable && "value" in descriptor &&
+          descriptor.value && typeof descriptor.value === "object" &&
+          Object.getOwnPropertyDescriptor(descriptor.value, "vendor")?.value === "zod") continue;
       if (Array.isArray(item) && (!/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= item.length)) throw new Error("Invalid adapter JSON.");
       if (["__proto__", "constructor", "prototype"].includes(key) || !descriptor.enumerable || !("value" in descriptor)) throw new Error("Invalid adapter JSON.");
       walk(descriptor.value, depth + 1);

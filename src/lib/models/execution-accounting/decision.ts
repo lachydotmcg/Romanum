@@ -2,6 +2,7 @@ import { CREDIT_MARKUP } from "../../credits/pricing.ts";
 import { getModel } from "../catalog.ts";
 import { reservationCredits } from "../estimate.ts";
 import { ceilingCostUsage } from "../usage.ts";
+import { NATIVE_BOUND_STRATEGY, NATIVE_BOUND_VERSION, NATIVE_INPUT_CAPACITY } from "../providers/native-capacity.ts";
 import type { NormalizedUsage } from "../types.ts";
 import type {
   AccountingContract, AccountingDecision, AttemptOutcome, AttemptState, ContractPolicy,
@@ -103,6 +104,8 @@ function evaluate(state: AttemptState, outcome: AttemptOutcome): AccountingDecis
     lastPartial = previous.usage;
   }
   const budget = p.bounds.budget;
+  if (p.bounds.strategyId === NATIVE_BOUND_STRATEGY && p.bounds.strategyVersion === NATIVE_BOUND_VERSION &&
+      usage.totalInputTokens + usage.outputTokens > NATIVE_INPUT_CAPACITY[p.modelId]!) return retain(state, "bounds_exceeded");
   if (usage.totalInputTokens > budget.maxInputTokens || usage.outputTokens > budget.maxOutputTokens) return retain(state, "bounds_exceeded");
   let ceiling: number;
   try {

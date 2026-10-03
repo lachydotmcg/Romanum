@@ -94,7 +94,7 @@ test("forged configuration, capabilities, unsupported IDs, invalid bounds and or
     [request({ modelId: "gpt-6-astra" }), "unsupported_model"], [request({ modelId: "claude-unlisted" }), "unsupported_model"],
     [request({ capabilities: { audio: true } }), "unsupported_capability"], [request({ baseURL: "https://invalid.example" }), "invalid_request"],
     [request({ thinking: { type: "adaptive" } }), "invalid_request"], [request({ cacheTtl: "30m" }), "invalid_request"],
-    [request({ maxTokens: 16001 }), "invalid_request"], [request({ maxInputTokens: 200000 }), "invalid_request"],
+    [request({ maxTokens: 16001 }), "invalid_request"], [request({ maxInputTokens: 200001 }), "invalid_request"],
     [request({ tools: [tool, tool] }), "invalid_request"], [request({ messages: [{ role: "assistant", content: "prefill" }] }), "invalid_request"],
     [request({ messages: [{ role: "tool", toolCallId: "orphan", content: "Fixture" }] }), "invalid_request"],
     [request({ messages: [{ role: "user", content: "Fixture" }, { role: "assistant", content: "", toolCalls: [{ id: "toolu_a", name: tool.name, input: {} }] },

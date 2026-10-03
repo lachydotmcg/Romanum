@@ -6,6 +6,7 @@ import { getModel } from "../catalog.ts";
 import { costUsage, normalizeUsage } from "../usage.ts";
 import type { NormalizedUsage } from "../types.ts";
 import { canonicalTime, compileWire, safeJson } from "./wire.ts";
+import { NATIVE_INPUT_CAPACITY } from "./native-capacity.ts";
 import type { AdapterErrorCode, JsonValue, OpenAIAdapterOptions, OpenAICallOptions, OpenAIOutputItem,
   OpenAIRequest, OpenAIResult, ToolCall } from "./types.ts";
 
@@ -45,7 +46,7 @@ const message = z.discriminatedUnion("role", [
 ]);
 const requestSchema = z.object({ modelId: z.string(), system: z.string().optional(), messages: z.array(message).min(1).max(512),
   tools: z.array(z.object({ name, description: z.string().max(16_384), inputSchema: jsonObject }).strict()).max(64).optional(),
-  maxTokens: z.number().int().min(1).max(16_000), maxInputTokens: z.number().int().min(1).max(200_000),
+  maxTokens: z.number().int().min(1).max(16_000), maxInputTokens: z.number().int().min(1).max(1_050_000),
   cacheTtl: z.literal("30m").optional(), reasoningEffort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
   capabilities: z.object({ text: z.boolean().optional(), tools: z.boolean().optional(), images: z.boolean().optional() }).strict().optional(),
 }).strict();
@@ -68,7 +69,7 @@ export function translateOpenAIRequest(value: OpenAIRequest): OpenAIWireRequest 
   const parsed = requestSchema.safeParse(value);
   if (!parsed.success) fail("invalid_request");
   const request = parsed.data;
-  if (request.maxInputTokens + request.maxTokens > selected.contextTokens || request.maxTokens > selected.maxOutputTokens ||
+  if (request.maxInputTokens > NATIVE_INPUT_CAPACITY[selected.id]! || request.maxTokens > selected.maxOutputTokens ||
       (selected.id !== "gpt-6-luna" && request.reasoningEffort === "none")) fail("invalid_request");
   const tools = request.tools?.map(tool => {
     json(tool.inputSchema, "invalid_request", OPENAI_LIMITS.toolJsonBytes);
@@ -232,7 +233,8 @@ export function createOpenAIAdapter(options: OpenAIAdapterOptions = {}) {
       if (details.cached_tokens === undefined || details.cache_write_tokens === undefined) fail("invalid_response");
       try { usage = normalizeUsage(snapshot.modelId, rawUsage, { at, cacheTtl: "30m" }); } catch { fail("invalid_response"); }
       usageComplete = true; // Complete counters still do not prove semantic validity or authorize settlement.
-      if (usage!.totalInputTokens > snapshot.maxInputTokens || usage!.outputTokens > snapshot.maxTokens) fail("invalid_response");
+      if (usage!.totalInputTokens > snapshot.maxInputTokens || usage!.outputTokens > snapshot.maxTokens ||
+          usage!.totalInputTokens + usage!.outputTokens > NATIVE_INPUT_CAPACITY[snapshot.modelId]!) fail("invalid_response");
       const parsed = output(envelope.output, snapshot.tools ?? [], truncated);
       const { input, ...base } = body;
       return { status: "completed", modelId: snapshot.modelId, messageId: envelope.id as string, text: parsed.text,

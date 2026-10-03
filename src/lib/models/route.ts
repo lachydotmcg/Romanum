@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MODEL_CATALOG, getModel } from "./catalog.ts";
 import { quoteModel, validBudget } from "./estimate.ts";
-import { MODEL_IDS, type CapabilityRequirements, type ModelDefinition, type ModelReadiness, type ModelSelection, type RouteDecision, type RouteRequest } from "./types.ts";
+import { MODEL_IDS, type CapabilityRequirements, type ModelDefinition, type ModelId, type ModelQuote, type ModelReadiness, type ModelSelection, type RouteDecision, type RouteRequest } from "./types.ts";
 
 const selectionSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("auto") }).strict(),
@@ -23,7 +23,7 @@ function ready(modelId: string, readiness: readonly ModelReadiness[]): boolean {
 }
 
 /** Pure proposal only. Readiness and balances must be trusted server snapshots, rechecked before submission. */
-export function routeModel(request: RouteRequest, readiness: readonly ModelReadiness[]): RouteDecision {
+export function routeModel(request: RouteRequest, readiness: readonly ModelReadiness[], quoteCandidate?: (modelId: ModelId) => ModelQuote): RouteDecision {
   const selection = parseModelSelection(request.selection);
   if (!selection) return { status: "blocked", reason: "invalid_selection", fallback: null };
   const required = requirementsSchema.safeParse(request.capabilities ?? {});
@@ -32,7 +32,7 @@ export function routeModel(request: RouteRequest, readiness: readonly ModelReadi
   const readyModels = MODEL_CATALOG.filter((model) => ready(model.id, readiness));
   const eligible = readyModels.filter((model) => compatible(model, required.data));
   const candidates = eligible.flatMap((model) => {
-    try { return [{ model, quote: quoteModel(model.id, request.budget, request) }]; } catch { return []; }
+    try { return [{ model, quote: quoteCandidate ? quoteCandidate(model.id) : quoteModel(model.id, request.budget, request) }]; } catch { return []; }
   }).sort((a, b) => a.quote.estimatedPriceNanoUsd - b.quote.estimatedPriceNanoUsd ||
     a.quote.reservationPriceNanoUsd - b.quote.reservationPriceNanoUsd || a.model.id.localeCompare(b.model.id));
   const affordable = candidates.filter((candidate) => candidate.quote.reservationCredits <= request.availableCredits);

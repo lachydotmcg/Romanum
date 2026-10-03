@@ -1,6 +1,6 @@
 # Disabled Anthropic Messages adapter
 
-`createAnthropicAdapter(options).complete(request, callOptions)` performs at most one native Messages HTTP request. It defaults to `executionEnabled: false`; the catalog/readiness review stays unchanged and all Anthropic models remain unselectable. This change adds no engine hook, key configuration, ledger settlement or tool executor. It imports no provider SDK and performs no request at import/factory time.
+`createAnthropicAdapter(options).complete(request, callOptions)` performs at most one native Messages HTTP request. It defaults to `executionEnabled: false`; all Anthropic models remain unselectable in released readiness. The [disabled engine integration](EXECUTION.md) now connects this adapter to Ask/Chats, durable dispatch holds, the existing application tool loop and normalized ledger settlement. It adds no key configuration or activation and performs no request at import/factory time.
 
 ## Integration contract
 
@@ -8,7 +8,7 @@ Contracts live in `providers/types.ts`; foundation model IDs and `NormalizedUsag
 
 Completed results include server-only `continuation` data with ordered native content and opaque thinking signatures. Persist it privately and pass it back on the corresponding assistant history entry alongside the matching text/tool calls. Never forward it to the UI, treat it as user text or log it. A SHA-256 prefix digest checks the exact preceding translated messages, selected model, system, tools and cache/thinking settings before replay. It detects a changed prefix; it is not authentication or an authorization boundary. Only trusted server history may supply continuations. Start a new compatible context when changing the bound prefix/model; this adapter rejects replay into changed context rather than mutating signatures. Truncated results have no continuation.
 
-Supply `maxTokens` and a trusted `maxInputTokens` bound covering the full translated history, framing, tool schemas and vision tokens. Combined bounds must fit the foundation's 200,000-token policy and 16,000-output ceiling. Omit optional fields rather than passing non-JSON values. The translator rejects extra properties, cycles, nonfinite numbers, unsafe prototype keys and excessive depth/size. It does not estimate or reserve credits. A reviewed integration must recheck readiness, owner access and cancellation, then atomically obtain the existing hold before enabling/submitting each attempt.
+Supply `maxTokens` and a trusted `maxInputTokens` bound covering the full translated history, framing, tool schemas and vision tokens. The reviewed integration reserves the full documented native input window independently of the 16,000 output ceiling; application admission remains 200,000. Actual input plus output must fit the native window. Omit optional fields rather than passing non-JSON values. The translator rejects extra properties, cycles, nonfinite numbers, unsafe prototype keys and excessive depth/size. The adapter itself does not estimate or reserve credits. The separate integration rechecks readiness, owner access and cancellation and atomically binds its hold/dispatch before submitting each attempt.
 
 `complete` returns a discriminated `AnthropicResult`:
 

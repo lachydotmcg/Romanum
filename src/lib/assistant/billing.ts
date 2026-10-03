@@ -1,4 +1,6 @@
 import type OpenAI from "openai";
+import { randomUUID } from "node:crypto";
+import type { AssistantProviderExecution, ProviderExecutionOptions } from "./provider-execution.ts";
 import type { Database } from "../history/database.ts";
 import { CREDIT_MARKUP, modelPricing, type CallUsage } from "../credits/pricing.ts";
 import { finishUnreportedUsage, reserveUsage, settleUsage } from "../credits/usage-holds.ts";
@@ -10,6 +12,7 @@ type Request = Pick<OpenAI.Chat.ChatCompletionCreateParams, "model" | "messages"
 type ReportedUsage = OpenAI.CompletionUsage & { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number };
 
 export interface AssistantBilling {
+  readonly provider?: AssistantProviderExecution;
   reserve(maxPriceNanoUsd: number): Promise<string>;
   settle(id: string, call: CallUsage): Promise<void>;
   finish(id: string, uncertain: boolean): Promise<void>;
@@ -17,9 +20,18 @@ export interface AssistantBilling {
   readonly credits: number;
 }
 
-export function assistantBilling(db: Database, ownerId: string, feature: "ask" | "chat"): AssistantBilling {
+export function assistantBilling(db: Database, ownerId: string, feature: "ask" | "chat",
+  providerContext: { conversationId: string; runId: string | null; options?: ProviderExecutionOptions } = { conversationId: randomUUID(), runId: null }): AssistantBilling {
   let credits = 0;
+  let provider: AssistantProviderExecution | undefined;
   return {
+    provider: { async complete(route, request, options) {
+      // Load only on native execution; historical DeepSeek imports/holds remain unchanged.
+      provider ??= (await import("./provider-execution.ts")).createAssistantProviderExecution(db,
+        { ownerId, feature, conversationId: providerContext.conversationId, runId: providerContext.runId },
+        price => { credits += price / 10_000_000; }, providerContext.options);
+      return provider.complete(route, request, options);
+    } },
     get credits() { return credits; },
     async reserve(maxPriceNanoUsd) { return (await reserveUsage(db, { ownerId, feature, maxPriceNanoUsd })).id; },
     async settle(id, call) { credits += (await settleUsage(db, { ownerId, id, call })).credits; },

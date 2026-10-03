@@ -85,7 +85,7 @@ export type AttemptState = Immutable<{
   held: HeldAttempt; submission: Submission | null; uncertain: boolean;
   evidence: AttemptOutcome[]; decision: AccountingDecision | null;
 }>;
-/** Created ONLY by the future atomic ledger bridge; this module never constructs one. */
+/** Created ONLY by the atomic ledger bridge; this pure module never constructs one. */
 export type LedgerSettledReceipt = Immutable<{
   kind: "ledger_settled"; attemptId: string; holdId: string; candidateFingerprint: Sha256;
   ledgerReceiptId: string; settledAt: string;

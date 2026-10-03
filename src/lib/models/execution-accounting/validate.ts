@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { CREDIT_MARKUP, NANO_USD_PER_CREDIT } from "../../credits/pricing.ts";
 import { getModel } from "../catalog.ts";
-import { quoteModel, validBudget } from "../estimate.ts";
+import { quoteModel, quoteNativeModel, validBudget } from "../estimate.ts";
+import { NATIVE_BOUND_STRATEGY, NATIVE_BOUND_VERSION, NATIVE_INPUT_CAPACITY } from "../providers/native-capacity.ts";
 import { costUsage } from "../usage.ts";
 import type { ModelId, ModelQuote, NormalizedUsage, ProviderId, TokenBudget } from "../types.ts";
 import type {
@@ -110,7 +111,9 @@ export function validatePolicy(value: unknown): ContractPolicy {
     const maxInputTokens = count(r.maxInputTokens, true), maxOutputTokens = count(r.maxOutputTokens, true);
     if (model.provider !== p || !capabilities.includes("text") || capabilities.some((cap) => !model.capabilities[cap]) ||
         cacheTtls.some((ttl) => !model.cacheTtls.includes(ttl)) ||
-        maxInputTokens + maxOutputTokens > model.contextTokens || maxOutputTokens > model.maxOutputTokens) fail("unreviewed_bounds");
+        (r.strategyId === NATIVE_BOUND_STRATEGY && r.strategyVersion === NATIVE_BOUND_VERSION
+          ? !NATIVE_INPUT_CAPACITY[id] || maxInputTokens !== NATIVE_INPUT_CAPACITY[id]
+          : maxInputTokens + maxOutputTokens > model.contextTokens) || maxOutputTokens > model.maxOutputTokens) fail("unreviewed_bounds");
     return {
       strategyId: identifier(r.strategyId), strategyVersion: identifier(r.strategyVersion), provider: p, modelId: id,
       adapterVersion: identifier(r.adapterVersion), requestFormatVersion: identifier(r.requestFormatVersion),
@@ -145,7 +148,7 @@ export function readUsage(value: unknown): NormalizedUsage {
   };
 }
 
-function quote(value: unknown, id: ModelId, b: TokenBudget, at: string): ModelQuote {
+function quote(value: unknown, id: ModelId, b: TokenBudget, at: string, native: boolean): ModelQuote {
   const r = record(value, ["modelId", "rateCardVersion", "estimatedCostNanoUsd", "estimatedPriceNanoUsd", "estimatedCredits", "reservationPriceNanoUsd", "reservationCredits", "estimateBasis", "estimatedCacheReadTokens", "cacheHitGuaranteed", "minimumReservationCredits"]);
   const q: ModelQuote = {
     modelId: modelId(r.modelId), rateCardVersion: identifier(r.rateCardVersion),
@@ -158,7 +161,7 @@ function quote(value: unknown, id: ModelId, b: TokenBudget, at: string): ModelQu
   if (q.modelId !== id) fail("identity_mismatch");
   if (q.rateCardVersion !== getModel(id)!.rateCardVersion) fail("rate_card_unavailable");
   let fresh: ModelQuote;
-  try { fresh = quoteModel(id, b, { at }); } catch { fail("invalid_quote"); }
+  try { fresh = (native ? quoteNativeModel : quoteModel)(id, b, { at }); } catch { fail("invalid_quote"); }
   if (q.reservationPriceNanoUsd !== fresh.reservationPriceNanoUsd || q.reservationCredits !== fresh.reservationCredits) fail("quote_mismatch");
   if (q.estimatedCacheReadTokens > b.inputTokens || (q.estimatedCacheReadTokens > 0) !== (q.estimateBasis === "compatible_cache_scenario")) fail("invalid_quote");
   // Estimates may use a compatible cache scenario; they never reduce the uncached reservation.
@@ -194,6 +197,8 @@ export function prepareAttempt(value: unknown, policy: ContractPolicy, stored = 
   if (!review || !capabilities.includes("text") || capabilities.some((cap) => !review.capabilities.includes(cap)) ||
       !review.cacheTtls.includes(b.cacheTtl ?? model.cacheTtls[0])) fail("unreviewed_bounds");
   if (b.maxInputTokens > review.maxInputTokens || b.maxOutputTokens > review.maxOutputTokens) fail("bounds_exceeded");
+  if (strategyId === NATIVE_BOUND_STRATEGY && strategyVersion === NATIVE_BOUND_VERSION &&
+      b.maxInputTokens !== review.maxInputTokens) fail("unreviewed_bounds");
   const feature = choice(r.feature, ["ask", "chat"]), runId = r.runId === null ? null : identifier(r.runId);
   const input: PreparedAttemptInput = {
     version: 1, attemptId: identifier(r.attemptId), ownerId: identifier(r.ownerId), feature,
@@ -201,7 +206,8 @@ export function prepareAttempt(value: unknown, policy: ContractPolicy, stored = 
     selection: mode === "auto" ? { mode } : { mode, modelId: id }, modelId: id, provider: p,
     adapterVersion, requestFormatVersion, requestHash,
     bounds: { strategyId, strategyVersion, requestHash: boundHash, capabilities, budget: b },
-    pricingProfile: literal(r.pricingProfile, "standard-global-text-v1"), quote: quote(r.quote, id, b, preparedAt), preparedAt,
+    pricingProfile: literal(r.pricingProfile, "standard-global-text-v1"), quote: quote(r.quote, id, b, preparedAt,
+      review.strategyId === NATIVE_BOUND_STRATEGY && review.strategyVersion === NATIVE_BOUND_VERSION), preparedAt,
   };
   const reviewFingerprint = fingerprint("bounds-review", review);
   const bindingFingerprint = fingerprint("prepared", { ...input, reviewFingerprint });

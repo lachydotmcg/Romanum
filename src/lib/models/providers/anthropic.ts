@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getModel } from "../catalog.ts";
 import { costUsage, normalizeUsage } from "../usage.ts";
 import { canonicalTime, compileWire, safeJson } from "./wire.ts";
+import { NATIVE_INPUT_CAPACITY } from "./native-capacity.ts";
 import type { NormalizedUsage } from "../types.ts";
 import type { AdapterErrorCode, AnthropicAdapterOptions, AnthropicCallOptions, AnthropicRequest,
   AnthropicResult, AnthropicStopReason, AnthropicOutputBlock, JsonValue, ToolCall } from "./types.ts";
@@ -60,7 +61,7 @@ const message = z.discriminatedUnion("role", [
 ]);
 const requestSchema = z.object({ modelId: z.string(), system: z.string().optional(), messages: z.array(message).min(1).max(512),
   tools: z.array(z.object({ name, description: z.string().max(16_384), inputSchema: jsonObject }).strict()).max(64).optional(),
-  maxTokens: z.number().int().min(1).max(16_000), maxInputTokens: z.number().int().min(1).max(200_000),
+  maxTokens: z.number().int().min(1).max(16_000), maxInputTokens: z.number().int().min(1).max(1_000_000),
   stream: z.boolean().optional(), cacheTtl: z.enum(["5m", "1h"]).optional(),
   capabilities: z.object({ text: z.boolean().optional(), tools: z.boolean().optional(), images: z.boolean().optional() }).strict().optional(),
 }).strict();
@@ -93,7 +94,7 @@ export function translateAnthropicRequest(value: AnthropicRequest): AnthropicWir
   const parsed = requestSchema.safeParse(value);
   if (!parsed.success) fail("invalid_request");
   const request = parsed.data;
-  if (request.maxInputTokens + request.maxTokens > selected.contextTokens || request.maxTokens > selected.maxOutputTokens) fail("invalid_request");
+  if (request.maxInputTokens > NATIVE_INPUT_CAPACITY[selected.id]! || request.maxTokens > selected.maxOutputTokens) fail("invalid_request");
   if (request.capabilities && Object.entries(request.capabilities).some(([key, required]) => required && !selected.capabilities[key as keyof typeof selected.capabilities])) fail("unsupported_capability");
   const tools = request.tools?.map((tool) => {
     checkedJson(tool.inputSchema, "invalid_request", ANTHROPIC_LIMITS.toolJsonBytes);
@@ -288,7 +289,8 @@ class MessageState {
   }
   result(): Omit<Extract<AnthropicResult, { status: "completed" }>, "evidence" | "providerCostNanoUsd"> {
     if (!this.stopped || !this.usage || !this.stopReason) return fail("incomplete_stream");
-    if (this.usage.totalInputTokens > this.request.maxInputTokens || this.usage.outputTokens > this.request.maxTokens) fail("invalid_response");
+    if (this.usage.totalInputTokens > this.request.maxInputTokens || this.usage.outputTokens > this.request.maxTokens ||
+        this.usage.totalInputTokens + this.usage.outputTokens > NATIVE_INPUT_CAPACITY[this.request.modelId]!) fail("invalid_response");
     const truncated = this.stopReason === "max_tokens" || this.stopReason === "model_context_window_exceeded";
     const toolCalls: ToolCall[] = [];
     if (this.stopReason === "tool_use") {

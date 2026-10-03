@@ -147,7 +147,7 @@ export async function POST(request: Request) {
     return new Response("\n", { status: 202, headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-chat-id": saved.chatId, "x-chat-run-id": runId } });
   }
   const conversation = withProjectContext(modelConversation(saved.history, withReferenceImages(question, saved.images)), saved.project);
-  const client = assistantClient(process.env.DEEPSEEK_API_KEY ?? "");
+  const client = !modelRoute || modelRoute.modelDecision?.modelId === "deepseek-flash" ? assistantClient(process.env.DEEPSEEK_API_KEY ?? "") : undefined;
   request.signal.addEventListener("abort", () => abort.abort());
   const encoder = new TextEncoder();
   let closed = false;
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
         recordEvent(events, event, Date.now() - began);
         if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
-      const billing = assistantBilling(db, owner, "chat");
+      const billing = assistantBilling(db, owner, "chat", { conversationId: saved.chatId, runId: saved.questionId });
       try {
         await runAssistant({ client, conversation, send, signal: abort.signal, systemPrompt: CHAT_PROMPT, billing, projectTools, analyticsTools, modelRoute });
       } finally {

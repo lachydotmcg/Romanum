@@ -2,6 +2,7 @@ import { CREDIT_MARKUP, NANO_USD_PER_CREDIT } from "../credits/pricing.ts";
 import { compatibleCacheReadTokens } from "./cache.ts";
 import { getModel } from "./catalog.ts";
 import { ceilingCostUsage, costUsage } from "./usage.ts";
+import { NATIVE_INPUT_CAPACITY } from "./providers/native-capacity.ts";
 import type { CacheBinding, CacheObservation, CacheTtl, ModelId, ModelQuote, NormalizedUsage, TokenBudget } from "./types.ts";
 
 export function validBudget(budget: TokenBudget): boolean {
@@ -35,9 +36,21 @@ export function quoteModel(
     at: string; cacheBinding?: CacheBinding; cacheObservations?: readonly CacheObservation[];
   },
 ): ModelQuote {
+  return quote(modelId, budget, options, false);
+}
+
+/** Reviewed native window ceiling, never a browser-selected capacity or a reduced cache promise. */
+export function quoteNativeModel(modelId: ModelId, budget: TokenBudget, options: { at: string }): ModelQuote {
+  return quote(modelId, budget, options, true);
+}
+
+function quote(modelId: ModelId, budget: TokenBudget, options: {
+  at: string; cacheBinding?: CacheBinding; cacheObservations?: readonly CacheObservation[];
+}, native: boolean): ModelQuote {
   const model = getModel(modelId);
   if (!model || !validBudget(budget) || !Number.isFinite(Date.parse(options.at))) throw new Error("Invalid model quote.");
-  if (budget.maxInputTokens + budget.maxOutputTokens > model.contextTokens || budget.maxOutputTokens > model.maxOutputTokens) {
+  const capacity = native ? NATIVE_INPUT_CAPACITY[modelId] : undefined;
+  if ((native ? !capacity || budget.maxInputTokens !== capacity : budget.maxInputTokens + budget.maxOutputTokens > model.contextTokens) || budget.maxOutputTokens > model.maxOutputTokens) {
     throw new Error("Request exceeds the reviewed token limits.");
   }
   const ttl = budget.cacheTtl ?? model.cacheTtls[0];

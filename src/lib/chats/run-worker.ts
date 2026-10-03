@@ -44,7 +44,7 @@ export async function executeChatRun(database: Database, runId: string, options:
     recordEvent(pending, event, Date.now() - began);
     if (!["thinking", "text"].includes(event.type)) flush();
   };
-  const billing = options.billing ?? assistantBilling(database, run.ownerId, "chat");
+  const billing = options.billing ?? assistantBilling(database, run.ownerId, "chat", { conversationId: run.chatId, runId: run.id });
   const beforeAttempt = async () => {
     if (!await chatRunStillActive(database, run)) abort.abort();
     abort.signal.throwIfAborted();
@@ -61,7 +61,7 @@ export async function executeChatRun(database: Database, runId: string, options:
     }
     const question = withReferenceImages(run.payload.question, images);
     const conversation = withProjectContext(modelConversation(run.payload.history, question), run.payload.project);
-    await runAssistant({ client: options.client ?? assistantClient(process.env.DEEPSEEK_API_KEY ?? ""), conversation, send, signal: abort.signal, billing, systemPrompt: CHAT_PROMPT,
+    await runAssistant({ client: options.client ?? ((modelRoute.legacy || modelRoute.modelDecision?.modelId === "deepseek-flash") ? assistantClient(process.env.DEEPSEEK_API_KEY ?? "") : undefined), conversation, send, signal: abort.signal, billing, systemPrompt: CHAT_PROMPT,
       projectTools: conversationTools(database, { ownerId: run.ownerId, chatId: run.chatId, questionId: run.questionId, project: run.payload.project }, abort.signal),
       analyticsTools: options.analyticsTools ?? privateAnalyticsTools(database, run.accountId, abort.signal),
       beforeAttempt,

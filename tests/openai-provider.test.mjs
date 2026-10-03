@@ -54,7 +54,7 @@ test("request translation rejects substitutions, hosted tools, unreviewed fields
   const cases = [
     [request({ modelId: "gpt-6-sol" }), "unsupported_model"], [request({ modelId: "claude-opus-5-5" }), "unsupported_model"],
     [request({ endpoint: "https://invalid.example" }), "invalid_request"], [request({ stream: true }), "invalid_request"],
-    [request({ maxInputTokens: 200000 }), "invalid_request"], [request({ maxTokens: 16001 }), "invalid_request"],
+    [request({ maxInputTokens: 1050001 }), "invalid_request"], [request({ maxTokens: 16001 }), "invalid_request"],
     [request({ cacheTtl: "1h" }), "invalid_request"], [request({ tools: [{ type: "web_search" }] }), "invalid_request"],
     [request({ capabilities: { audio: true } }), "unsupported_capability"], [request({ tools: [tool, tool] }), "invalid_request"],
     ...models.slice(1).map(modelId => [request({ modelId, reasoningEffort: "none" }), "invalid_request"]),

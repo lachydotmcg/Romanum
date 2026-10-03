@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MODEL_CATALOG, RATE_CARD_CHECKED_AT, RATE_CARD_VERSION, getModel } from "../src/lib/models/catalog.ts";
 import { MODEL_IDS } from "../src/lib/models/types.ts";
-import { publicModels, readModelReadiness } from "../src/lib/models/readiness.ts";
+import { publicModels, readModelReadiness, RELEASED_EXECUTION_REVIEWS } from "../src/lib/models/readiness.ts";
 
 const environment = () => ({ DEEPSEEK_API_KEY: "fixture-deepseek", OPENAI_API_KEY: "fixture-openai", ANTHROPIC_API_KEY: "fixture-anthropic" });
 test("catalog IDs, standard prices and provenance are explicit and immutable", () => {
@@ -21,24 +21,35 @@ test("catalog IDs, standard prices and provenance are explicit and immutable", (
   assert.throws(() => { getModel("gpt-6.1-sol").rates.input = 0; }, TypeError);
 });
 
-test("missing keys and disabled adapters are distinct; key presence cannot enable new execution", () => {
+test("implemented native adapters stay disabled; keys and environment flags cannot enable execution", () => {
   const missing = readModelReadiness({});
   assert.ok(missing.every((model) => !model.configured && !model.selectable && model.reason === "missing_key"));
-  const configured = readModelReadiness(environment());
+  const configured = readModelReadiness({ ...environment(), OPENAI_EXECUTION_ENABLED: "true", ANTHROPIC_EXECUTION_ENABLED: "true", MODEL_EXECUTION_ENABLED: "true" });
   const flash = configured.find((model) => model.modelId === "deepseek-flash");
   assert.equal(flash.selectable, true);
   assert.equal(flash.entitlementVerified, false);
   for (const model of configured.filter((model) => model.modelId !== "deepseek-flash")) {
     assert.equal(model.configured, true);
-    assert.equal(model.adapterSupported, false);
+    assert.equal(model.adapterSupported, model.modelId !== "deepseek-v4-pro");
     assert.equal(model.executionEnabled, false);
     assert.equal(model.selectable, false);
-    assert.equal(model.reason, "adapter_not_supported");
+    assert.equal(model.reason, model.modelId === "deepseek-v4-pro" ? "adapter_not_supported" : "execution_disabled");
     assert.equal(model.entitlementVerified, false);
   }
   const supported = readModelReadiness(environment(), { "gpt-6.1-sol": { adapterSupported: true, executionEnabled: false } });
   assert.equal(supported.find((model) => model.modelId === "gpt-6.1-sol").reason, "execution_disabled");
   assert.equal(readModelReadiness({ DEEPSEEK_API_KEY: "   " })[0].reason, "missing_key");
+  assert.ok(Object.isFrozen(RELEASED_EXECUTION_REVIEWS));
+  assert.ok(Object.values(RELEASED_EXECUTION_REVIEWS).every(Object.isFrozen));
+  assert.throws(() => { RELEASED_EXECUTION_REVIEWS["gpt-6-luna"].executionEnabled = true; }, TypeError);
+});
+
+test("server-injected reviews enable only their exact configured model", () => {
+  const reviews = { "gpt-6.1-sol": { adapterSupported: true, executionEnabled: true } };
+  const ready = readModelReadiness(environment(), reviews);
+  assert.deepEqual(ready.filter(model => model.selectable).map(model => model.modelId), ["gpt-6.1-sol"]);
+  assert.equal(readModelReadiness({}, reviews).find(model => model.modelId === "gpt-6.1-sol").reason, "missing_key");
+  assert.equal(readModelReadiness(environment()).find(model => model.modelId === "gpt-6.1-sol").selectable, false);
 });
 
 test("key removal is observed on the next invocation; public output contains only catalog and safe status", () => {

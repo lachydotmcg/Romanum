@@ -1,6 +1,6 @@
 # Pure execution/accounting contract
 
-This module proposes immutable state transitions between a prepared model request, its reservation, a dispatch claim and accounting evidence. It performs no transport, authorization, reservation, charge, release, database write or tool execution. It does not change provider readiness or connect to the existing execution path. New provider activation still requires the separate adapter, persistence, financial and activation reviews.
+This module proposes immutable state transitions between a prepared model request, its reservation, a dispatch claim and accounting evidence. The module itself performs no transport, authorization, reservation, charge, release, database write or tool execution. Its separate [disabled engine integration](../providers/EXECUTION.md) now consumes these proposals through `credits/provider-attempts.ts`, durable holds/dispatches and atomic normalized ledger settlement. Native provider execution remains disabled pending release/activation checks.
 
 ## API and trust boundary
 
@@ -19,7 +19,7 @@ Errors are `ContractError` with a fixed `code`; messages never interpolate provi
 
 The terminal phase names `released` and `candidate` describe finalized **proposals**. `released` does not mean a ledger release happened, and `candidate` does not mean settlement happened. Their durable financial effects must be committed and acknowledged separately.
 
-The default bounds-review registry is **empty**. Merely supplying a nonempty bounds version, enabling a model selector, having a key, or passing a browser-provided `verified` flag grants no capability. Each injected review binds a strategy/version to one provider, model, adapter version and translated-request format, with reviewed capability/TTL coverage and input/output maxima. Reviews are snapshotted, fingerprinted and included in the attempt binding. No production bounding algorithm or review is supplied here; tests use explicitly synthetic reviews.
+The pure contract's default bounds-review registry is **empty**. Merely supplying a nonempty bounds version, enabling a model selector, having a key, or passing a browser-provided `verified` flag grants no capability. Each injected review binds a strategy/version to one provider, model, adapter version and translated-request format, with reviewed capability/TTL coverage and input/output maxima. Reviews are snapshotted, fingerprinted and included in the attempt binding. The disabled native integration injects the separately reviewed full-context ceilings in `providers/request-bounds.ts`; standalone contract tests also use explicitly synthetic reviews.
 
 The registry and all accounting DTOs must originate in trusted, owner-authorized server code. Shape validation and SHA-256 fingerprints do not establish that authority. In particular, this module cannot prove that a caller actually ran the reviewed bounding algorithm, measured the supplied request or read a real hold. Never expose these constructors directly as browser-controlled JSON actions or build the registry from request fields or environment flags.
 
@@ -31,9 +31,9 @@ The module accepts that independently derived hash and requires the bound proof 
 
 Generated binding/candidate fingerprints use versioned SHA-256 domains and fixed-order serialization of bounded, validated known-field snapshots. They contain no raw request data and are integrity/conflict identifiers, not signatures. The prepared binding covers owner, feature, conversation, run/step, stable attempt ID, pinned selection/model/provider, request hash, review, budget, quote, profile and preparation time. Auto remains a recorded selection with one pinned execution model. Each paid tool-loop step needs a new full-history bound, request hash, quote and attempt/hold.
 
-`actualHoldBinding` requires `holdId`, `ownerId`, `feature`, `maxPriceNanoUsd`, `reservedCredits` and `bindingFingerprint`. The future persistence bridge must read those values from the actual owner-scoped hold/attempt rows created or loaded atomically. Do not manufacture them from the prepared object after an unbound reservation. Owner, feature, fingerprint, nano-USD ceiling and whole-credit reservation must match exactly. Two different positive nano ceilings can reserve the same two credits, so matching credits alone is insufficient.
+`actualHoldBinding` requires `holdId`, `ownerId`, `feature`, `maxPriceNanoUsd`, `reservedCredits` and `bindingFingerprint`. The persistence bridge reads those values from actual owner-scoped hold/attempt rows created or loaded atomically. Owner, feature, fingerprint, nano-USD ceiling and whole-credit reservation must match exactly. Two different positive nano ceilings can reserve the same two credits, so matching credits alone is insufficient.
 
-`runId` may be null for synchronous Ask/guest Chat paths. Their future durable logical key still needs an owner-scoped stable turn/attempt identity plus conversation and step; retries must load that same key. Background runs additionally bind their run ID. The contract cannot determine ownership or invent durable keys.
+`runId` may be null for synchronous Ask. The integration derives durable IDs from an invocation UUID or saved chat/question/run identity, owner, feature and step. A prior dispatch cannot be retried; background runs additionally bind their saved run ID. The pure contract cannot determine ownership or invent durable keys.
 
 ## Evidence and decisions
 
@@ -59,21 +59,23 @@ Candidate eligibility compares a conservative peak cost plus quote-style `ceil` 
 
 Evidence history is limited to 32 outcomes, identifiers and arrays are bounded, and unknown fields/accessors/exotic records are rejected. Exhaustion or a validation exception must leave the durable reservation and earlier evidence intact; route it to reconciliation. This is a compact accounting record, not a transport log.
 
-## Required durable integration
+## Durable integration contract
+
+The disabled engine and `credits/provider-attempts.ts` implement these boundaries. The pure constructor remains independent of their database/authorization guarantees.
 
 1. Recheck owner/conversation access, run ownership/cancellation, actual adapter readiness and supported pricing/capabilities before preparing and again before submission. An accounting constructor does not perform any of these checks.
 2. Under an owner-scoped stable logical attempt key, atomically create/load the attempt and one actual hold. Enforce unique attempt/hold associations and reject a different binding on retries. The existing wallet availability check remains authoritative.
 3. Persist the `submit` proposal with a compare-and-set against the prior revision and phase, together with a unique dispatch claim. **Only the winning transaction may call the provider.** Never keep a database transaction open over network I/O. A crash after the claim is ambiguous, including a crash before fetch starts. Do not dispatch a claimed attempt again.
 4. Persist validated evidence and a decision with revision CAS independently of client disconnection, run cancellation, run expiry or UI completion. A run ending never implies a release, settlement or new dispatch. Reject mismatched owner/attempt/hold lookups before attaching evidence.
-5. Persist the candidate before invoking the future financial bridge. That bridge must resolve the pinned historical rate card, validate the original quote/hold again, recompute actual cost and existing `Math.round`/carry policy, and atomically commit the existing hold/ledger/charge transitions under their existing locks. It must enforce candidate/attempt/hold uniqueness and scoped provider-message replay protection, including the complete TTL counters and policy/rate identity in its settlement fingerprint.
-6. If settlement fails or its response is lost, reload the same saved candidate and retry/replay **accounting only**. An identical committed fingerprint returns the stored ledger receipt; a conflict fails. Retry a failed release from its saved release proposal similarly. Do not call `decide` again on a terminal proposal, invoke the provider again, top up an over-quote request, or run the legacy charge path in parallel. `LedgerSettledReceipt` is a distinct future-bridge type; this module has no receipt constructor and cannot assert settlement succeeded.
+5. Commit final evidence, the candidate and global provider-message attribution before invoking ledger capture. The bridge resolves the pinned rate card, validates the original quote/hold again, recomputes actual cost and existing `Math.round`/carry policy, and atomically commits hold/ledger/charge transitions under their existing locks. It enforces candidate/attempt/hold uniqueness and provider-message replay protection, including complete TTL counters and policy/rate identity in the settlement fingerprint.
+6. If capture fails or its response is lost, reload the saved candidate through `settleProviderAttempt` and retry/replay **accounting only**. An identical committed fingerprint returns the stored ledger receipt with zero new price/debit; a conflict fails. Do not invoke the provider again, top up an over-quote request or run the legacy charge path in parallel. `LedgerSettledReceipt` is a distinct bridge type; this pure module has no receipt constructor and cannot assert settlement succeeded.
 7. Persist/display settled totals once per attempt/hold and receipt. Authorize later paid steps and validated tool intents only through the separately reviewed engine/financial workflow; a candidate by itself grants neither.
 
 The pure API rejects repeat submission/finalization **on the supplied current state** and rejects a stale supplied revision. An old copied state or a fresh constructor with the same identifiers can still produce the same proposal. There is intentionally no process-global registry; this module cannot enforce cross-worker, cross-process or restart idempotency. Unique database constraints, authenticated lookups and the winning revision CAS are mandatory.
 
 Only the current foundation rate card is available here. A final report naming an unavailable card is retained. Revalidating a saved prepared record after its card or review disappears fails closed; preserve its existing hold and evidence for reconciliation. Do not reprice or reconstruct it under a new current card. An immutable historical rate/review registry and actual provider pricing attribution are separate prerequisites for production recovery.
 
-The core contract reducer/validators, selector guards, billing API, ledger, holds, rate card, migrations and readiness files are unchanged. The trusted adapter handoff below consumes separately strengthened disabled adapters. This module alone enables no provider and closes none of the separate durable execution or financial integration gates.
+The current candidate adds an explicit reviewed native-window quoting path, compatible selector pinning, durable attempt persistence and normalized settlement around this pure module. Wallet rates, markup, rounding, carry and released DeepSeek execution are preserved. This module alone enables no provider; release/activation checks remain separate.
 
 ## Trusted adapter handoff
 
