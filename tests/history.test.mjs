@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { migrateHistory } from "../src/lib/history/migrate.ts";
 import { collectHistory } from "../src/lib/history/collector.ts";
 import { createHistoryService } from "../src/lib/history/service.ts";
+import { grantCredits, reserveCredits } from "../src/lib/credits/ledger.ts";
 
 // Fixtures exist only in this isolated PostgreSQL test engine, never the local app database.
 async function database(t) {
@@ -21,7 +22,7 @@ const loaders = (extra = {}) => ({ getRobloxChart: async () => [game()], getGame
 test("migration is repeatable and a duplicate slot does not fetch or overwrite data", async (t) => {
   const db = await database(t);
   await migrateHistory(db);
-  assert.deepEqual((await db.query("SELECT version FROM romanum_migrations ORDER BY version")).rows.map((row) => row.version), Array.from({ length: 22 }, (_, i) => i + 1));
+  assert.deepEqual((await db.query("SELECT version FROM romanum_migrations ORDER BY version")).rows.map((row) => row.version), Array.from({ length: 23 }, (_, i) => i + 1));
   const first = await collectHistory(db, { loaders: loaders(), now: () => baseTime });
   assert.equal(first.observed, 1);
   const duplicate = await collectHistory(db, { loaders: new Proxy({}, { get() { assert.fail("duplicate slot fetched Roblox"); } }), now: () => baseTime + 1000 });
@@ -37,9 +38,35 @@ test("migration is repeatable and a duplicate slot does not fetch or overwrite d
 
 test("migration refuses a changed applied checksum before applying new SQL", async (t) => {
   const db = await database(t);
+  // Reconstruct the preceding schema only inside this disposable engine.
+  await db.exec("DROP TABLE provider_final_claims, provider_attempts; DELETE FROM romanum_migrations WHERE version=23");
   await db.query("UPDATE romanum_migrations SET checksum='changed' WHERE version=1");
   await assert.rejects(migrateHistory(db), /Applied migration has changed or is missing/);
   assert.equal((await db.query("SELECT count(*)::int AS count FROM romanum_migrations")).rows[0].count, 22);
+  assert.equal((await db.query("SELECT to_regclass('provider_attempts') AS attempts, to_regclass('provider_final_claims') AS claims")).rows[0].attempts, null);
+});
+
+test("migration 023 upgrades 022 repeatably without changing existing wallet balances, reservations, carry or receipts", async (t) => {
+  const db = await database(t);
+  await db.exec("DROP TABLE provider_final_claims, provider_attempts; DELETE FROM romanum_migrations WHERE version=23");
+  const ownerId = "migration-upgrade-fixture";
+  await grantCredits(db, { ownerId, amount: 71, operationId: "migration-upgrade-grant" });
+  await reserveCredits(db, { ownerId, amount: 9, operationId: "migration-upgrade-hold" });
+  await db.query("INSERT INTO usage_carry(owner_id,carry_nano_usd) VALUES ($1,1234567)", [ownerId]);
+  const snapshot = async () => ({
+    account: (await db.query("SELECT * FROM credits_accounts WHERE owner_id=$1", [ownerId])).rows,
+    operations: (await db.query("SELECT * FROM credits_operations WHERE owner_id=$1 ORDER BY operation_id", [ownerId])).rows,
+    ledger: (await db.query("SELECT * FROM credits_ledger WHERE owner_id=$1 ORDER BY id", [ownerId])).rows,
+    carry: (await db.query("SELECT * FROM usage_carry WHERE owner_id=$1", [ownerId])).rows,
+    history: (await db.query("SELECT * FROM romanum_migrations WHERE version<=22 ORDER BY version")).rows,
+  });
+  const before = await snapshot();
+  await migrateHistory(db);
+  await migrateHistory(db);
+  assert.deepEqual(await snapshot(), before);
+  assert.deepEqual((await db.query("SELECT version FROM romanum_migrations ORDER BY version")).rows.map(row => row.version), Array.from({ length: 23 }, (_, i) => i + 1));
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM provider_attempts")).rows[0].count, 0);
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM provider_final_claims")).rows[0].count, 0);
 });
 
 test("unavailable statistics and missing collection slots remain null between real observations", async (t) => {

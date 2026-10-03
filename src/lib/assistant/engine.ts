@@ -78,7 +78,7 @@ export async function runAssistant({
   beforeAttempt,
   modelRoute,
 }: {
-  client: OpenAI;
+  client?: OpenAI;
   conversation: ApiMessage[];
   send: (event: AssistantEvent) => void;
   signal: AbortSignal;
@@ -113,37 +113,55 @@ export async function runAssistant({
     for (let step = 0; step < maxSteps; step++) {
       await beforeProvider();
       const finalAnalysisStep = (!!analyticsTools || hasAds()) && (step === maxSteps - 1 || (analysisTimeBudgetMs !== undefined && Date.now() - began >= analysisTimeBudgetMs));
-      const params = assistantRequest([...modelHistory, ...turn], { systemPrompt, projectTools, analyticsTools, finalAnalysisStep, preparedHistory: true });
-      if (modelRoute) revalidateAssistantModel(modelRoute, params);
-      const completion = meteredStream(
-        client,
-        params,
-        billing,
-        signal,
-        async () => { await beforeProvider(); if (modelRoute) revalidateAssistantModel(modelRoute, params); },
-      );
+      const selectedModel = modelRoute?.modelDecision?.modelId ?? ASSISTANT_MODEL;
+      const native = selectedModel !== ASSISTANT_MODEL;
+      // Native continuation binds instructions and tool schemas throughout a turn.
+      const params = assistantRequest([...modelHistory, ...turn], { systemPrompt, projectTools, analyticsTools, finalAnalysisStep: !native && finalAnalysisStep, preparedHistory: true });
+      if (native && finalAnalysisStep) params.messages.push({ role: "user", content: "Finish the answer now using the evidence already retrieved. State any missing or unchecked areas. Additional tools will not be executed this turn." });
+      params.model = selectedModel;
+      if (modelRoute && !native) revalidateAssistantModel(modelRoute, params);
 
       let content = "";
       let reasoning = "";
+      let truncated = false;
       const calls: { id: string; name: string; arguments: string }[] = [];
+      if (native) {
+        if (!billing.provider || !modelRoute) throw new Error("Native provider execution is unavailable.");
+        const result = await billing.provider.complete(modelRoute, params, { step, signal, beforeSend: beforeProvider });
+        if (!modelReported) { modelReported = true; send({ type: "model", modelId: selectedModel }); }
+        content = result.content;
+        truncated = result.truncated;
+        if (content) send({ type: "text", delta: content });
+        if (!result.terminal && !finalAnalysisStep) calls.push(...result.calls);
+        if (finalAnalysisStep && result.calls.length) truncated = true;
+      } else {
+        if (!client) throw new Error("DeepSeek client is unavailable.");
+        const completion = meteredStream(
+          client,
+          params,
+          billing,
+          signal,
+          async () => { await beforeProvider(); if (modelRoute) revalidateAssistantModel(modelRoute, params); },
+        );
 
-      for await (const chunk of completion) {
-        if (modelRoute && !modelReported) { modelReported = true; send({ type: "model", modelId: ASSISTANT_MODEL }); }
-        const delta = chunk.choices[0]?.delta as DeepSeekDelta | undefined;
-        if (!delta) continue;
-        if (delta.reasoning_content) {
-          reasoning += delta.reasoning_content;
-          send({ type: "thinking", delta: delta.reasoning_content });
-        }
-        if (delta.content) {
-          content += delta.content;
-          send({ type: "text", delta: delta.content });
-        }
-        for (const part of delta.tool_calls ?? []) {
-          const call = (calls[part.index] ??= { id: "", name: "", arguments: "" });
-          if (part.id) call.id = part.id;
-          if (part.function?.name) call.name += part.function.name;
-          if (part.function?.arguments) call.arguments += part.function.arguments;
+        for await (const chunk of completion) {
+          if (modelRoute && !modelReported) { modelReported = true; send({ type: "model", modelId: ASSISTANT_MODEL }); }
+          const delta = chunk.choices[0]?.delta as DeepSeekDelta | undefined;
+          if (!delta) continue;
+          if (delta.reasoning_content) {
+            reasoning += delta.reasoning_content;
+            send({ type: "thinking", delta: delta.reasoning_content });
+          }
+          if (delta.content) {
+            content += delta.content;
+            send({ type: "text", delta: delta.content });
+          }
+          for (const part of delta.tool_calls ?? []) {
+            const call = (calls[part.index] ??= { id: "", name: "", arguments: "" });
+            if (part.id) call.id = part.id;
+            if (part.function?.name) call.name += part.function.name;
+            if (part.function?.arguments) call.arguments += part.function.arguments;
+          }
         }
       }
 
@@ -152,7 +170,7 @@ export async function runAssistant({
       turn.push({
         role: "assistant",
         content,
-        reasoning_content: reasoning,
+        ...(!native ? { reasoning_content: reasoning } : {}),
         ...(toolCalls.length
           ? {
               tool_calls: toolCalls.map((call) => ({
@@ -165,6 +183,7 @@ export async function runAssistant({
       });
 
       if (!toolCalls.length) {
+        if (truncated) send({ type: "error", message: "The answer is incomplete because this turn reached its limit." });
         send({ type: "done", messages: turn });
         return;
       }

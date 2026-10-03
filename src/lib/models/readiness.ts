@@ -6,9 +6,16 @@ import type { ExecutionReviews, ModelReadiness, ModelsResponse, ProviderId } fro
 const keyNames: Record<ProviderId, string> = {
   deepseek: "DEEPSEEK_API_KEY", openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY",
 };
-/** Only the released DeepSeek assistant is reviewed. No env flag can enable new execution here. */
+/** Implemented adapters remain disabled until a server-side execution review. No env flag enables them. */
 export const RELEASED_EXECUTION_REVIEWS: Readonly<ExecutionReviews> = Object.freeze({
   "deepseek-flash": Object.freeze({ adapterSupported: true, executionEnabled: true }),
+  "gpt-6-luna": Object.freeze({ adapterSupported: true, executionEnabled: false }),
+  "gpt-6.1-sol": Object.freeze({ adapterSupported: true, executionEnabled: false }),
+  "gpt-6-astra": Object.freeze({ adapterSupported: true, executionEnabled: false }),
+  "claude-haiku-4-5-20251001": Object.freeze({ adapterSupported: true, executionEnabled: false }),
+  "claude-sonnet-5-5": Object.freeze({ adapterSupported: true, executionEnabled: false }),
+  "claude-opus-5-5": Object.freeze({ adapterSupported: true, executionEnabled: false }),
+  "claude-fable-5-1": Object.freeze({ adapterSupported: true, executionEnabled: false }),
 });
 type ServerEnvironment = Readonly<Record<string, string | undefined>>;
 function serverOnly() {

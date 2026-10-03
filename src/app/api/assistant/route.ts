@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     if (error instanceof ModelSelectionError) return Response.json({ error: error.message, decision: error.decision }, { status: error.status, headers: { "cache-control": "no-store" } });
     return Response.json({ error: "The model selection could not be validated." }, { status: 503 });
   }
-  const client = assistantClient(process.env.DEEPSEEK_API_KEY ?? "");
+  const client = modelRoute.modelDecision?.modelId === "deepseek-flash" ? assistantClient(process.env.DEEPSEEK_API_KEY ?? "") : undefined;
   request.signal.addEventListener("abort", () => abort.abort());
   const encoder = new TextEncoder();
   let closed = false;

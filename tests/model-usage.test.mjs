@@ -62,3 +62,15 @@ test("OpenAI long-context pricing applies to the full read/write/miss/output req
   const threshold = normalizeUsage("gpt-6-luna", { input_tokens: 272000, output_tokens: 100 }, { at });
   assert.equal(costUsage(threshold), 27250000);
 });
+
+test("thinking and reasoning details are validated subsets; unsupported actual pricing cannot become a guessed cost", () => {
+  const raw = { input_tokens: 1, output_tokens: 10, output_tokens_details: { thinking_tokens: 7 } };
+  assert.equal(normalizeUsage("claude-opus-5-5", raw, { at }).outputTokens, 10);
+  for (const counter of [-1, 11, 0.5, "7"]) {
+    assert.throws(() => normalizeUsage("claude-opus-5-5", { ...raw, output_tokens_details: { thinking_tokens: counter } }, { at }));
+  }
+  for (const extra of [{ speed: "fast" }, { inference_geo: "us" }, { service_tier: "priority" },
+    { server_tool_use: { web_search_requests: 1 } }, { server_tool_use: { code_execution_requests: 1 } }]) {
+    assert.throws(() => normalizeUsage("claude-opus-5-5", { ...raw, ...extra }, { at }));
+  }
+});
