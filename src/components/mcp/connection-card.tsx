@@ -2,30 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Check, Copy } from "lucide-react";
+import { mcpConnection } from "@/lib/mcp/connection";
 
-const MCP_PATH = "/mcp";
 const RESET_MS = 1600;
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg/70";
 
-// The origin comes from the browser instead of a configured domain, so the field always shows
-// the host the user actually opened (localhost included). Nothing is known while rendering on
-// the server, so the URL stays empty until hydration.
+// Browser origin preserves local development ports; hosted aliases share the
+// documented canonical endpoint. Server rendering already shows that public URL.
 const subscribe = () => () => {};
 const readOrigin = () => window.location.origin;
 const readServerOrigin = () => "";
 
-function isLocal(origin: string) {
-  try {
-    const { hostname } = new URL(origin);
-    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
-  } catch {
-    return false;
-  }
-}
-
 export function ConnectionCard() {
   const origin = useSyncExternalStore(subscribe, readOrigin, readServerOrigin);
-  const url = origin ? `${origin}${MCP_PATH}` : "";
+  const { url, local } = mcpConnection(origin);
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState("");
   const field = useRef<HTMLInputElement>(null);
@@ -62,7 +52,7 @@ export function ConnectionCard() {
         <label htmlFor="mcp-url" className="text-sm font-medium text-fg">
           Connection URL
         </label>
-        {isLocal(origin) && <span className="text-xs text-fg-subtle">Local connection</span>}
+        {local && <span className="text-xs text-fg-subtle">Local connection</span>}
       </div>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
