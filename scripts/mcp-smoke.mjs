@@ -15,11 +15,11 @@ try {
   const { tools } = await client.listTools();
   assert.equal(tools.length, 10);
   const { resources } = await client.listResources();
-  assert.equal(resources.length, 8);
+  assert.equal(resources.length, 9);
   await client.readResource({ uri: "romanum://skills/romanum-game-design" });
   await call("get_metric_definitions");
   await call("load_skill", { skill: "romanum-genre-analysis" });
-  for (const id of ["romanum-game-teardown", "romanum-game-economy"]) {
+  for (const id of ["romanum-game-teardown", "romanum-game-economy", "romanum-3d-workflow"]) {
     const guide = await call("load_skill", { skill: id });
     assert.equal(guide.id, id);
     assert.ok(guide.instructions.length > 500);

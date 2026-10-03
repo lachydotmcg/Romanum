@@ -61,11 +61,14 @@ for (const mode of ["legacy", { pin: "2026-07-28" }]) {
     assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
     assert.ok(result.structuredContent.source.startsWith("https://"));
     const { resources } = await client.listResources();
-    assert.equal(resources.length, 8);
+    assert.equal(resources.length, 9);
+    assert.ok(resources.some(resource => resource.uri === "romanum://skills/romanum-3d-workflow"));
     const metrics = await client.readResource({ uri: "romanum://metrics" });
     assert.equal(JSON.parse(metrics.contents[0].text).metrics.playing.unit, "players");
     const skill = await client.readResource({ uri: "romanum://skills/romanum-game-design" });
     assert.match(skill.contents[0].text, /name: romanum-game-design/);
+    const modelGuide = await client.readResource({ uri: "romanum://skills/romanum-3d-workflow" });
+    assert.match(modelGuide.contents[0].text, /name: romanum-3d-workflow/);
     const guide = await client.callTool({ name: "load_skill", arguments: { skill: "romanum-game-design" } });
     assert.ok(guide.structuredContent.instructions.length > 100);
     const invalid = await client.callTool({ name: "get_game_stats", arguments: { universeIds: [-1] } });
