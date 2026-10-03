@@ -33,15 +33,15 @@ export function EstimatedModelDiamond({ profile }: { profile: ModelProfile }) {
 }
 
 export function EstimatedProfileSources({ profile }: { profile: ModelProfile }) {
-  if (!profile.evidence) return <p>Benchmark version unmatched to this model alias.</p>;
+  if (!profile.evidence) return <p>Source version unmatched to this model alias.</p>;
   const { intelligence, coding } = profile.evidence;
   return <div className="space-y-1 break-words">
     <p>Five bands within seven matched models.</p>
-    <p><a href={ARENA_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Arena text preferences</a>: {intelligence.model_name}, {intelligence.leaderboard_publish_date}.</p>
-    <p>Coding uses Arena web-development preferences: {coding.model_name}, {coding.leaderboard_publish_date}.</p>
+    <p><a href={ARENA_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Arena text preferences</a> (human preference proxy): {intelligence.model_name}, {intelligence.leaderboard_publish_date}.</p>
+    <p>Coding: Arena web-development preference proxy, {coding.model_name}, {coding.leaderboard_publish_date}.</p>
     <p><a href={profile.speedSource} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Speed: provider positioning</a>, estimated tier.</p>
-    <p>Value: average quality band per provider dollar for 10k uncached input + 2k output tokens{profile.referenceCostUsd !== undefined ? ` ($${profile.referenceCostUsd.toFixed(3)})` : ""}, on a log scale.</p>
-    <p>Published test settings; Romanum uses OpenAI medium and Claude model-default effort.</p>
+    <p>Value: estimated quality/cost, using average quality band per provider dollar for 10k uncached input + 2k output tokens, on a log scale.</p>
+    <p>Published settings differ from Romanum: OpenAI medium; Claude model-default effort.</p>
     <p>Arena · <a href={ARENA_LICENSE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">CC BY 4.0</a> · adapted into coarse bands.</p>
   </div>;
 }

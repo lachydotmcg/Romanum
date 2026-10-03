@@ -1,6 +1,8 @@
 // node:process keeps this implementation on the server; the client imports types.ts only.
 import { env } from "node:process";
 import { MODEL_CATALOG, RATE_CARD_VERSION } from "./catalog.ts";
+import { NANO_USD_PER_CREDIT } from "../credits/pricing.ts";
+import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, markedUpPrice, tokenCost } from "../credits/pricing-policy.ts";
 import type { ExecutionReviews, ModelReadiness, ModelsResponse, ProviderId } from "./types.ts";
 
 const keyNames: Record<ProviderId, string> = {
@@ -45,5 +47,12 @@ export function readModelReadiness(
 export function publicModels(environment: ServerEnvironment = env): ModelsResponse {
   serverOnly();
   const readiness = readModelReadiness(environment);
-  return { rateCardVersion: RATE_CARD_VERSION, models: MODEL_CATALOG.map((model, i) => ({ ...model, ...readiness[i] })) };
+  return { rateCardVersion: RATE_CARD_VERSION, models: MODEL_CATALOG.map((model, i) => ({
+    ...model, ...readiness[i],
+    creditRateCards: ([CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY] as const).map(pricingPolicyVersion => {
+      const credits = (rate: number) => markedUpPrice(tokenCost([{ tokens: 1_000_000, rate }]), pricingPolicyVersion) / NANO_USD_PER_CREDIT;
+      return { rateCardVersion: model.rateCardVersion, pricingPolicyVersion, unit: "credits_per_million_tokens" as const,
+        rates: { input: credits(model.rates.input), output: credits(model.rates.output), cacheRead: credits(model.rates.cacheRead) } };
+    }),
+  })) };
 }

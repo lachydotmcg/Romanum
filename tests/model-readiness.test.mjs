@@ -71,3 +71,13 @@ test("readiness refuses a browser environment instead of inspecting credentials 
   try { assert.throws(() => publicModels(environment()), /server-only/); }
   finally { delete globalThis.window; }
 });
+test("public credit rates use customer markup and the unchanged credit unit while provider rates stay USD", () => {
+  const response=publicModels(environment());
+  for(const [id,expected] of [["gpt-6-luna",{input:25,output:125,cacheRead:2.5}],["gpt-6.1-sol",{input:500,output:2500,cacheRead:25}],["gpt-6-astra",{input:2500,output:12500,cacheRead:250}]]) {
+    const model=response.models.find(row=>row.id===id),current=model.creditRateCards.find(card=>card.pricingPolicyVersion==="credit-policy-2p5-v2");
+    assert.equal(current.unit,"credits_per_million_tokens");assert.equal(current.rateCardVersion,response.rateCardVersion);assert.deepEqual(current.rates,expected);
+  }
+  const luna=response.models.find(row=>row.id==="gpt-6-luna");
+  assert.deepEqual(luna.rates,MODEL_CATALOG.find(row=>row.id===luna.id).rates);
+  assert.deepEqual(luna.creditRateCards.find(card=>card.pricingPolicyVersion==="legacy-credit-policy-v1").rates,{input:16.5,output:82.5,cacheRead:1.65});
+});

@@ -35,7 +35,14 @@ export type ModelReadiness = {
 };
 export type ExecutionReview = { adapterSupported: boolean; executionEnabled: boolean };
 export type ExecutionReviews = Partial<Record<ModelId, ExecutionReview>>;
-export type PublicModel = ModelDefinition & ModelReadiness;
+/** Server-priced display metadata; standard customer credits per million tokens, not a call quote. */
+export type CreditRateCard = {
+  rateCardVersion: string;
+  pricingPolicyVersion: import("../credits/pricing-policy.ts").PricingPolicyVersion;
+  unit: "credits_per_million_tokens";
+  rates: { input: number; output: number; cacheRead: number };
+};
+export type PublicModel = ModelDefinition & ModelReadiness & { creditRateCards?: readonly CreditRateCard[] };
 export type ModelsResponse = { rateCardVersion: string; models: PublicModel[] };
 
 /** Compatibility metadata only; never raw prompts, private tool data, or cached answers. */

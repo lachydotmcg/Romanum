@@ -1,5 +1,7 @@
 import type { ModelQuote, PublicModel } from "../../lib/models/types.ts";
 import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, PRICING_POLICIES } from "../../lib/credits/pricing-policy.ts";
+import { estimatedModelProfile } from "./model-ratings.ts";
+import { EstimatedModelDiamond, EstimatedProfileSources } from "./estimated-model-card.tsx";
 
 export type ModelEvaluation = {
   modelId: string;
@@ -39,7 +41,7 @@ export function ModelStatDiamond({ evaluation, allowFixture = false }: { evaluat
   </svg>;
 }
 
-const dollars = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(value);
+const tokenCredits = (value: number) => new Intl.NumberFormat("en-GB", { maximumFractionDigits: 7 }).format(value);
 const creditAmount = (value: number) => new Intl.NumberFormat("en-GB", { maximumSignificantDigits: 4 }).format(value);
 // Qualitative task descriptions checked against the linked official model guides on 2026-10-03.
 // They are not benchmark scores or a comparison scale across providers.
@@ -55,29 +57,34 @@ const USE_CASES: Record<string, string> = {
   "claude-fable-5-1": "Demanding reasoning and long workflows.",
 };
 
-/** No price conversion or quality ranking is inferred in the browser. */
+/** Billing estimates come from server quotes; source-backed profile estimates are separate. */
 export function ModelPreview({ model, quote, evaluation }: { model: PublicModel; quote?: ModelQuote; evaluation?: ModelEvaluation }) {
   const ratings = evaluation?.modelId === model.id && validEvaluation(evaluation, false) ? evaluation : undefined;
+  const profile = !ratings ? estimatedModelProfile(model) : undefined;
+  const hasProfile = profile && Object.values(profile.scores).some(value => value !== null);
   const prices = [model.rates.input, model.rates.output, model.rates.cacheRead];
   const validPrices = prices.every(value => Number.isFinite(value) && value >= 0);
   const validQuote = quote?.modelId === model.id && quote.rateCardVersion === model.rateCardVersion && Number.isFinite(quote.estimatedCredits) && quote.estimatedCredits >= 0 &&
     (quote.pricingPolicyVersion === undefined || quote.pricingPolicyVersion === LEGACY_PRICING_POLICY || quote.pricingPolicyVersion === CURRENT_PRICING_POLICY);
   const policy = validQuote ? quote!.pricingPolicyVersion ?? LEGACY_PRICING_POLICY : CURRENT_PRICING_POLICY;
+  const cards = model.creditRateCards?.filter(card => card.rateCardVersion === model.rateCardVersion && card.pricingPolicyVersion === policy && card.unit === "credits_per_million_tokens") ?? [];
+  const creditRates = cards.length === 1 && [cards[0].rates?.input, cards[0].rates?.output, cards[0].rates?.cacheRead].every(value => Number.isFinite(value) && value >= 0) ? cards[0].rates : undefined;
   const strengths = [model.capabilities.text && "Text", model.capabilities.tools && "Tools", model.capabilities.images && "Images"].filter(Boolean);
   return <div className="space-y-3">
     {USE_CASES[model.id] && <p className="text-xs leading-5 text-fg-muted">{USE_CASES[model.id]}</p>}
-    {ratings ? <ModelStatDiamond evaluation={ratings} /> : <div className="flex flex-wrap gap-1.5">
+    {ratings ? <ModelStatDiamond evaluation={ratings} /> : hasProfile ? <EstimatedModelDiamond profile={profile} /> : <div className="flex flex-wrap gap-1.5">
       {strengths.map(label => <span key={String(label)} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-fg-muted">{label}</span>)}
     </div>}
     {validQuote && <p className="text-xs text-fg">This call <span className="float-right">~{creditAmount(quote.estimatedCredits)} credits</span></p>}
-    {validPrices && <div>
-      <p className="mb-1.5 text-[10px] text-fg-muted">Provider USD / 1M tokens</p>
+    {validPrices && creditRates && <div>
+      <p className="mb-1.5 text-[10px] text-fg-muted">Estimated credits / 1M tokens</p>
       <dl className="grid grid-cols-3 gap-2 text-[11px]">
-        <div><dt className="text-fg-muted">Input</dt><dd className="mt-0.5 text-fg">{dollars(model.rates.input)}</dd></div>
-        <div><dt className="text-fg-muted">Output</dt><dd className="mt-0.5 text-fg">{dollars(model.rates.output)}</dd></div>
-        <div><dt className="text-fg-muted">Cache read</dt><dd className="mt-0.5 text-fg">{dollars(model.rates.cacheRead)}</dd></div>
+        <div><dt className="text-fg-muted">Input</dt><dd className="mt-0.5 text-fg">{tokenCredits(creditRates.input)}</dd></div>
+        <div><dt className="text-fg-muted">Output</dt><dd className="mt-0.5 text-fg">{tokenCredits(creditRates.output)}</dd></div>
+        <div><dt className="text-fg-muted">Cache read</dt><dd className="mt-0.5 text-fg">{tokenCredits(creditRates.cacheRead)}</dd></div>
       </dl>
       <p className="mt-2 text-[10px] text-fg-muted">Romanum AI: provider cost × {PRICING_POLICIES[policy].markup}.</p>
+      <p className="text-[10px] text-fg-muted">Usage and rounding apply.</p>
     </div>}
     <details className="text-[11px] text-fg-muted">
       <summary className="w-fit cursor-pointer rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">Sources</summary>
@@ -85,6 +92,7 @@ export function ModelPreview({ model, quote, evaluation }: { model: PublicModel;
         <p><a href={model.sources.model} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Model guide</a> · <a href={model.sources.pricing} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Pricing</a></p>
         {Number.isFinite(Date.parse(model.checkedAt)) && <p>Rates: {new Date(model.checkedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })} · standard</p>}
         <p>Profile: 3 Oct 2026</p>
+        {profile && <EstimatedProfileSources profile={profile} />}
         {ratings && <><a href={ratings.source.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{ratings.source.title}</a><p>{ratings.source.methodology}</p><p>{ratings.source.measuredAt.slice(0, 10)}</p></>}
       </div>
     </details>
