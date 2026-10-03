@@ -2,8 +2,9 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import type { ModelQuote, ModelsResponse, ModelSelection, PublicModel, RouteDecision, RouteReason } from "@/lib/models/types";
+import { claimAutoRecommendation, parseAutoRecommendationContext, UNKNOWN_RECOMMENDATION_CONTEXT } from "../../lib/models/auto-recommendation.ts";
 
 const REASONS = {
   explicit_selection: "Your selected model is retained.",
@@ -42,6 +43,13 @@ function usableQuote(quote: ModelQuote | undefined, modelId: string | undefined,
     (quote.estimateBasis === "uncached" || quote.estimateBasis === "compatible_cache_scenario");
 }
 
+async function readRecommendationContext(signal: AbortSignal) {
+  try {
+    const response = await fetch("/api/models/preferences", { cache: "no-store", signal });
+    return parseAutoRecommendationContext(response.ok ? await response.json() : null);
+  } catch { return UNKNOWN_RECOMMENDATION_CONTEXT; }
+}
+
 /** Controlled presentation only: metadata and quotes come from trusted integration, never browser estimates.
  * Catalog refreshes retain explicit selections. Changing a choice does not execute or reserve anything.
  * Callers clear decision when the prompt, token budget or capability requirements change.
@@ -63,9 +71,13 @@ export function ModelSelector({
 }) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
-  const helpId = `${selectId}-help`, statusId = `${selectId}-status`, listId = `${selectId}-options`;
+  const helpId = `${selectId}-help`, statusId = `${selectId}-status`, listId = `${selectId}-options`, recommendationId = `${selectId}-recommendation`;
   const trigger = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false), [active, setActive] = useState(0);
+  const [recommendationContext, setRecommendationContext] = useState(UNKNOWN_RECOMMENDATION_CONTEXT);
+  const [recommendationShown, setRecommendationShown] = useState(false);
+  const switchedAway = useRef(false);
+  const preferenceRequest = useRef<AbortController | null>(null);
   const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; height: number }>({ top: 0, left: 8, width: 255, height: 320 });
   const models = catalog ? [...new Map(catalog.models.map((model) => [model.id, model])).values()] : [];
   const hasEnabled = models.some((model) => enabled(model, catalog));
@@ -80,6 +92,24 @@ export function ModelSelector({
   ];
   const selectedIndex = options.findIndex((option) => option.value === value);
   const enabledIndices = options.flatMap((option, index) => option.disabled ? [] : [index]);
+  useEffect(() => {
+    const controller = new AbortController();
+    preferenceRequest.current = controller;
+    void readRecommendationContext(controller.signal).then(value => { if (!controller.signal.aborted) setRecommendationContext(value); });
+    return () => preferenceRequest.current?.abort();
+  }, []);
+  function dismissRecommendation() { setRecommendationShown(false); trigger.current?.focus(); }
+  function changeSelection(next: ModelSelection) {
+    // Apply the deliberate choice immediately. Advice never blocks or substitutes it.
+    onChange(next);
+    if (next.mode === "auto") setRecommendationShown(false);
+    else if (selection.mode === "auto" && !switchedAway.current) {
+      switchedAway.current = true;
+      // Unknown state on this first switch is skipped, never deferred to a later click.
+      try { if (claimAutoRecommendation(recommendationContext, window.localStorage)) setRecommendationShown(true); }
+      catch { /* A browser may deny access to localStorage itself. */ }
+    }
+  }
   function locate() {
     const rect = trigger.current?.getBoundingClientRect();
     if (!rect) return;
@@ -94,16 +124,24 @@ export function ModelSelector({
   }
   function show(index = selectedIndex >= 0 && !options[selectedIndex].disabled ? selectedIndex : enabledIndices[0] ?? 0) {
     if (locked) return;
+    setRecommendationShown(false);
+    // The sidebar may have established the guest after this composer's first read.
+    // Opening the picker can refresh unknown identity without blocking model choices.
+    if (recommendationContext.subscription === "unknown" && !switchedAway.current) {
+      preferenceRequest.current?.abort();
+      const controller = new AbortController(); preferenceRequest.current = controller;
+      void readRecommendationContext(controller.signal).then(value => { if (!controller.signal.aborted) setRecommendationContext(value); });
+    }
     locate(); setActive(index); setOpen(true);
   }
   function choose(index: number) {
     if (locked || !options[index] || options[index].disabled) return;
     const next = options[index].value;
-    if (next === "auto") onChange({ mode: "auto" });
+    if (next === "auto") changeSelection({ mode: "auto" });
     else {
       const model = models.find((entry) => entry.id === next);
       if (!model || !enabled(model, catalog)) return;
-      onChange({ mode: "explicit", modelId: model.id });
+      changeSelection({ mode: "explicit", modelId: model.id });
     }
     setOpen(false); trigger.current?.focus();
   }
@@ -111,6 +149,7 @@ export function ModelSelector({
     if (locked) return;
     if (event.key === "Escape") {
       if (visible) { event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus(); }
+      else if (recommendationShown) { event.preventDefault(); event.stopPropagation(); dismissRecommendation(); }
       return;
     }
     if (event.key === "Tab") { setOpen(false); return; }
@@ -135,6 +174,12 @@ export function ModelSelector({
     return () => { document.removeEventListener("pointerdown", outside); window.removeEventListener("resize", locate); window.removeEventListener("scroll", locate, true); };
   }, [visible]);
   useEffect(() => { if (visible) popup.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [visible, active]);
+  useEffect(() => {
+    if (!recommendationShown) return;
+    window.addEventListener("resize", locate);
+    window.addEventListener("scroll", locate, true);
+    return () => { window.removeEventListener("resize", locate); window.removeEventListener("scroll", locate, true); };
+  }, [recommendationShown]);
   const autoDecision = decision?.reason === "auto_affordable" || decision?.reason === "auto_cache_scenario";
   const relevant = !!decision && !locked && (selection.mode === "auto"
     ? decision.status === "selected" ? autoDecision : decision.modelId === undefined
@@ -151,7 +196,7 @@ export function ModelSelector({
       <label htmlFor={selectId} className="sr-only">Select model</label>
       <button ref={trigger} id={selectId} value={value} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={visible}
         aria-controls={visible ? listId : undefined} aria-activedescendant={visible && options[active] ? `${listId}-${active}` : undefined}
-        disabled={locked} aria-describedby={`${helpId} ${statusId}`} aria-busy={loading || undefined} onKeyDown={keyDown} onClick={() => visible ? setOpen(false) : show()}
+        disabled={locked} aria-describedby={`${helpId} ${statusId}${recommendationShown ? ` ${recommendationId}` : ""}`} aria-busy={loading || undefined} onKeyDown={keyDown} onClick={() => visible ? setOpen(false) : show()}
         className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-line bg-surface px-3 text-[13px] text-fg outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
         <span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
       </button>
@@ -168,6 +213,33 @@ export function ModelSelector({
           </div>)}
         </div>
       </div>, document.body)}
+      {recommendationShown && selection.mode === "explicit" && recommendationContext.subscription === "none" &&
+        createPortal(<div role="group" aria-label="Auto recommendation"
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width, maxHeight: position.height }}
+          className="fixed z-[100] overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-lg" onKeyDown={event => {
+          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissRecommendation(); }
+        }}>
+          <div className="flex items-start gap-2">
+            <p id={recommendationId} role="status" aria-live="polite" className="flex-1 text-xs leading-5 text-fg-muted">
+              Auto balances model capability with price and your credit budget. You can keep your choice or return to Auto anytime.
+            </p>
+            <button type="button" aria-label="Dismiss Auto recommendation" onClick={dismissRecommendation}
+              className="-mr-2 -mt-2 inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-fg-muted hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <button type="button" onClick={dismissRecommendation}
+              className="min-h-11 cursor-pointer rounded-lg px-2 text-xs text-fg hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
+              Continue with {selected?.label ?? selection.modelId}
+            </button>
+            <button type="button" disabled={locked || !hasEnabled} onClick={() => {
+              if (!locked && hasEnabled) { changeSelection({ mode: "auto" }); trigger.current?.focus(); }
+            }} className="min-h-11 cursor-pointer rounded-lg px-2 text-xs text-fg-muted hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
+              Use Auto
+            </button>
+          </div>
+        </div>, document.body)}
       <p id={helpId} className={compact ? "sr-only" : "mt-1.5 text-xs leading-5 text-fg-subtle"}>
         {selection.mode === "auto" ? "Auto considers enabled models, your request budget and compatible cache scenarios. Cache savings are not guaranteed."
           : "Your choice is retained. Unavailable models are not replaced automatically."}
@@ -189,7 +261,7 @@ export function ModelSelector({
             </> : <p>Request estimate not available.</p>}
           </> : <p>Request estimate not available.</p>}
         {alternative && alternativeQuote && <button type="button" disabled={locked} onClick={() => {
-          if (!locked && enabled(alternative, catalog)) onChange({ mode: "explicit", modelId: alternative.id });
+          if (!locked && enabled(alternative, catalog)) changeSelection({ mode: "explicit", modelId: alternative.id });
         }} className="mt-2 min-h-10 rounded-lg border border-line px-3 text-left text-xs text-fg hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
           Choose {alternative.label} instead — estimated {credits(alternativeQuote.estimatedCredits)} credits per model call; reservation ceiling {credits(alternativeQuote.reservationCredits)} credits
         </button>}

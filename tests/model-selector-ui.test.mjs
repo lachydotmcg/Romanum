@@ -19,7 +19,7 @@ const hooks = registerHooks({
       if (specifier === "react-dom") return virtual(`import {createPortal as real} from ${JSON.stringify(import.meta.resolve("react-dom"))}; export function createPortal(children,container){return globalThis.__selectorHarness ? children : real(children,container);}`);
       if (specifier === "react/jsx-runtime") return virtual(`import * as runtime from ${JSON.stringify(import.meta.resolve("react/jsx-runtime"))};
         export const Fragment=runtime.Fragment;
-        function capture(type,props,key){if(globalThis.__selectorControls && (type==='button'||props.role==='option'||props.role==='listbox'))globalThis.__selectorControls.push({type,props,key});}
+        function capture(type,props,key){if(globalThis.__selectorControls && (type==='button'||props.role==='option'||props.role==='listbox'||props.role==='group'))globalThis.__selectorControls.push({type,props,key});}
         export function jsx(type,props,key){capture(type,props,key);return runtime.jsx(type,props,key);}
         export function jsxs(type,props,key){capture(type,props,key);return runtime.jsxs(type,props,key);}`);
     }
@@ -45,14 +45,17 @@ const creditText = value => new Intl.NumberFormat("en-GB", { maximumSignificantD
 // Actual handlers with deterministic hook state and narrow layout/event seams. Closed SSR
 // uses real React hooks separately; JSX, icons and HTML rendering always use real React.
 function render(extra = {}) {
+  const { preferences = { subscription: "unknown", scope: null }, storage = new Map(), storageDenied = false, ...componentProps } = extra;
   const state = [], effects = [], changes = [], scrolled = [], listeners = new Map();
   let cursor = 0, markup = "", controls = [], focusCount = 0;
   const browser = { innerWidth: 640, innerHeight: 600, rect: { top: 500, bottom: 544, left: 40 },
+    localStorage: { getItem: key => { if (storageDenied) throw new Error("Storage unavailable"); return storage.get(key) ?? null; },
+      setItem: (key, value) => { if (storageDenied) throw new Error("Storage unavailable"); storage.set(key, value); } },
     addEventListener: (name, fn) => listeners.set(`window:${name}`, fn), removeEventListener: name => listeners.delete(`window:${name}`) };
   const triggerNode = { getBoundingClientRect: () => browser.rect, focus: () => focusCount++, contains: target => target === triggerNode };
   const popupNode = { contains: target => target === popupNode, querySelector: selector => ({ scrollIntoView: value => scrolled.push({ selector, value }) }) };
   const doc = { body: {}, addEventListener: (name, fn) => listeners.set(`document:${name}`, fn), removeEventListener: name => listeners.delete(`document:${name}`) };
-  const props = { catalog, selection: { mode: "auto" }, onChange: selection => { changes.push(selection); props.selection = selection; }, ...extra };
+  const props = { catalog, selection: { mode: "auto" }, onChange: selection => { changes.push(selection); props.selection = selection; }, ...componentProps };
   function slot(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return index; }
   const harness = {
     useId() { return state[slot("fixture-model")]; },
@@ -64,10 +67,11 @@ function render(extra = {}) {
     },
   };
   function scope(operation) {
-    const before = { window: globalThis.window, document: globalThis.document, harness: globalThis.__selectorHarness, controls: globalThis.__selectorControls };
+    const before = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, harness: globalThis.__selectorHarness, controls: globalThis.__selectorControls };
     globalThis.window = browser; globalThis.document = doc; globalThis.__selectorHarness = harness;
+    globalThis.fetch = async () => ({ ok: true, json: async () => preferences });
     try { operation(); } finally {
-      for (const [key, value] of [["window", before.window], ["document", before.document], ["__selectorHarness", before.harness], ["__selectorControls", before.controls]]) {
+      for (const [key, value] of [["window", before.window], ["document", before.document], ["fetch", before.fetch], ["__selectorHarness", before.harness], ["__selectorControls", before.controls]]) {
         if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
       }
     }
@@ -85,7 +89,7 @@ function render(extra = {}) {
   function act(operation) { scope(() => { operation(); redraw(); }); }
   scope(redraw);
   const result = {
-    changes, browser, scrolled,
+    changes, browser, scrolled, storage,
     get markup() { return markup; },
     get trigger() { return controls.find(control => control.props.role === "combobox").props; },
     get list() { return controls.find(control => control.props.role === "listbox")?.props; },
@@ -96,6 +100,9 @@ function render(extra = {}) {
     choose(value) { if (!result.list) result.clickTrigger(); act(() => result.option(value)?.onClick()); },
     key(key) { const event = { key, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }; act(() => result.trigger.onKeyDown(event)); return event; },
     alternative() { act(() => result.buttons[0]?.onClick()); },
+    button(label) { act(() => result.buttons.find(button => button["aria-label"] === label || React.Children.toArray(button.children).join("") === label)?.onClick()); },
+    escapeRecommendation() { act(() => controls.find(control => control.props.role === "group" && control.props["aria-label"] === "Auto recommendation")?.props.onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} })); },
+    async ready() { await new Promise(resolve => setImmediate(resolve)); scope(redraw); },
     outside(target = {}) { act(() => listeners.get("document:pointerdown")?.({ target })); },
     inside() { result.outside(popupNode); },
     resize(values) { Object.assign(browser, values); act(() => listeners.get("window:resize")?.()); },
@@ -125,6 +132,110 @@ test("row choices emit typed explicit or Auto selections and reject disabled or 
   result.choose("deepseek-flash"); result.choose("auto");
   for (const value of ["gpt-6.1-sol", "claude-opus-5-5", "unknown", ""]) result.choose(value);
   assert.deepEqual(result.changes, [{ mode: "explicit", modelId: "deepseek-flash" }, { mode: "auto" }]); result.dispose();
+});
+
+const preferenceScope = "a".repeat(64);
+const freePreferences = { subscription: "none", scope: preferenceScope };
+
+test("verified non-subscriber gets one optional recommendation without delaying their deliberate choice", async () => {
+  const result = render({ preferences: freePreferences });
+  await result.ready();
+  assert.doesNotMatch(result.markup, /Auto balances model capability/);
+  result.choose("deepseek-flash");
+  assert.deepEqual(result.changes, [{ mode: "explicit", modelId: "deepseek-flash" }]);
+  assert.equal(result.trigger.value, "deepseek-flash");
+  assert.match(result.markup, /Auto balances model capability with price and your credit budget/);
+  assert.match(result.markup, /Continue with .*DeepSeek Flash/);
+  assert.match(result.markup, /aria-label="Dismiss Auto recommendation"/);
+  assert.equal(result.storage.size, 1);
+  result.button("Continue with DeepSeek Flash");
+  assert.doesNotMatch(result.markup, /Auto balances model capability/);
+  assert.equal(result.trigger.value, "deepseek-flash");
+  result.choose("auto"); result.choose("deepseek-flash"); result.choose("deepseek-flash");
+  assert.doesNotMatch(result.markup, /Auto balances model capability/);
+  assert.equal(result.changes.length, 4);
+  result.dispose();
+});
+
+test("acknowledgement survives another composer and reload, and is scoped to the existing owner", async () => {
+  const storage = new Map();
+  const first = render({ preferences: freePreferences, storage });
+  await first.ready(); first.choose("deepseek-flash"); first.dispose();
+  for (let index = 0; index < 2; index++) {
+    const next = render({ preferences: freePreferences, storage });
+    await next.ready(); next.choose("deepseek-flash");
+    assert.doesNotMatch(next.markup, /Auto balances model capability/);
+    assert.equal(next.trigger.value, "deepseek-flash"); next.dispose();
+  }
+  const other = render({ preferences: { subscription: "none", scope: "b".repeat(64) }, storage });
+  await other.ready(); other.choose("deepseek-flash");
+  assert.match(other.markup, /Auto balances model capability/); other.dispose();
+});
+
+test("subscribed, unknown, malformed and unavailable persistence states keep full supported model access without advice", async () => {
+  for (const options of [{ preferences: { subscription: "active", scope: preferenceScope } },
+    { preferences: { subscription: "unknown", scope: preferenceScope } }, { preferences: null },
+    { preferences: { subscription: "none", scope: "invalid" } }, { preferences: freePreferences, storageDenied: true }]) {
+    const result = render(options); await result.ready(); result.choose("deepseek-flash");
+    assert.equal(result.trigger.value, "deepseek-flash");
+    assert.doesNotMatch(result.markup, /Auto balances model capability/);
+    assert.equal(result.storage.size, 0); result.dispose();
+  }
+});
+
+test("unknown state on the first deliberate switch never queues a later recommendation", async () => {
+  const result = render({ preferences: freePreferences });
+  result.choose("deepseek-flash"); await result.ready();
+  result.choose("auto"); result.choose("deepseek-flash");
+  assert.doesNotMatch(result.markup, /Auto balances model capability/);
+  assert.equal(result.storage.size, 0); result.dispose();
+});
+
+test("opening the selector can verify a guest established after the initial identity read", async () => {
+  const preferences = { subscription: "unknown", scope: null };
+  const result = render({ preferences }); await result.ready(); result.clickTrigger();
+  Object.assign(preferences, freePreferences); result.clickTrigger(); await result.ready(); result.choose("deepseek-flash");
+  assert.match(result.markup, /Auto balances model capability/); result.dispose();
+});
+
+test("keyboard navigation alone shows no advice; choosing a model does, and returning to Auto is deliberate", async () => {
+  const result = render({ preferences: freePreferences }); await result.ready();
+  result.key("End"); assert.doesNotMatch(result.markup, /Auto balances model capability/);
+  result.key("Enter");
+  assert.equal(result.trigger.value, "deepseek-flash");
+  assert.match(result.markup, /Auto balances model capability/);
+  result.button("Use Auto");
+  assert.equal(result.trigger.value, "auto");
+  assert.deepEqual(result.changes, [{ mode: "explicit", modelId: "deepseek-flash" }, { mode: "auto" }]);
+  result.choose("deepseek-flash"); assert.doesNotMatch(result.markup, /Auto balances model capability/); result.dispose();
+});
+
+test("dismiss action retains the explicit choice and restores focus", async () => {
+  const result = render({ preferences: freePreferences }); await result.ready(); result.choose("deepseek-flash");
+  const before = result.focusCount; result.button("Dismiss Auto recommendation");
+  assert.equal(result.focusCount, before + 1); assert.equal(result.trigger.value, "deepseek-flash");
+  assert.doesNotMatch(result.markup, /Auto balances model capability/); result.dispose();
+});
+
+test("Escape dismisses the recommendation with the explicit model retained", async () => {
+  const result = render({ preferences: freePreferences }); await result.ready(); result.choose("deepseek-flash");
+  const before = result.focusCount; result.escapeRecommendation();
+  assert.equal(result.focusCount, before + 1); assert.equal(result.trigger.value, "deepseek-flash");
+  assert.doesNotMatch(result.markup, /Auto balances model capability/); result.dispose();
+});
+
+test("subscription advice does not gate any otherwise supported catalog model", async () => {
+  const supported = { ...catalog, models: catalog.models.map(model => ({ ...model, configured: true, adapterSupported: true,
+    executionEnabled: true, selectable: true, reason: "ready" })) };
+  for (const subscription of ["none", "active", "unknown"]) {
+    const result = render({ catalog: supported, preferences: { subscription, scope: preferenceScope } }); await result.ready();
+    for (const model of supported.models) {
+      if (!result.list) result.clickTrigger();
+      assert.equal(result.option(model.id)["aria-disabled"], undefined); result.choose(model.id);
+      assert.equal(result.trigger.value, model.id);
+    }
+    assert.equal(result.changes.length, supported.models.length); result.dispose();
+  }
 });
 
 test("configured keys alone never enable frontier or Anthropic execution", () => {
