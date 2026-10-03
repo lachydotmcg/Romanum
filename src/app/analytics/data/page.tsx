@@ -14,7 +14,7 @@ export default function PublicDataPage() {
     <header>
       <Link href="/analytics" prefetch={false} className="text-xs hover:text-fg">← Analytics</Link>
       <h1 className="mt-4 text-2xl font-semibold tracking-tight text-fg">Public Roblox data</h1>
-      <p className="mt-4">Romanum makes public Roblox observations available to people and browsing AI assistants. Reading the analytics pages is free and requires neither signup nor an MCP installation. Hosted AI advice uses a separate verified, credit-based flow.</p>
+      <p className="mt-4">Browse public Roblox data for free, without signup or MCP. Hosted AI advice uses verification and credits.</p>
     </header>
     <nav aria-label="Explore public data"><ul className="flex flex-wrap gap-x-5 gap-y-2">{PUBLIC_GUIDE_LINKS.map(link => <li key={link.href}><Link href={link.href} className="text-fg underline underline-offset-4">{link.label}</Link></li>)}</ul></nav>
 
@@ -35,20 +35,20 @@ export default function PublicDataPage() {
         <li><code>fetchedAt</code> is when Romanum retrieved the observation. Cache hits retain that time; <code>expiresAt</code> is its cache expiry. Roblox&apos;s underlying measurement time is not supplied.</li>
         <li>Search and statistics cache for 60 seconds, charts for 120 seconds and place-to-universe mappings for one hour. Artwork is retrieved separately and can cache for up to one hour. Processes have separate caches; these do not create history.</li>
       </ul>
-      <p className="mt-3">Cite the game or chart page with its full UTC retrieval date, metric and unit. A current count is a dated observation, not a guarantee of the value when someone reads your answer later.</p>
+      <p className="mt-3">Cite the game or chart page, metric, unit and full UTC retrieval date. Counts can change after retrieval.</p>
     </section>
 
     <section aria-labelledby="coverage-heading">
       <h2 id="coverage-heading" className="text-lg font-semibold text-fg">Chart coverage and recorded history</h2>
       <p className="mt-3">{METRIC_DEFINITIONS.coverage} Failed charts are omitted and listed as unavailable. The overview&apos;s genre breakdown uses Top Playing Now; the Genres view uses the union of loaded charts.</p>
-      <p className="mt-3">Title patterns match words in game names. They can overlap and do not prove gameplay mechanics, audience demand, market saturation or historical growth. Top Earning preserves Roblox&apos;s ranking; it does not provide revenue figures.</p>
+      <p className="mt-3">Title patterns match game names and can overlap. They don&apos;t establish gameplay, demand, saturation or growth. Top Earning is Roblox&apos;s ranking, without revenue figures.</p>
       <p className="mt-3">{METRIC_DEFINITIONS.history} The collector schedules five-minute slots. Actual successful retrieval times can vary, and coverage exists only for games it has sampled. Opening a game page does not enroll it or backfill earlier history.</p>
       <p className="mt-3">Earnings ranges are heuristic projections from current concurrent players, a chosen period and genre assumptions. They are separate from observed statistics. <Link href="/analytics/earnings-method" className="text-fg underline">Read the earnings model and assumptions</Link>.</p>
     </section>
 
     <section aria-labelledby="http-heading">
       <h2 id="http-heading" className="text-lg font-semibold text-fg">Public HTTP access</h2>
-      <p className="mt-3">The existing read-only endpoints return JSON without authentication. You can read the website normally or request these URLs directly; an MCP client is optional.</p>
+      <p className="mt-3">These read-only JSON endpoints require no authentication. Use them directly or through MCP.</p>
       <ul className="mt-3 space-y-4">
         <li><a href="/api/public/catalog" className="text-fg underline">GET /api/public/catalog</a><p>Machine-readable endpoint directory, accepted queries, metric definitions and coverage guidance. Current public statistics, charts and market samples are available as JSON through <code>/api/public/stats</code>, <code>/api/public/charts</code> and <code>/api/public/market</code>. These use the same free public data tools as MCP and preserve retrieval times and partial coverage.</p></li>
         <li><a href="/api/games/search?q=Brookhaven" className="break-all text-fg underline">GET /api/games/search?q=Brookhaven</a><p>Accepts a game name, a Roblox game URL, or a numeric place ID. Names are limited to 80 characters. A game URL is parsed and resolved through Roblox; arbitrary submitted URLs are never fetched. Results include source and retrieval/cache times.</p></li>
@@ -62,7 +62,7 @@ export default function PublicDataPage() {
     <section aria-labelledby="research-heading">
       <h2 id="research-heading" className="text-lg font-semibold text-fg">Ground a game idea in observations</h2>
       <ol className="mt-3 list-decimal space-y-2 pl-5"><li>Find comparable games and inspect their public pages and chart context.</li><li>Cite the actual counts, sources, sample coverage and retrieval dates. Use recorded history only where it exists.</li><li>Separate the observed evidence from a design hypothesis. Describe an original mechanic or audience test, the uncertainty and what result would change your decision.</li></ol>
-      <p className="mt-3">A title pattern or popular game does not establish demand for another game. Romanum&apos;s public observations can inform a hypothesis; they do not guarantee a successful idea.</p>
+      <p className="mt-3">Use these observations to test a design hypothesis. Popularity alone doesn&apos;t establish demand for your game or guarantee success.</p>
     </section>
   </article>;
 }

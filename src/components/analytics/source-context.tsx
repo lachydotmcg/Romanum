@@ -22,7 +22,7 @@ export function SourceContext({ analysis, observations }: {
       {observations.map(observation => <li key={observation.chart}>{CHART_LABELS[observation.chart]}: <time dateTime={observation.fetchedAt}>{utcObservationTime(observation.fetchedAt) ?? "Retrieval time unavailable"}</time></li>)}
     </ul>
     {analysis.unavailableCharts.length > 0 && <p className="mt-2">Unavailable charts: {analysis.unavailableCharts.map(chart => CHART_LABELS[chart]).join(", ")}. They are excluded from this sample.</p>}
-    <p className="mt-2">These are retrieval times, not Roblox measurement times. Title patterns are hypotheses; chart membership does not establish growth. <Link href="/analytics/data" className="text-fg underline underline-offset-2">Sources and metric definitions</Link></p>
+    <p className="mt-2">Times show Romanum retrievals, not Roblox measurements. Title patterns are hypotheses; chart membership alone doesn&apos;t show growth. <Link href="/analytics/data" className="text-fg underline underline-offset-2">Sources and metric definitions</Link></p>
     </div>
   </details>;
 }

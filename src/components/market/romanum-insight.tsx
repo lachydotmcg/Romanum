@@ -96,9 +96,9 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
     insight.content.recommendations.some((idea) => !idea.proposal)
       ? "Earlier suggestions are unverified." : null,
     insight.content.recommendations.some((idea) => idea.research?.status === "unavailable")
-      ? "Competitor search could not run; check similar games before committing to a build." : null,
+      ? "Competitor search could not run; check similar games before building." : null,
     insight.content.marketEvidence?.charts.some((chart) => chart.stale)
-      ? "Some chart observations were stale when assembled; check current charts before acting on them." : null,
+      ? "Some chart observations were stale when assembled; check current charts." : null,
   ].filter(Boolean) : [];
   return (
     // On desktop, Top Playing Now sets the row's height: this card's content doesn't count toward it. Without the
@@ -143,7 +143,7 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
           {materialNotes.length > 0 && <p className="mt-2 text-xs leading-5 text-fg-muted">{materialNotes.join(" ")}</p>}
           <details className="mt-3 text-xs leading-5 text-fg-muted">
             <summary className={`cursor-pointer rounded-sm text-fg-subtle ${FOCUS}`}>Evidence and sources</summary>
-            <p className="mt-2">AI-generated design proposals need playtesting. Retrieved chart observations appear separately.</p>
+            <p className="mt-2">AI-generated design proposals need playtesting.</p>
             {insight.content.marketEvidence ? (
               <>
                 <p className="mt-2">Chart coverage: {insight.content.marketEvidence.charts.filter((chart) => chart.status !== "unavailable").length}/4 retrieved. At most ten non-sponsored games per chart.</p>
@@ -163,7 +163,7 @@ export function RomanumInsight({ initial, today, connected, fitRow }: { initial:
             ) : <p className="mt-2">Earlier insight: evidence links and retrieval times were not recorded.</p>}
             <p>Generated <time dateTime={insight.content.generatedAt}>{observedTime(insight.content.generatedAt)}</time></p>
             {insight.content.recommendations.map((idea) => <IdeaEvidence key={idea.title} idea={idea} />)}
-            <p className="mt-3">Chart presence does not establish growth or an open genre; names do not verify gameplay. Limited Roblox search matches are candidates. Empty results do not prove novelty. Inspect gameplay before comparing.</p>
+            <p className="mt-3">Charts and names don&apos;t verify growth, market gaps or gameplay. Search matches are candidates. Empty results do not prove novelty. Compare gameplay directly.</p>
           </details>
 
           {radar.length > 0 && (

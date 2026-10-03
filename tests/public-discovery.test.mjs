@@ -119,8 +119,8 @@ test("public guide renders definitions and useful public links without signup or
   assert.ok(html.includes('href="/api/history/games"'));
   assert.ok(html.includes("universeId=UNIVERSE_ID&amp;days=7"));
   assert.ok(html.includes("Public concurrent players at retrieval; not daily active users."));
-  assert.ok(html.includes("requires neither signup nor an MCP installation"));
+  assert.ok(html.includes("Browse public Roblox data for free, without signup or MCP."));
   assert.ok(html.includes("not zero"));
-  assert.ok(html.includes("do not guarantee"));
+  assert.ok(html.includes("doesn&#x27;t establish demand for your game or guarantee success"));
   assert.doesNotMatch(html, /href="\/(?:profile|projects|chats|auth|credits|plans|api\/linked-games)/);
 });
