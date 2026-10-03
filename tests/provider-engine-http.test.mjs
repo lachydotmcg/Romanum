@@ -111,7 +111,7 @@ test("actual Ask HTTP boundary completes native selection, quote, hold, provider
     assert.equal(attempt.state.held.prepared.quote.reservationCredits, stream[0].decision.quote.reservationCredits);
     assert.equal(attempt.status, "settled");
     assert.equal(Number(charge.cost_nano_usd), costUsage(attempt.state.decision.candidate.usage));
-    assert.equal(Number(charge.price_nano_usd), Math.round(Number(charge.cost_nano_usd) * 1.65));
+    assert.equal(Number(charge.price_nano_usd), Math.round(Number(charge.cost_nano_usd) * 2.5));
     assert.deepEqual(stream.filter(event => event.type === "model").map(event => event.modelId), [modelId]);
     assert.equal(stream.find(event => event.type === "text").delta, "Verified HTTP fixture answer.");
     assert.ok(stream.some(event => event.type === "done"));

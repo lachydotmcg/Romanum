@@ -4,7 +4,7 @@ The shared Ask/Chats engine now executes the exact selected OpenAI Responses or 
 
 Each native step validates the pinned route and permissions, snapshots the server request, compiles exact native bytes, derives an owner/feature/conversation/run/step attempt ID, obtains an atomic wallet hold, revalidates cancellation/readiness/access, and commits a single dispatch claim before transport. The adapter rechecks the same request hash and dispatch time. Trusted normalized final evidence must match the exact model, provider, request, dispatch, adapter, pricing profile and rate card. A completed result reaches the engine only after normalized settlement commits. Tools still pass through the application's authoritative validation and authorization. Native text is delivered after verification; readable/opaque reasoning is never a UI event.
 
-`credits/provider-attempts.ts` and `db/migrations/023_provider_attempts.sql` bind these steps durably. Final evidence/candidate and global response attribution commit before the separate atomic fractional-carry/capture/charge/receipt transaction. A failed capture preserves the candidate; `settleProviderAttempt` recovers accounting without transport or tool execution. Reservation, dispatch and unused release also run in transactions. Duplicate callbacks return zero new price/debit; conflicting finals preserve the charged state. One provider response can settle only one attempt globally. Actual price uses the existing `Math.round(cost * 1.65)`, one credit per $0.01 and fractional carry. Quotes use ceiling markup and reserve `ceil(price / credit value) + 1`; they are separate from final cost. All cache categories remain disjoint and reasoning remains within reported output. Normalized audit rows carry display-only legacy aliases for existing admin aggregation.
+`credits/provider-attempts.ts` and `db/migrations/023_provider_attempts.sql` bind these steps durably. Final evidence/candidate and global response attribution commit before the separate atomic fractional-carry/capture/charge/receipt transaction. A failed capture preserves the candidate; `settleProviderAttempt` recovers accounting without transport or tool execution. Reservation, dispatch and unused release also run in transactions. Duplicate callbacks return zero new price/debit; conflicting finals preserve the charged state. One provider response can settle only one attempt globally. New actual prices apply the pinned 2.5× policy once with exact integer arithmetic, one credit per $0.01 and fractional carry. Historical quotes without a policy retain the original 1.65× arithmetic. Quotes use ceiling markup and reserve `ceil(price / credit value) + 1`; they are separate from final cost. All cache categories remain disjoint and reasoning remains within reported output. Normalized audit rows carry display-only legacy aliases for existing admin aggregation.
 
 ## Reviewed monetary bounds
 
@@ -12,13 +12,13 @@ Each native step validates the pinned route and permissions, snapshots the serve
 
 | Exact model | Native input ceiling | Maximum hold at 16k output, credits |
 | --- | ---: | ---: |
-| GPT-6 Luna | 1,050,000 | 47 |
-| GPT-6.1 Sol | 1,050,000 | 907 |
-| GPT-6 Astra | 1,050,000 | 4,531 |
-| Claude Haiku 4.5 | 200,000 | 56 |
-| Claude Sonnet 5.5 | 1,000,000 | 440 |
-| Claude Opus 5.5 | 1,000,000 | 879 |
-| Claude Fable 5.1 | 1,000,000 | 2,196 |
+| GPT-6 Luna | 1,050,000 | 70 |
+| GPT-6.1 Sol | 1,050,000 | 1,374 |
+| GPT-6 Astra | 1,050,000 | 6,864 |
+| Claude Haiku 4.5 | 200,000 | 84 |
+| Claude Sonnet 5.5 | 1,000,000 | 666 |
+| Claude Opus 5.5 | 1,000,000 | 1,331 |
+| Claude Fable 5.1 | 1,000,000 | 3,326 |
 
 Holds cover worst-case permitted cache writes. OpenAI's input above 272k costs 2x input/cache and 1.5x output for the entire request, so its full-window quote includes those premiums. Current Anthropic 1M models have standard context pricing. Actual settlement uses the verified counters and applicable rates, releasing unused reservation. Conservative holds can require substantially more available balance than the eventual charge; reducing them requires another documented, reviewed bound, not a guessed token margin.
 
@@ -34,11 +34,11 @@ Failed adapter results also include a sanitized server diagnostic: the observed 
 
 The shipped catalog contains one immutable rate card. Historical attempts fail closed if its version or reviewed strategy changes. Add an explicit historical registry before retiring this version; never reprice old evidence from a newer card. Native continuation is not durably stored, so interrupted tool loops require a new user turn and accounting reconciliation rather than automatic continuation.
 
-The parent reports earlier user approval of a 2.5x markup. The released shared pricing code still uses 1.65x; this provider candidate preserves it as requested. Resolving that discrepancy requires a separate coordinated pricing task, including quotes, captures, public price displays and historical accounting. This candidate does not implement the earlier approval.
+The user explicitly authorised the coordinated 2.5× pricing release. New quotes, holds, candidates and settlement use that policy; historical held requests and stored receipts retain their original price. Hosted data/skill tools remain a flat 0.06 credits without further markup. Paid image generation remains disabled pending a reviewed production rate and reservation policy. See `credits/README.md` for durable policy identification and migration-free DeepSeek compatibility.
 
 ## Remaining activation sequence
 
-1. This disabled backend candidate is integrated locally with verified deployed base `4190c3df2d9ee91b9cb659bf4398fce92df0efdd`, including the released selector, official provider marks and compact previews. No UI implementation changes belong to this candidate. Migration, deployment and activation remain separate held actions.
+1. The disabled backend is integrated into the authorised pricing release over verified deployed base `4190c3df2d9ee91b9cb659bf4398fce92df0efdd`, including the selector, provider marks, compact previews and completed UI/3D skills. Publishing this tested application code does not authorise schema changes or native-provider activation.
 2. Apply migration `023_provider_attempts.sql` through the normal migration runner only to a separately authorized target after parent/release coordination. No live schema or data has been changed here.
 3. Review the passing local independent-connection PostgreSQL tests below and verify the production host's runtime privileges and any deployment-specific interleavings required by the release. PGlite fixture transactions alone do not prove concurrent PostgreSQL behavior.
 4. Obtain separate authorization for any further bounded provider entitlement/protocol probes using already-approved server credentials. A separately approved minimal Luna probe passed, as recorded below. Other models, nonzero cache accounting, tool/native continuation and deployed routing/settlement remain unverified by live probes. Verify only the capabilities intended for activation; no further paid calls are authorised by the consumed one-shot approvals.
@@ -56,4 +56,4 @@ The later diagnostic change cannot recover the discarded cause of that historica
 
 An existing configured RDS role's metadata-only check confirms migration privileges and matching 001-022 checksums, with 023 pending. The later authorised read-only Netlify check confirms the published `4190c3d` release and a production `DATABASE_URL` scoped to builds, functions and runtime. The secret-marked API value is not a parseable connection URL, so it cannot independently establish deployed database role correspondence. No alternate credential route, grant or configuration change was attempted. Obtain the actual runtime's non-secret database role/name and release identity through an authorised supported channel before production migration/activation.
 
-Independent integration checks pass seven real PostgreSQL session races, the 022-to-023 upgrade with existing balances/reservations/carry/receipts unchanged, and 6,255 permitted cache-usage splits against integer arithmetic and reservation ceilings. The existing shared floating-point cost calculation can round upward by one nano-USD in some splits; this precision behavior and the existing 1.65x markup are preserved. No production DDL, deployment or activation was performed for these checks.
+Independent integration checks cover seven real PostgreSQL session races, the 022-to-023 upgrade with existing balances/reservations/carry/receipts unchanged, and 6,255 permitted cache-usage splits against integer arithmetic and reservation ceilings. The pre-release floating-point calculation rounded upward by one nano-USD in 124 splits. New-policy exact arithmetic has zero differences in those cases; the historical policy preserves its original calculation and fingerprints. A separate mixed-policy wallet regression proves ordinary DeepSeek settlement and hosted tools work without migration 023. No production DDL or native-provider activation is part of this release.

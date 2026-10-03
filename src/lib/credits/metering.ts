@@ -3,6 +3,7 @@ import type { AssistantEvent } from "../assistant/types.ts";
 import type { Database, Sql } from "../history/database.ts";
 import { reserveCredits, settleReservation } from "./ledger.ts";
 import { callCost, isDeepSeekPeak, modelPricing, NANO_USD_PER_CREDIT, priceCalls, type CallUsage } from "./pricing.ts";
+import { CURRENT_PRICING_POLICY, type PricingPolicyVersion } from "./pricing-policy.ts";
 
 export type UsageCharge = {
   id: string;
@@ -26,9 +27,11 @@ const withinTransaction = (sql: Sql): Database => ({ ...sql, transaction: (opera
  */
 export async function chargeUsage(
   database: Database,
-  input: { ownerId: string; feature: "ask" | "chat"; calls: CallUsage[] },
+  input: { ownerId: string; feature: "ask" | "chat"; calls: CallUsage[]; pricingPolicyVersion?: PricingPolicyVersion },
 ): Promise<UsageCharge> {
+  const policy = input.pricingPolicyVersion ?? CURRENT_PRICING_POLICY;
   const calls = input.calls.map((call) => ({
+    pricingPolicyVersion: policy,
     model: call.model,
     at: call.at.toISOString(),
     peak: modelPricing(call.model).offPeakRates ? isDeepSeekPeak(call.at) : null,
@@ -36,9 +39,9 @@ export async function chargeUsage(
     cachedInput: call.cachedInput,
     cacheWrite: call.cacheWrite ?? 0,
     output: call.output,
-    costNanoUsd: callCost(call),
+    costNanoUsd: callCost(call, policy),
   }));
-  const { cost, price } = priceCalls(input.calls);
+  const { cost, price } = priceCalls(input.calls, policy);
   const id = randomUUID();
 
   return database.transaction(async (sql) => {
@@ -48,6 +51,7 @@ export async function chargeUsage(
       [input.ownerId],
     );
     const total = Number(carry[0].carry_nano_usd) + price;
+    if (!Number.isSafeInteger(total) || total < 0) throw new Error("Usage carry exceeds the safe accounting limit.");
     const due = Math.floor(total / NANO_USD_PER_CREDIT);
     // Locked, so no other charge or reservation can change the balance before this one is taken.
     const { rows: accounts } = await sql.query<{ balance: string | number; reserved: string | number }>(
@@ -78,7 +82,7 @@ export async function chargeUsage(
  */
 export async function chargeAnswer(
   database: Database,
-  input: { ownerId: string; feature: "ask" | "chat"; calls: CallUsage[]; send: (event: AssistantEvent) => void },
+  input: { ownerId: string; feature: "ask" | "chat"; calls: CallUsage[]; send: (event: AssistantEvent) => void; pricingPolicyVersion?: PricingPolicyVersion },
 ) {
   if (!input.calls.length) return;
   try {

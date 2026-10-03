@@ -71,7 +71,7 @@ export type SettlementCandidate = Immutable<{
   providerMessageId: string; requestHash: Sha256; submittedAt: string;
   provider: ProviderId; modelId: ModelId; reportedModelId: string;
   adapterVersion: string; usage: NormalizedUsage; rateCardVersion: string;
-  pricingProfile: PricingProfile; accountingPolicyVersion: "legacy-credit-policy-v1";
+  pricingProfile: PricingProfile; accountingPolicyVersion: import("../../credits/pricing-policy.ts").PricingPolicyVersion;
   fingerprint: Sha256;
 }>;
 export type AccountingDecision = Immutable<

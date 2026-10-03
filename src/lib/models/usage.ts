@@ -1,4 +1,5 @@
 import { getModel, ratesAt } from "./catalog.ts";
+import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, pricingPolicyVersion, tokenCost, type PricingPolicyVersion } from "../credits/pricing-policy.ts";
 import type { ModelDefinition, ModelId, NormalizedUsage, TokenRates, UsageOptions } from "./types.ts";
 
 function record(value: unknown): Record<string, unknown> {
@@ -96,7 +97,8 @@ export function normalizeUsage(modelId: ModelId, raw: unknown, options: UsageOpt
 }
 
 /** Pure standard/global text-token cost. No ledger settlement or provider calls. */
-function costWithRates(usage: NormalizedUsage, rates: TokenRates): number {
+function costWithRates(usage: NormalizedUsage, rates: TokenRates, policy: PricingPolicyVersion): number {
+  pricingPolicyVersion(policy);
   const model = modelFor(usage.modelId);
   if (usage.provider !== model.provider || usage.rateCardVersion !== model.rateCardVersion) throw new Error("Usage rate card or provider mismatch.");
   const counts = [usage.inputMissTokens, usage.cacheReadTokens, usage.cacheWriteTokens, usage.cacheWrite5mTokens, usage.cacheWrite1hTokens];
@@ -109,6 +111,10 @@ function costWithRates(usage: NormalizedUsage, rates: TokenRates): number {
   }
   const long = model.longContext && usage.totalInputTokens > model.longContext.overInputTokens ? model.longContext : null;
   const inputRates = [rates.input, rates.cacheRead, rates.cacheWrite ?? 0, rates.cacheWrite5m ?? 0, rates.cacheWrite1h ?? 0];
+  if (policy !== LEGACY_PRICING_POLICY) return tokenCost([
+    ...counts.map((count, index) => ({ tokens: count, rate: inputRates[index], multiplier: long?.inputMultiplier })),
+    { tokens: usage.outputTokens, rate: rates.output, multiplier: long?.outputMultiplier },
+  ]);
   const nano = (count: number, rate: number, multiplier: number) => count * rate * 1000 * multiplier;
   const cost = Math.ceil(counts.reduce((total, count, i) => total + nano(count, inputRates[i], long?.inputMultiplier ?? 1), 0)
     + nano(usage.outputTokens, rates.output, long?.outputMultiplier ?? 1));
@@ -116,10 +122,10 @@ function costWithRates(usage: NormalizedUsage, rates: TokenRates): number {
   return cost;
 }
 
-export function costUsage(usage: NormalizedUsage): number {
-  return costWithRates(usage, ratesAt(modelFor(usage.modelId), usage.at));
+export function costUsage(usage: NormalizedUsage, policy: PricingPolicyVersion = CURRENT_PRICING_POLICY): number {
+  return costWithRates(usage, ratesAt(modelFor(usage.modelId), usage.at), policy);
 }
 /** Only raises the DeepSeek rate to peak; not an alternate rate supplied by a caller. */
-export function ceilingCostUsage(usage: NormalizedUsage): number {
-  return costWithRates(usage, modelFor(usage.modelId).rates);
+export function ceilingCostUsage(usage: NormalizedUsage, policy: PricingPolicyVersion = CURRENT_PRICING_POLICY): number {
+  return costWithRates(usage, modelFor(usage.modelId).rates, policy);
 }

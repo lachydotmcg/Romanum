@@ -13,7 +13,7 @@ test("every model's price has an official source and a checked date, and DeepSee
     if (model.offPeakRates) for (const key of ["input", "cachedInput", "output"]) assert.equal(model.offPeakRates[key] * 2, model.rates[key]);
   }
   assert.deepEqual(MODEL_PRICING.filter((model) => model.status === "in use").map((model) => model.id), ["deepseek-flash", "gpt-6-luna"]);
-  assert.equal(CREDIT_MARKUP, 1.65);
+  assert.equal(CREDIT_MARKUP, 2.5);
   assert.equal(NANO_USD_PER_CREDIT, 10_000_000);
 });
 
@@ -34,7 +34,7 @@ test("a call's cost follows its token counts and DeepSeek's rate at that hour, e
   assert.equal(callCost({ ...call, at: at("2026-09-23T12:00:00Z") }), 1_860_000);
   const { cost, price } = priceCalls([{ ...call, at: at("2026-09-23T02:00:00Z") }, { ...call, at: at("2026-09-26T02:00:00Z") }]);
   assert.equal(cost, 5_580_000);
-  assert.equal(price, Math.round(5_580_000 * 1.65));
+  assert.equal(price, Math.round(5_580_000 * 2.5));
   assert.throws(() => callCost({ ...call, model: "unknown-model", at: new Date() }), /No price is recorded/);
 });
 

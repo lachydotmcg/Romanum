@@ -48,6 +48,25 @@ const finish = (db, f, outcome) => finishProviderAttempt(db, f.prepared.attemptI
 const unreported = (state, submission = "uncertain") => ({ attemptId: state.held.prepared.attemptId, holdId: state.held.holdId,
   bindingFingerprint: state.held.bindingFingerprint, submission, result: "cancelled", observedAt: AT, usage: { kind: "none" } });
 
+test("a historical prepared native attempt settles and replays at its original 1.65x price", async t => {
+  const db = await database(t);
+  const saved = JSON.parse(await readFile("tests/fixtures/legacy-pricing-v1.json", "utf8"));
+  const f = { prepared: saved.prepared, contract: createAccountingContract(saved.policy) };
+  await fund(db, f.prepared.ownerId);
+  const state = await submitted(db, f);
+  const result = await finish(db, f, final(state));
+  assert.equal(result.priceNanoUsd, 7_128_000);
+  assert.equal(result.chargedCredits, 0);
+  assert.equal(await carry(db, f.prepared.ownerId), 7_128_000);
+  const snapshot = await row(db, f.prepared.attemptId);
+  const charge = (await db.query("SELECT * FROM usage_charges WHERE id=$1", [snapshot.usage_charge_id])).rows[0];
+  assert.equal(charge.calls[0].pricingPolicyVersion, "legacy-credit-policy-v1");
+  assert.equal(snapshot.state.decision.candidate.accountingPolicyVersion, "legacy-credit-policy-v1");
+  assert.equal((await finish(db, f, final(state))).priceNanoUsd, 0);
+  assert.deepEqual(await row(db, f.prepared.attemptId), snapshot);
+  assert.equal(await count(db, "usage_charges"), 1);
+});
+
 test("exhausted accounts leave no attempt, hold or wallet mutation; no default reviewed policy", async t => {
   const db = await database(t), f = setup(); await fund(db, f.prepared.ownerId, 1);
   await assert.rejects(reserveProviderAttempt(db, f.prepared, createAccountingContract()), e => e.code === "unreviewed_bounds");
@@ -75,22 +94,22 @@ test("concurrent reservation and durable dispatch are each exactly once and owne
   assert.equal(await count(db, "credits_ledger", "entry_type='reserve'"), 1);
 });
 
-test("normalized cache categories, legacy rounding and carry charge once across concurrent callbacks", async t => {
+test("normalized cache categories, 2.5x pricing and carry charge once across concurrent callbacks", async t => {
   const db = await database(t); await fund(db);
   const a = setup(), s = await submitted(db, a), usage = anthropicUsage();
-  const cost = costUsage(usage), price = Math.round(cost * 1.65);
-  assert.equal(cost, 4_320_000); assert.equal(price, 7_128_000);
+  const cost = costUsage(usage), price = Math.round(cost * 2.5);
+  assert.equal(cost, 4_320_000); assert.equal(price, 10_800_000);
   const first = await Promise.all(Array.from({ length: 6 }, () => finish(db, a, final(s, usage))));
-  assert.ok(first.every(r => r.settled)); assert.equal(first.reduce((n, r) => n + r.chargedCredits, 0), 0);
+  assert.ok(first.every(r => r.settled)); assert.equal(first.reduce((n, r) => n + r.chargedCredits, 0), 1);
   assert.equal(first.filter(r => r.priceNanoUsd > 0).length, 1);
   assert.equal(first.reduce((n, r) => n + r.priceNanoUsd, 0), price);
-  assert.equal(await carry(db, "synthetic-owner"), price);
+  assert.equal(await carry(db, "synthetic-owner"), 800_000);
   assert.equal(await count(db, "usage_charges"), 1); assert.equal(await count(db, "credits_ledger", "entry_type='capture'"), 1);
   const b = setup(), bs = await submitted(db, b);
   const callbacks = await Promise.all(Array.from({ length: 6 }, () => finish(db, b, final(bs, usage))));
   assert.equal(callbacks.reduce((n, r) => n + r.chargedCredits, 0), 1);
-  assert.equal(await carry(db, "synthetic-owner"), 4_256_000);
-  assert.equal((await getBalance(db, { ownerId: "synthetic-owner" })).balance, 99);
+  assert.equal(await carry(db, "synthetic-owner"), 1_600_000);
+  assert.equal((await getBalance(db, { ownerId: "synthetic-owner" })).balance, 98);
   assert.equal((await getBalance(db, { ownerId: "synthetic-owner" })).reserved, 0);
   const saved = await row(db, b.prepared.attemptId), charge = (await db.query("SELECT * FROM usage_charges WHERE id=$1", [saved.usage_charge_id])).rows[0];
   assert.equal(charge.calls[0].cacheWrite5mTokens, 200); assert.equal(charge.calls[0].cacheWrite1hTokens, 100);
@@ -106,7 +125,7 @@ test("normalized cache categories, legacy rounding and carry charge once across 
   const replay = await finish(db, b, laterReplay); assert.equal(replay.chargedCredits, 0); assert.equal(replay.priceNanoUsd, 0);
   const changed = final(bs, anthropicUsage({ output_tokens: 101 }));
   await rejection(finish(db, b, changed), "conflict");
-  assert.equal(await count(db, "usage_charges"), 2); assert.equal(await carry(db, "synthetic-owner"), 4_256_000);
+  assert.equal(await count(db, "usage_charges"), 2); assert.equal(await carry(db, "synthetic-owner"), 1_600_000);
 });
 
 test("distinct 5m, 1h and OpenAI cache write prices settle without flattened categories or reasoning add-ons", async t => {
@@ -126,8 +145,8 @@ test("distinct 5m, 1h and OpenAI cache write prices settle without flattened cat
     assert.equal(costUsage(usage), variant.cost);
     const result = await finish(db, f, final(state, usage)); assert.equal(result.settled, true);
     const charge = (await db.query("SELECT cost_nano_usd,price_nano_usd FROM usage_charges WHERE id=$1", [(await row(db, f.prepared.attemptId)).usage_charge_id])).rows[0];
-    assert.equal(Number(charge.cost_nano_usd), variant.cost); assert.equal(Number(charge.price_nano_usd), Math.round(variant.cost * 1.65));
-    assert.equal(result.priceNanoUsd, Math.round(variant.cost * 1.65));
+    assert.equal(Number(charge.cost_nano_usd), variant.cost); assert.equal(Number(charge.price_nano_usd), Math.round(variant.cost * 2.5));
+    assert.equal(result.priceNanoUsd, Math.round(variant.cost * 2.5));
   }
 });
 
@@ -236,8 +255,8 @@ test("ledger failure preserves final usage, candidate and response claim; explic
   await rejection(settleProviderAttempt(db, f.prepared.attemptId, "other-owner", f.contract), "not_found");
   await assert.rejects(settleProviderAttempt(db, f.prepared.attemptId, f.prepared.ownerId, createAccountingContract()), e => e.code === "unreviewed_bounds");
   const retries = await Promise.all(Array.from({ length: 5 }, () => settleProviderAttempt(db, f.prepared.attemptId, f.prepared.ownerId, f.contract)));
-  assert.ok(retries.every(r => r.settled)); assert.equal(retries.reduce((n, r) => n + r.chargedCredits, 0), 3);
-  assert.equal(retries.reduce((n, r) => n + r.priceNanoUsd, 0), Math.round(costUsage(anthropicUsage({ output_tokens: 1000 })) * 1.65));
+  assert.ok(retries.every(r => r.settled)); assert.equal(retries.reduce((n, r) => n + r.chargedCredits, 0), 5);
+  assert.equal(retries.reduce((n, r) => n + r.priceNanoUsd, 0), Math.round(costUsage(anthropicUsage({ output_tokens: 1000 })) * 2.5));
   assert.equal(await count(db, "usage_charges"), 1); assert.equal(await count(db, "credits_ledger", "entry_type='capture'"), 1);
   assert.equal((await finish(db, f, outcome)).priceNanoUsd, 0);
 });
@@ -253,8 +272,8 @@ test("matching callback retries candidate accounting only and conflicting pendin
   await rejection(finish(db, f, final(state, anthropicUsage({ output_tokens: 101 }))), "conflict");
   assert.deepEqual((await row(db, f.prepared.attemptId)).state, pending.state);
   const retry = await finish(db, f, { ...outcome, observedAt: "2026-10-02T08:00:00.000Z" });
-  assert.equal(retry.settled, true); assert.equal(retry.priceNanoUsd, 7_128_000);
-  assert.equal(retry.chargedCredits, 0); assert.equal(await count(db, "usage_charges"), 1);
+  assert.equal(retry.settled, true); assert.equal(retry.priceNanoUsd, 10_800_000);
+  assert.equal(retry.chargedCredits, 1); assert.equal(await count(db, "usage_charges"), 1);
   assert.equal(await count(db, "provider_final_claims"), 1);
   const unused = setup(); await reserveProviderAttempt(db, unused.prepared, unused.contract);
   await rejection(settleProviderAttempt(db, unused.prepared.attemptId, unused.prepared.ownerId, unused.contract), "invalid_operation");

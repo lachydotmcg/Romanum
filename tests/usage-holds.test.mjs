@@ -31,16 +31,16 @@ const rejection = async (promise, code) => {
   return error;
 };
 
-// At DeepSeek's peak this call costs $0.00372, which is 0.6138 credits after the 1.65× markup.
+// At DeepSeek's peak this call costs $0.00372, which is 0.93 credits after the 2.5× markup.
 const call = (overrides = {}) => ({ model: "deepseek-flash", at: new Date("2026-09-23T02:00:00Z"), input: 10_000, cachedInput: 20_000, output: 500, ...overrides });
-// A single call that really costs 4.95 credits: 100,000 input tokens, $0.03 cost, $0.0495 price.
+// A single call that really costs 7.5 credits: 100,000 input tokens, $0.03 cost, $0.075 price.
 const heavyCall = () => ({ model: "deepseek-flash", at: new Date("2026-09-23T02:00:00Z"), input: 100_000, cachedInput: 0, output: 0 });
 
 test("a hold that needs more credits than the account has is refused and leaves nothing behind", async (t) => {
   const db = await database(t);
   await grantCredits(db, { ownerId: "owner-a", amount: 1, operationId: "g" });
-  // The quote needs 6 credits (ceil 4.95 + 1); only 1 is available.
-  await rejection(reserveUsage(db, { ownerId: "owner-a", feature: "ask", maxPriceNanoUsd: 49_500_000 }), "insufficient_balance");
+  // The quote needs 9 credits (ceil 7.5 + 1); only 1 is available.
+  await rejection(reserveUsage(db, { ownerId: "owner-a", feature: "ask", maxPriceNanoUsd: 75_000_000 }), "insufficient_balance");
   assert.equal(await count(db, "usage_holds"), 0);
   assert.equal(await count(db, "credits_operations"), 1); // just the grant
   assert.equal(await count(db, "credits_ledger"), 1);
@@ -55,27 +55,27 @@ test("settlement charges the real usage and releases the unused part of the hold
   const owner = "owner-a";
   await grantCredits(db, { ownerId: owner, amount: 100, operationId: "g" });
 
-  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 49_500_000 });
-  assert.equal(hold.amount, 6); // ceil(4.95) + 1
-  assert.deepEqual(await getBalance(db, { ownerId: owner }), { ownerId: owner, balance: 100, reserved: 6, available: 94 });
+  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 75_000_000 });
+  assert.equal(hold.amount, 9); // ceil(7.5) + 1
+  assert.deepEqual(await getBalance(db, { ownerId: owner }), { ownerId: owner, balance: 100, reserved: 9, available: 91 });
 
   const settled = await settleUsage(db, { ownerId: owner, id: hold.id, call: heavyCall() });
-  assert.equal(settled.credits, 4.95);
-  assert.equal(settled.charged, 4);
-  assert.deepEqual(await getBalance(db, { ownerId: owner }), { ownerId: owner, balance: 96, reserved: 0, available: 96 });
+  assert.equal(settled.credits, 7.5);
+  assert.equal(settled.charged, 7);
+  assert.deepEqual(await getBalance(db, { ownerId: owner }), { ownerId: owner, balance: 93, reserved: 0, available: 93 });
 
-  // The backing reservation settled for 4 of its 6 held credits.
+  // The backing reservation settled for 7 of its 9 held credits.
   const entries = (await db.query("SELECT entry_type, amount FROM credits_ledger WHERE operation_id=$1 ORDER BY id", [`model-call:${hold.id}`])).rows;
-  assert.deepEqual(entries.map((row) => [row.entry_type, Number(row.amount)]), [["reserve", 6], ["capture", 4]]);
+  assert.deepEqual(entries.map((row) => [row.entry_type, Number(row.amount)]), [["reserve", 9], ["capture", 7]]);
 
   const { rows: charges } = await db.query("SELECT feature, calls, cost_nano_usd, price_nano_usd, credits_charged, unpaid_nano_usd FROM usage_charges");
-  assert.deepEqual(charges.map((row) => [row.feature, Number(row.cost_nano_usd), Number(row.price_nano_usd), Number(row.credits_charged), Number(row.unpaid_nano_usd)]), [["chat", 30_000_000, 49_500_000, 4, 0]]);
+  assert.deepEqual(charges.map((row) => [row.feature, Number(row.cost_nano_usd), Number(row.price_nano_usd), Number(row.credits_charged), Number(row.unpaid_nano_usd)]), [["chat", 30_000_000, 75_000_000, 7, 0]]);
   assert.equal(charges[0].calls[0].costNanoUsd, 30_000_000);
 
   const { rows: holds } = await db.query("SELECT status, reserved_credits, settled_price_nano_usd, settled_credits_charged, call_fingerprint FROM usage_holds WHERE id=$1", [hold.id]);
   assert.equal(holds[0].status, "settled");
-  assert.equal(Number(holds[0].reserved_credits), 6);
-  assert.equal(Number(holds[0].settled_credits_charged), 4);
+  assert.equal(Number(holds[0].reserved_credits), 9);
+  assert.equal(Number(holds[0].settled_credits_charged), 7);
   assert.match(holds[0].call_fingerprint, /^[a-f0-9]{64}$/);
 });
 
@@ -84,20 +84,20 @@ test("a fractional carry flows across held calls exactly as it does for metering
   const owner = "owner-a";
   await grantCredits(db, { ownerId: owner, amount: 50, operationId: "g" });
 
-  const first = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 6_138_000 });
-  assert.equal(first.amount, 2); // ceil(0.6138) + 1
+  const first = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 9_300_000 });
+  assert.equal(first.amount, 2); // ceil(0.93) + 1
   const one = await settleUsage(db, { ownerId: owner, id: first.id, call: call() });
-  assert.equal(one.credits, 0.6138);
+  assert.equal(one.credits, 0.93);
   assert.equal(one.charged, 0);
-  assert.equal(await carry(db, owner), 6_138_000);
+  assert.equal(await carry(db, owner), 9_300_000);
   assert.equal((await getBalance(db, { ownerId: owner })).available, 50);
 
-  // The second quote must cover its call plus the carried 6,138,000 nano-dollars.
-  const second = await reserveUsage(db, { ownerId: owner, feature: "ask", maxPriceNanoUsd: 12_276_000 });
-  assert.equal(second.amount, 3); // ceil(1.2276) + 1
+  // The second quote covers two calls; the held extra credit also covers carry.
+  const second = await reserveUsage(db, { ownerId: owner, feature: "ask", maxPriceNanoUsd: 18_600_000 });
+  assert.equal(second.amount, 3); // ceil(1.86) + 1
   const two = await settleUsage(db, { ownerId: owner, id: second.id, call: call() });
   assert.equal(two.charged, 1);
-  assert.equal(await carry(db, owner), 2_276_000);
+  assert.equal(await carry(db, owner), 8_600_000);
   assert.equal((await getBalance(db, { ownerId: owner })).available, 49);
 
   const entries = (await db.query("SELECT entry_type, amount FROM credits_ledger WHERE operation_id=$1 ORDER BY id", [`model-call:${second.id}`])).rows;
@@ -110,7 +110,7 @@ test("a fractional carry flows across held calls exactly as it does for metering
 test("holds are owned: another owner and an unknown id cannot settle or close one", async (t) => {
   const db = await database(t);
   await grantCredits(db, { ownerId: "owner-a", amount: 20, operationId: "g" });
-  const hold = await reserveUsage(db, { ownerId: "owner-a", feature: "ask", maxPriceNanoUsd: 6_138_000 });
+  const hold = await reserveUsage(db, { ownerId: "owner-a", feature: "ask", maxPriceNanoUsd: 9_300_000 });
 
   await rejection(settleUsage(db, { ownerId: "owner-b", id: hold.id, call: call() }), "not_found");
   await rejection(finishUnreportedUsage(db, { ownerId: "owner-b", id: hold.id, uncertain: false }), "not_found");
@@ -126,7 +126,7 @@ test("replaying an identical settlement returns the saved result, a different ca
   const db = await database(t);
   const owner = "owner-a";
   await grantCredits(db, { ownerId: owner, amount: 50, operationId: "g" });
-  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 6_138_000 });
+  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 9_300_000 });
 
   const first = await settleUsage(db, { ownerId: owner, id: hold.id, call: call() });
   assert.equal(first.charged, 0);
@@ -134,7 +134,7 @@ test("replaying an identical settlement returns the saved result, a different ca
   assert.deepEqual(replay, first);
   assert.equal(await count(db, "usage_charges"), 1);
   assert.equal(await count(db, "credits_ledger", "entry_type = 'capture'"), 1);
-  assert.equal(await carry(db, owner), 6_138_000);
+  assert.equal(await carry(db, owner), 9_300_000);
 
   await rejection(settleUsage(db, { ownerId: owner, id: hold.id, call: call({ output: 600 }) }), "conflict");
   await rejection(settleUsage(db, { ownerId: owner, id: hold.id, call: call({ input: 9_999 }) }), "conflict");
@@ -167,7 +167,7 @@ test("an uncertain hold keeps its reservation, can settle later, and cannot be r
   const db = await database(t);
   const owner = "owner-a";
   await grantCredits(db, { ownerId: owner, amount: 50, operationId: "g" });
-  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 6_138_000 });
+  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 9_300_000 });
 
   await finishUnreportedUsage(db, { ownerId: owner, id: hold.id, uncertain: true });
   assert.equal(await holdStatus(db, hold.id), "uncertain");
@@ -183,7 +183,7 @@ test("an uncertain hold keeps its reservation, can settle later, and cannot be r
 
   // The provider's reported usage still settles it.
   const settled = await settleUsage(db, { ownerId: owner, id: hold.id, call: call() });
-  assert.equal(settled.credits, 0.6138);
+  assert.equal(settled.credits, 0.93);
   assert.equal(await holdStatus(db, hold.id), "settled");
   assert.equal((await getBalance(db, { ownerId: owner })).available, 50);
   // And a late uncertainty or release can never revert the settled hold.
@@ -198,7 +198,7 @@ test("a definite preflight failure releases the hold, idempotently", async (t) =
   const db = await database(t);
   const owner = "owner-a";
   await grantCredits(db, { ownerId: owner, amount: 10, operationId: "g" });
-  const hold = await reserveUsage(db, { ownerId: owner, feature: "ask", maxPriceNanoUsd: 6_138_000 });
+  const hold = await reserveUsage(db, { ownerId: owner, feature: "ask", maxPriceNanoUsd: 9_300_000 });
   assert.equal((await getBalance(db, { ownerId: owner })).reserved, 2);
 
   await finishUnreportedUsage(db, { ownerId: owner, id: hold.id, uncertain: false });
@@ -217,7 +217,7 @@ test("invalid and over-quote usage is refused, leaving the hold held for reconci
   const db = await database(t);
   const owner = "owner-a";
   await grantCredits(db, { ownerId: owner, amount: 20, operationId: "g" });
-  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 6_138_000 });
+  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 9_300_000 });
 
   const badCalls = [
     call({ input: -1 }),
@@ -230,7 +230,7 @@ test("invalid and over-quote usage is refused, leaving the hold held for reconci
   ];
   for (const bad of badCalls) await rejection(settleUsage(db, { ownerId: owner, id: hold.id, call: bad }), "invalid_input");
 
-  // 50,000 input tokens price at 24.75 credits, far above the 0.6138-credit quote.
+  // 50,000 input tokens price at 24.75 credits, far above the 0.93-credit quote.
   await rejection(settleUsage(db, { ownerId: owner, id: hold.id, call: call({ input: 50_000, cachedInput: 0, output: 0 }) }), "conflict");
 
   assert.equal(await holdStatus(db, hold.id), "reserved");
@@ -256,7 +256,7 @@ test("the hold, the reservation and the charge each commit as one atomic unit", 
   await grantCredits(db, { ownerId: owner, amount: 10, operationId: "g" });
 
   // A successful hold always writes its ledger reservation with it.
-  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 6_138_000 });
+  const hold = await reserveUsage(db, { ownerId: owner, feature: "chat", maxPriceNanoUsd: 9_300_000 });
   assert.equal(await count(db, "usage_holds", "id = $1", [hold.id]), 1);
   assert.equal(await count(db, "credits_operations", "operation_id = $1 AND kind = 'reserve'", [`model-call:${hold.id}`]), 1);
 
@@ -273,6 +273,6 @@ test("the hold, the reservation and the charge each commit as one atomic unit", 
   assert.equal(settled.charged, 0);
   assert.equal(await count(db, "usage_charges"), 1);
   assert.equal(await count(db, "usage_carry"), 1);
-  assert.equal(await carry(db, owner), 6_138_000);
+  assert.equal(await carry(db, owner), 9_300_000);
   assert.equal(await holdStatus(db, hold.id), "settled");
 });

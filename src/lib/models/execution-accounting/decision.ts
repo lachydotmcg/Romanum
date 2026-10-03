@@ -1,4 +1,4 @@
-import { CREDIT_MARKUP } from "../../credits/pricing.ts";
+import { markedUpPrice, quotePricingPolicy } from "../../credits/pricing-policy.ts";
 import { getModel } from "../catalog.ts";
 import { reservationCredits } from "../estimate.ts";
 import { ceilingCostUsage } from "../usage.ts";
@@ -110,7 +110,7 @@ function evaluate(state: AttemptState, outcome: AttemptOutcome): AccountingDecis
   let ceiling: number;
   try {
     // Eligibility ceiling only. The ledger's existing Math.round settlement policy is NOT replaced here.
-    ceiling = Math.ceil(ceilingCostUsage(usage) * CREDIT_MARKUP);
+    ceiling = markedUpPrice(ceilingCostUsage(usage, quotePricingPolicy(p.quote)), quotePricingPolicy(p.quote), "ceil");
     if (!Number.isSafeInteger(ceiling) || ceiling < 0) return retain(state, "invalid_usage");
   } catch { return retain(state, "unsupported_pricing"); }
   if (ceiling > p.quote.reservationPriceNanoUsd) return retain(state, "quote_exceeded");
@@ -126,7 +126,7 @@ function evaluate(state: AttemptState, outcome: AttemptOutcome): AccountingDecis
     providerMessageId: provenance.providerMessageId, requestHash: p.requestHash, submittedAt: dispatch.submittedAt,
     provider: p.provider, modelId: p.modelId, reportedModelId: provenance.reportedModelId,
     adapterVersion: p.adapterVersion, usage, rateCardVersion: p.quote.rateCardVersion,
-    pricingProfile: p.pricingProfile, accountingPolicyVersion: "legacy-credit-policy-v1" as const,
+    pricingProfile: p.pricingProfile, accountingPolicyVersion: quotePricingPolicy(p.quote),
   };
   const candidate: SettlementCandidate = { ...body, fingerprint: fingerprint("candidate", body) };
   return { action: "settle_candidate", candidate };

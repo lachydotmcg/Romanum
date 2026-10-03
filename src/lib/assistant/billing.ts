@@ -2,7 +2,8 @@ import type OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import type { AssistantProviderExecution, ProviderExecutionOptions } from "./provider-execution.ts";
 import type { Database } from "../history/database.ts";
-import { CREDIT_MARKUP, modelPricing, type CallUsage } from "../credits/pricing.ts";
+import { modelPricing, type CallUsage } from "../credits/pricing.ts";
+import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, PRICING_POLICIES, markedUpPrice, tokenCost, type PricingPolicyVersion } from "../credits/pricing-policy.ts";
 import { finishUnreportedUsage, reserveUsage, settleUsage } from "../credits/usage-holds.ts";
 import { isBilledTool } from "../credits/tool-pricing.ts";
 import { finishToolUsage, reserveToolUsage } from "../credits/tool-usage.ts";
@@ -13,7 +14,7 @@ type ReportedUsage = OpenAI.CompletionUsage & { prompt_cache_hit_tokens?: number
 
 export interface AssistantBilling {
   readonly provider?: AssistantProviderExecution;
-  reserve(maxPriceNanoUsd: number): Promise<string>;
+  reserve(maxPriceNanoUsd: number, pricingPolicyVersion?: PricingPolicyVersion): Promise<string>;
   settle(id: string, call: CallUsage): Promise<void>;
   finish(id: string, uncertain: boolean): Promise<void>;
   tool(name: string, execute: () => Promise<ToolOutcome>, signal: AbortSignal): Promise<ToolOutcome>;
@@ -33,7 +34,7 @@ export function assistantBilling(db: Database, ownerId: string, feature: "ask" |
       return provider.complete(route, request, options);
     } },
     get credits() { return credits; },
-    async reserve(maxPriceNanoUsd) { return (await reserveUsage(db, { ownerId, feature, maxPriceNanoUsd })).id; },
+    async reserve(maxPriceNanoUsd, pricingPolicyVersion = CURRENT_PRICING_POLICY) { return (await reserveUsage(db, { ownerId, feature, maxPriceNanoUsd, pricingPolicyVersion })).id; },
     async settle(id, call) { credits += (await settleUsage(db, { ownerId, id, call })).credits; },
     async finish(id, uncertain) { await finishUnreportedUsage(db, { ownerId, id, uncertain }); },
     async tool(name, execute, signal) {
@@ -63,7 +64,7 @@ export function assistantBilling(db: Database, ownerId: string, feature: "ask" |
  * calls crossing a pricing boundary. The output cap includes reasoning tokens.
  * DeepSeek caps image encoding at 1024 tokens per image (vision guide, 2026-09-28).
  */
-export function quoteAssistantCall(request: Request): number {
+export function quoteAssistantCall(request: Request, policy: PricingPolicyVersion = CURRENT_PRICING_POLICY): number {
   if (request.model !== "deepseek-flash") throw new Error("This model needs a reviewed reservation policy.");
   if (!Number.isSafeInteger(request.max_tokens) || request.max_tokens! < 1 || request.max_tokens! > 16_000) {
     throw new Error("A bounded output limit is required.");
@@ -81,7 +82,8 @@ export function quoteAssistantCall(request: Request): number {
   if (bytes > 2_000_000 || images > 3) throw new Error("The conversation is too large.");
   const input = bytes + 2048 + request.messages.length * 64 + (request.tools?.length ?? 0) * 128 + images * 1024;
   const rates = modelPricing(request.model).rates;
-  return Math.ceil((input * rates.input + request.max_tokens! * rates.output) * 1000 * CREDIT_MARKUP);
+  if (policy === LEGACY_PRICING_POLICY) return Math.ceil((input * rates.input + request.max_tokens! * rates.output) * 1000 * PRICING_POLICIES[policy].markup);
+  return markedUpPrice(tokenCost([{ tokens: input, rate: rates.input }, { tokens: request.max_tokens!, rate: rates.output }]), policy, "ceil");
 }
 
 export function reportedCallUsage(at: Date, usage: ReportedUsage): CallUsage {
@@ -106,8 +108,9 @@ export async function* meteredStream(
   billing: AssistantBilling,
   signal: AbortSignal,
   beforeSend?: () => Promise<void>,
+  pricingPolicyVersion: PricingPolicyVersion = CURRENT_PRICING_POLICY,
 ): AsyncGenerator<OpenAI.Chat.ChatCompletionChunk> {
-  const id = await billing.reserve(quoteAssistantCall(params));
+  const id = await billing.reserve(quoteAssistantCall(params, pricingPolicyVersion), pricingPolicyVersion);
   const at = new Date();
   let sent = false;
   let failure: unknown;
@@ -139,8 +142,9 @@ export async function meteredCompletion(
   billing: AssistantBilling,
   signal: AbortSignal,
   timeout: number,
+  pricingPolicyVersion: PricingPolicyVersion = CURRENT_PRICING_POLICY,
 ): Promise<OpenAI.Chat.ChatCompletion> {
-  const id = await billing.reserve(quoteAssistantCall(params));
+  const id = await billing.reserve(quoteAssistantCall(params, pricingPolicyVersion), pricingPolicyVersion);
   const at = new Date();
   let sent = false;
   let failure: unknown;

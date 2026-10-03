@@ -2,14 +2,12 @@
 
 This is a code-only next milestone over the inspected Agent API (`93f743a`),
 mock integration (`cfcebc7`), Studio bridge (`b337202`) and stdio (`3db9239`).
-Those foundations remain separate, local prototypes. This module provides an
+Those foundations are included as disabled code in the authorised application release. This module provides an
 owner-controlled request workflow; it does not enable a hosted agent, a real
 Studio connection, Luau execution or game editing. The private page and route
-are now authored, compile-time disabled and undeployed.
+are authored and compile-time disabled; publishing their code does not activate the workflow.
 
-The isolated branch starts at verified production `8ae07c0`. It includes only
-those four foundation commits and this workflow's two milestones. The dirty main checkout and
-another agent's public MCP routes are outside its edit scope.
+The six reviewed foundation/workflow commits are integrated over the verified live `4190c3d` base. Dirty checkout experiments remain outside the release. The workflow SQL remains separate from application migration discovery.
 
 ## Runnable fixture
 

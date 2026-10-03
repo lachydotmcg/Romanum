@@ -4,7 +4,9 @@ import type { AccountingContract, AttemptOutcome, AttemptState, LedgerSettledRec
 import { fingerprint, identifier, readOutcome, sha256, timestamp } from "../models/execution-accounting/validate.ts";
 import { costUsage } from "../models/usage.ts";
 import { CreditsError, releaseReservation, reserveCredits, settleReservation } from "./ledger.ts";
-import { CREDIT_MARKUP, NANO_USD_PER_CREDIT } from "./pricing.ts";
+import { NANO_USD_PER_CREDIT } from "./pricing.ts";
+import { markedUpPrice, quotePricingPolicy } from "./pricing-policy.ts";
+import { pricingHoldId } from "./hold-policy.ts";
 
 type AttemptRow = {
   attempt_id: string; owner_id: string; hold_id: string; binding_fingerprint: string;
@@ -77,7 +79,7 @@ export async function reserveProviderAttempt(db: Database, prepared: PreparedAtt
       await lockHold(sql, prior, state);
       return state;
     }
-    const holdId = randomUUID(), operationId = `model-call:${holdId}`;
+    const holdId = pricingHoldId(quotePricingPolicy(p.quote)), operationId = `model-call:${holdId}`;
     const state = contract.hold(p, { holdId, ownerId: p.ownerId, feature: p.feature,
       maxPriceNanoUsd: p.quote.reservationPriceNanoUsd, reservedCredits: p.quote.reservationCredits, bindingFingerprint: p.bindingFingerprint });
     await reserveCredits(withinTransaction(sql), { ownerId: p.ownerId, operationId, amount: p.quote.reservationCredits });
@@ -176,7 +178,8 @@ export async function settleProviderAttempt(db: Database, attemptId: string, own
       "SELECT attempt_id,candidate_fingerprint FROM provider_final_claims WHERE provider=$1 AND provider_message_id=$2 FOR UPDATE",
       [candidate.provider, candidate.providerMessageId])).rows[0];
     if (!claim || claim.attempt_id !== attemptId || claim.candidate_fingerprint !== candidate.fingerprint) return conflict();
-    const cost = costUsage(candidate.usage), price = Math.round(cost * CREDIT_MARKUP);
+    const policy = quotePricingPolicy(state.held.prepared.quote);
+    const cost = costUsage(candidate.usage, policy), price = markedUpPrice(cost, policy);
     if (!Number.isSafeInteger(price) || price < 0 || price > state.held.maxPriceNanoUsd) return conflict();
     await sql.query("INSERT INTO usage_carry(owner_id) VALUES ($1) ON CONFLICT (owner_id) DO NOTHING", [ownerId]);
     const carry = (await sql.query<{ carry_nano_usd: string | number }>("SELECT carry_nano_usd FROM usage_carry WHERE owner_id=$1 FOR UPDATE", [ownerId])).rows[0];
@@ -189,7 +192,7 @@ export async function settleProviderAttempt(db: Database, attemptId: string, own
     // Legacy historical display/SQL aggregates read model/input/cachedInput/
     // output. These aliases describe the same counters once; financial pricing
     // above uses only normalized usage with distinct 5m/1h cache write rates.
-    const auditCall = { format: "normalized-usage-v1", ...candidate.usage, model: candidate.modelId,
+    const auditCall = { format: "normalized-usage-v1", ...candidate.usage, pricingPolicyVersion: policy, model: candidate.modelId,
       input: candidate.usage.inputMissTokens, cachedInput: candidate.usage.cacheReadTokens, output: candidate.usage.outputTokens,
       costNanoUsd: cost, candidateFingerprint: candidate.fingerprint };
     await sql.query("INSERT INTO usage_charges(id,owner_id,feature,calls,cost_nano_usd,price_nano_usd,credits_charged,unpaid_nano_usd) VALUES ($1,$2,$3,$4,$5,$6,$7,0)",

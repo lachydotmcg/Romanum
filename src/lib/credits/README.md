@@ -1,0 +1,11 @@
+# Credit pricing policies
+
+New AI model calls use `credit-policy-2p5-v2`: provider cost × 2.5, applied once. Quotes round the price ceiling upward; settlement rounds to the nearest nano-USD. Decimal token rates and the new multiplier use exact integer arithmetic. One credit remains 10,000,000 nano-USD ($0.01), and each account's already-priced fractional carry remains below one credit. Carry is added to the next price; it receives no new markup.
+
+Requests held before this release keep `legacy-credit-policy-v1`, including its original floating-point arithmetic and rounding. Existing UUIDv4 `usage_holds.id` values identify that policy. New server-created holds use RFC 9562 UUIDv8 with prefix `2502`, retaining 106 random bits and fitting the existing PostgreSQL UUID column. This makes the policy durable without production DDL, backfills or new privileges. The ID never authorizes access: the existing owner and reservation checks still apply. Unknown hold policies fail closed. A settled hold returns its stored receipt before any price calculation; receipts and balances are never retroactively changed.
+
+Native-provider quotes snapshot their policy in the already-prepared JSON. Historical snapshots omit the property so their binding and candidate fingerprints remain byte-for-byte valid. Native settlement uses that prepared policy. Migration 023 remains unapplied and native providers remain disabled; ordinary DeepSeek uses only the existing wallet and usage schema. Migrations run only through the explicit history migration CLI.
+
+Successful hosted data/skill tools keep their fixed 0.06-credit tariff, stored at reservation and captured once. Failed/cancelled tools release their hold. That customer tariff has no additional multiplier. Provider-side tools with unsupported charges are still refused. Paid image generation remains disabled; its synthetic test tariff is not a production provider price. Image activation requires a reviewed provider rate and a bounded reservation policy.
+
+`tests/fixtures/legacy-pricing-v1.json` was captured from unchanged commit `afe10ade87bcc7fa83bdb74929227878490c07f0`. The regression suite checks its historical quotes, states and fingerprints alongside mixed-policy settlement, tool fees, carry, replays, cancellations, uncertain usage and execution without migration 023.

@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { CallUsage } from "@/lib/credits/pricing";
 import { CreditsError } from "../credits/ledger.ts";
 import { meteredStream, reportedCallUsage, type AssistantBilling } from "./billing.ts";
+import { CURRENT_PRICING_POLICY, quotePricingPolicy } from "../credits/pricing-policy.ts";
 import { SYSTEM_PROMPT } from "./prompt.ts";
 import { FetchedData } from "./fetched-data.ts";
 import { prepareCall, runTool, TOOLS } from "./tools.ts";
@@ -142,6 +143,7 @@ export async function runAssistant({
           billing,
           signal,
           async () => { await beforeProvider(); if (modelRoute) revalidateAssistantModel(modelRoute, params); },
+          modelRoute?.modelDecision ? quotePricingPolicy(modelRoute.modelDecision.quote) : CURRENT_PRICING_POLICY,
         );
 
         for await (const chunk of completion) {

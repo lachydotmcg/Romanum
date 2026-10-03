@@ -2,7 +2,8 @@ import type OpenAI from "openai";
 import { env } from "node:process";
 import { quoteAssistantCall } from "./billing.ts";
 import { getModel, RATE_CARD_VERSION } from "../models/catalog.ts";
-import { CREDIT_MARKUP, NANO_USD_PER_CREDIT } from "../credits/pricing.ts";
+import { NANO_USD_PER_CREDIT } from "../credits/pricing.ts";
+import { CURRENT_PRICING_POLICY, markedUpPrice, pricingPolicyVersion, quotePricingPolicy, type PricingPolicyVersion } from "../credits/pricing-policy.ts";
 import { quoteModel, reservationCredits } from "../models/estimate.ts";
 import { count, freeze, record, timestamp } from "../models/execution-accounting/validate.ts";
 import type { ContractPolicy } from "../models/execution-accounting/types.ts";
@@ -86,23 +87,23 @@ function requestBounds(request: Request): { budget: TokenBudget; images: boolean
 }
 
 /** Resolve Auto exactly once from current server readiness and a trusted, fully framed request. */
-export function resolveAssistantModel(selection: ModelSelection, request: Request, availableCredits: number, environment: Environment = env, at = new Date().toISOString(), reviews: Readonly<ExecutionReviews> = RELEASED_EXECUTION_REVIEWS, boundPolicy: ContractPolicy = PROVIDER_BOUND_POLICY): AssistantModelRoute {
+export function resolveAssistantModel(selection: ModelSelection, request: Request, availableCredits: number, environment: Environment = env, at = new Date().toISOString(), reviews: Readonly<ExecutionReviews> = RELEASED_EXECUTION_REVIEWS, boundPolicy: ContractPolicy = PROVIDER_BOUND_POLICY, pricingPolicy: PricingPolicyVersion = CURRENT_PRICING_POLICY): AssistantModelRoute {
   const bounds = requestBounds(request);
   const readiness = readModelReadiness(environment, reviews);
   // Routing retains its existing ordering; each native provider supplies its own reviewed ceiling.
   const nativeQuotes = readiness.some(model => model.selectable && getModel(model.modelId)?.provider !== "deepseek");
   const decision = routeModel({ selection, availableCredits, budget: bounds.budget,
-    capabilities: { text: true, tools: !!request.tools?.length, images: bounds.images }, at }, readiness,
+    capabilities: { text: true, tools: !!request.tools?.length, images: bounds.images }, at, pricingPolicyVersion: pricingPolicy }, readiness,
   nativeQuotes ? modelId => {
-    if (modelId === "deepseek-flash") return quoteModel(modelId, bounds.budget, { at });
+    if (modelId === "deepseek-flash") return quoteModel(modelId, bounds.budget, { at, pricingPolicyVersion: pricingPolicy });
     if (getModel(modelId)?.provider === "deepseek") blocked("model_unavailable");
     const native = providerRequestBudget(request, modelId, boundPolicy);
-    return quoteProviderBudget(modelId, native.budget, at, boundPolicy);
+    return quoteProviderBudget(modelId, native.budget, at, boundPolicy, pricingPolicy);
   } : undefined);
   if (decision.status !== "selected") throw new ModelSelectionError(decision);
   if (decision.modelId === "deepseek-flash") {
     let ceiling: number;
-    try { ceiling = quoteAssistantCall({ ...request, model: decision.modelId }); }
+    try { ceiling = quoteAssistantCall({ ...request, model: decision.modelId }, pricingPolicy); }
     catch { return blocked("context_limit"); }
     if (ceiling !== decision.quote.reservationPriceNanoUsd || reservationCredits(ceiling) !== decision.quote.reservationCredits) blocked("model_unavailable");
   } else if (getModel(decision.modelId)?.provider === "deepseek") blocked("model_unavailable");
@@ -124,8 +125,9 @@ export function persistedAssistantModel(payload: Partial<AssistantModelRoute>): 
       (selection.mode === "explicit" ? selection.modelId !== model.id || selected.reason !== "explicit_selection"
         : !["auto_affordable", "auto_cache_scenario"].includes(selected.reason as string))) blocked("invalid_selection");
     const q = record(selected.quote, ["modelId", "rateCardVersion", "estimatedCostNanoUsd", "estimatedPriceNanoUsd", "estimatedCredits",
-      "reservationPriceNanoUsd", "reservationCredits", "estimateBasis", "estimatedCacheReadTokens", "cacheHitGuaranteed", "minimumReservationCredits"]);
+      "reservationPriceNanoUsd", "reservationCredits", "estimateBasis", "estimatedCacheReadTokens", "cacheHitGuaranteed", "minimumReservationCredits"], ["pricingPolicyVersion"]);
     const quote: ModelQuote = {
+      ...(q.pricingPolicyVersion === undefined ? {} : { pricingPolicyVersion: pricingPolicyVersion(q.pricingPolicyVersion) }),
       modelId: model.id, rateCardVersion: RATE_CARD_VERSION, estimatedCostNanoUsd: count(q.estimatedCostNanoUsd),
       estimatedPriceNanoUsd: count(q.estimatedPriceNanoUsd), estimatedCredits: q.estimatedCredits as number,
       reservationPriceNanoUsd: count(q.reservationPriceNanoUsd, true), reservationCredits: count(q.reservationCredits, true),
@@ -136,7 +138,7 @@ export function persistedAssistantModel(payload: Partial<AssistantModelRoute>): 
       !["uncached", "compatible_cache_scenario"].includes(quote.estimateBasis) ||
       (quote.estimatedCacheReadTokens > 0) !== (quote.estimateBasis === "compatible_cache_scenario") ||
       (selection.mode === "auto" && (selected.reason === "auto_cache_scenario") !== (quote.estimateBasis === "compatible_cache_scenario")) ||
-      quote.estimatedPriceNanoUsd !== Math.ceil(quote.estimatedCostNanoUsd * CREDIT_MARKUP) ||
+      quote.estimatedPriceNanoUsd !== markedUpPrice(quote.estimatedCostNanoUsd, quotePricingPolicy(quote), "ceil") ||
       quote.estimatedCredits !== quote.estimatedPriceNanoUsd / NANO_USD_PER_CREDIT ||
       quote.estimatedPriceNanoUsd > quote.reservationPriceNanoUsd ||
       quote.reservationCredits !== reservationCredits(quote.reservationPriceNanoUsd)) blocked("invalid_selection");
@@ -159,6 +161,6 @@ export function revalidateAssistantModel(route: AssistantModelRoute, request: Re
   }
   const persisted = persistedAssistantModel(route);
   if (request.model !== persisted.modelDecision!.modelId) blocked("model_unavailable");
-  const current = resolveAssistantModel({ mode: "explicit", modelId: persisted.modelDecision!.modelId }, request, Number.MAX_SAFE_INTEGER, environment, new Date().toISOString(), reviews, boundPolicy);
+  const current = resolveAssistantModel({ mode: "explicit", modelId: persisted.modelDecision!.modelId }, request, Number.MAX_SAFE_INTEGER, environment, new Date().toISOString(), reviews, boundPolicy, quotePricingPolicy(persisted.modelDecision!.quote));
   if (current.modelDecision!.modelId !== persisted.modelDecision!.modelId) blocked("model_unavailable");
 }

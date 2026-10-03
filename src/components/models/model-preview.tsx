@@ -1,4 +1,5 @@
 import type { ModelQuote, PublicModel } from "../../lib/models/types.ts";
+import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, PRICING_POLICIES } from "../../lib/credits/pricing-policy.ts";
 
 export type ModelEvaluation = {
   modelId: string;
@@ -59,7 +60,9 @@ export function ModelPreview({ model, quote, evaluation }: { model: PublicModel;
   const ratings = evaluation?.modelId === model.id && validEvaluation(evaluation, false) ? evaluation : undefined;
   const prices = [model.rates.input, model.rates.output, model.rates.cacheRead];
   const validPrices = prices.every(value => Number.isFinite(value) && value >= 0);
-  const validQuote = quote?.modelId === model.id && quote.rateCardVersion === model.rateCardVersion && Number.isFinite(quote.estimatedCredits) && quote.estimatedCredits >= 0;
+  const validQuote = quote?.modelId === model.id && quote.rateCardVersion === model.rateCardVersion && Number.isFinite(quote.estimatedCredits) && quote.estimatedCredits >= 0 &&
+    (quote.pricingPolicyVersion === undefined || quote.pricingPolicyVersion === LEGACY_PRICING_POLICY || quote.pricingPolicyVersion === CURRENT_PRICING_POLICY);
+  const policy = validQuote ? quote!.pricingPolicyVersion ?? LEGACY_PRICING_POLICY : CURRENT_PRICING_POLICY;
   const strengths = [model.capabilities.text && "Text", model.capabilities.tools && "Tools", model.capabilities.images && "Images"].filter(Boolean);
   return <div className="space-y-3">
     {USE_CASES[model.id] && <p className="text-xs leading-5 text-fg-muted">{USE_CASES[model.id]}</p>}
@@ -74,6 +77,7 @@ export function ModelPreview({ model, quote, evaluation }: { model: PublicModel;
         <div><dt className="text-fg-muted">Output</dt><dd className="mt-0.5 text-fg">{dollars(model.rates.output)}</dd></div>
         <div><dt className="text-fg-muted">Cache read</dt><dd className="mt-0.5 text-fg">{dollars(model.rates.cacheRead)}</dd></div>
       </dl>
+      <p className="mt-2 text-[10px] text-fg-muted">Romanum AI: provider cost × {PRICING_POLICIES[policy].markup}.</p>
     </div>}
     <details className="text-[11px] text-fg-muted">
       <summary className="w-fit cursor-pointer rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">Sources</summary>

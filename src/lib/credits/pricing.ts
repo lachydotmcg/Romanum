@@ -1,4 +1,5 @@
 import { CENTS_PER_CREDIT } from "./value.ts";
+import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, PRICING_POLICIES, markedUpPrice, pricingPolicyVersion, tokenCost, type PricingPolicyVersion } from "./pricing-policy.ts";
 
 // Romanum's pricing blueprint: what each model costs Romanum, copied from the providers' official pricing pages
 // on the date shown, and how that becomes credits. Providers change prices: re-check the sources before relying
@@ -92,8 +93,8 @@ export const MODEL_PRICING: readonly ModelPricing[] = [
  */
 export const WEB_SEARCH_CALL_NANO_USD = 10_000_000;
 
-/** Romanum charges this multiple of what a request cost it (owner decision, 2026-09-27). */
-export const CREDIT_MARKUP = 1.65;
+/** Owner-authorised markup for new requests, 2026-10-03. Held requests retain their policy. */
+export const CREDIT_MARKUP = PRICING_POLICIES[CURRENT_PRICING_POLICY].markup;
 /** Costs are kept in nano-dollars (billionths of a dollar) so small calls stay exact integers. */
 export const NANO_USD_PER_CREDIT = CENTS_PER_CREDIT * 10_000_000;
 
@@ -135,11 +136,18 @@ export function ratesFor(call: Pick<CallUsage, "model" | "at">): TokenRates {
 }
 
 /** What one model call cost Romanum, in nano-dollars. */
-export function callCost(call: CallUsage): number {
+export function callCost(call: CallUsage, policy: PricingPolicyVersion = CURRENT_PRICING_POLICY): number {
+  pricingPolicyVersion(policy);
   const { longContext } = modelPricing(call.model);
   const rates = ratesFor(call);
   const inputTokens = call.input + call.cachedInput + (call.cacheWrite ?? 0);
   const long = longContext && inputTokens > longContext.overInputTokens ? longContext : null;
+  if (policy !== LEGACY_PRICING_POLICY) return tokenCost([
+    { tokens: call.input, rate: rates.input, multiplier: long?.inputMultiplier },
+    { tokens: call.cachedInput, rate: rates.cachedInput, multiplier: long?.inputMultiplier },
+    { tokens: call.cacheWrite ?? 0, rate: rates.cacheWrite ?? rates.input, multiplier: long?.inputMultiplier },
+    { tokens: call.output, rate: rates.output, multiplier: long?.outputMultiplier },
+  ], "round");
   // A price in dollars per 1M tokens is that many micro-dollars per token, so ×1000 gives nano-dollars per token.
   const nano = (tokens: number, perMillion: number, multiplier = 1) => tokens * Math.round(perMillion * 1000) * multiplier;
   return Math.round(
@@ -151,7 +159,7 @@ export function callCost(call: CallUsage): number {
 }
 
 /** What an answer's model calls cost Romanum and what they cost the user after the markup, in nano-dollars. */
-export function priceCalls(calls: CallUsage[]): { cost: number; price: number } {
-  const cost = calls.reduce((sum, call) => sum + callCost(call), 0);
-  return { cost, price: Math.round(cost * CREDIT_MARKUP) };
+export function priceCalls(calls: CallUsage[], policy: PricingPolicyVersion = CURRENT_PRICING_POLICY): { cost: number; price: number } {
+  const cost = calls.reduce((sum, call) => sum + callCost(call, policy), 0);
+  return { cost, price: markedUpPrice(cost, policy) };
 }

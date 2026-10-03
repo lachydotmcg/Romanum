@@ -15,6 +15,7 @@ import type { ContractPolicy } from "../models/execution-accounting/types.ts";
 import type { AnthropicRequest, AnthropicContinuation, OpenAIRequest, OpenAIContinuation, ProviderMessage, OpenAIMessage,
   ProviderTool, InputPart, ToolCall, JsonValue } from "../models/providers/types.ts";
 import { safeJson, freezeWire } from "../models/providers/wire.ts";
+import { quotePricingPolicy } from "../credits/pricing-policy.ts";
 import { persistedAssistantModel, revalidateAssistantModel, type AssistantModelRoute } from "./model-selection.ts";
 
 type Request = OpenAI.Chat.ChatCompletionCreateParamsStreaming;
@@ -110,7 +111,7 @@ export function createAssistantProviderExecution(db: Database, context: Provider
     let state = await readProviderAttempt(db, attemptId, context.ownerId, contract);
     if (state && state.held.prepared.requestHash !== compiled.requestHash) throw new Error("A durable attempt cannot change its request.");
     if (!state) {
-      const at = now(), quote = quoteProviderBudget(modelId, bounded.budget, at, policy);
+      const at = now(), quote = quoteProviderBudget(modelId, bounded.budget, at, policy, quotePricingPolicy(pinned.modelDecision!.quote));
       const prepared = contract.prepare({ version: 1, attemptId, ...context, step: callOptions.step, selection: pinned.modelSelection,
         modelId, provider: model.provider, adapterVersion: review.adapterVersion, requestFormatVersion: review.requestFormatVersion,
         requestHash: compiled.requestHash, bounds: { strategyId: review.strategyId, strategyVersion: review.strategyVersion,

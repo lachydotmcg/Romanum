@@ -1,0 +1,385 @@
+{
+  "sourceCommit": "afe10ade87bcc7fa83bdb74929227878490c07f0",
+  "policy": {
+    "reviewedBounds": [
+      {
+        "strategyId": "synthetic-bound",
+        "strategyVersion": "1",
+        "provider": "anthropic",
+        "modelId": "claude-opus-5-5",
+        "adapterVersion": "synthetic-adapter-v1",
+        "requestFormatVersion": "synthetic-request-v1",
+        "capabilities": [
+          "text",
+          "tools",
+          "images"
+        ],
+        "cacheTtls": [
+          "5m",
+          "1h"
+        ],
+        "maxInputTokens": 10000,
+        "maxOutputTokens": 1000
+      }
+    ]
+  },
+  "input": {
+    "version": 1,
+    "attemptId": "00000000-0000-4000-8000-000000000001",
+    "ownerId": "synthetic-owner",
+    "feature": "chat",
+    "conversationId": "synthetic-conversation",
+    "runId": "synthetic-run",
+    "step": 0,
+    "selection": {
+      "mode": "explicit",
+      "modelId": "claude-opus-5-5"
+    },
+    "modelId": "claude-opus-5-5",
+    "provider": "anthropic",
+    "adapterVersion": "synthetic-adapter-v1",
+    "requestFormatVersion": "synthetic-request-v1",
+    "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bounds": {
+      "strategyId": "synthetic-bound",
+      "strategyVersion": "1",
+      "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "capabilities": [
+        "text"
+      ],
+      "budget": {
+        "inputTokens": 1000,
+        "maxInputTokens": 2000,
+        "outputTokens": 100,
+        "maxOutputTokens": 1000,
+        "cacheTtl": "1h"
+      }
+    },
+    "pricingProfile": "standard-global-text-v1",
+    "quote": {
+      "modelId": "claude-opus-5-5",
+      "rateCardVersion": "2026-10-02.standard.v1",
+      "estimatedCostNanoUsd": 6000000,
+      "estimatedPriceNanoUsd": 9900000,
+      "estimatedCredits": 0.99,
+      "reservationPriceNanoUsd": 59400000,
+      "reservationCredits": 7,
+      "minimumReservationCredits": 2,
+      "estimateBasis": "uncached",
+      "estimatedCacheReadTokens": 0,
+      "cacheHitGuaranteed": false
+    },
+    "preparedAt": "2026-10-02T07:00:00.000Z"
+  },
+  "prepared": {
+    "version": 1,
+    "attemptId": "00000000-0000-4000-8000-000000000001",
+    "ownerId": "synthetic-owner",
+    "feature": "chat",
+    "conversationId": "synthetic-conversation",
+    "runId": "synthetic-run",
+    "step": 0,
+    "selection": {
+      "mode": "explicit",
+      "modelId": "claude-opus-5-5"
+    },
+    "modelId": "claude-opus-5-5",
+    "provider": "anthropic",
+    "adapterVersion": "synthetic-adapter-v1",
+    "requestFormatVersion": "synthetic-request-v1",
+    "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bounds": {
+      "strategyId": "synthetic-bound",
+      "strategyVersion": "1",
+      "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "capabilities": [
+        "text"
+      ],
+      "budget": {
+        "inputTokens": 1000,
+        "maxInputTokens": 2000,
+        "outputTokens": 100,
+        "maxOutputTokens": 1000,
+        "cacheTtl": "1h"
+      }
+    },
+    "pricingProfile": "standard-global-text-v1",
+    "quote": {
+      "modelId": "claude-opus-5-5",
+      "rateCardVersion": "2026-10-02.standard.v1",
+      "estimatedCostNanoUsd": 6000000,
+      "estimatedPriceNanoUsd": 9900000,
+      "estimatedCredits": 0.99,
+      "reservationPriceNanoUsd": 59400000,
+      "reservationCredits": 7,
+      "estimateBasis": "uncached",
+      "estimatedCacheReadTokens": 0,
+      "cacheHitGuaranteed": false,
+      "minimumReservationCredits": 2
+    },
+    "preparedAt": "2026-10-02T07:00:00.000Z",
+    "reviewFingerprint": "b890c2619d4ed88d2cd627b73c5edf64416abf31e03e322aafd4a9f71ddf610d",
+    "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987"
+  },
+  "submitted": {
+    "version": 1,
+    "revision": 1,
+    "phase": "submitted",
+    "held": {
+      "prepared": {
+        "version": 1,
+        "attemptId": "00000000-0000-4000-8000-000000000001",
+        "ownerId": "synthetic-owner",
+        "feature": "chat",
+        "conversationId": "synthetic-conversation",
+        "runId": "synthetic-run",
+        "step": 0,
+        "selection": {
+          "mode": "explicit",
+          "modelId": "claude-opus-5-5"
+        },
+        "modelId": "claude-opus-5-5",
+        "provider": "anthropic",
+        "adapterVersion": "synthetic-adapter-v1",
+        "requestFormatVersion": "synthetic-request-v1",
+        "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bounds": {
+          "strategyId": "synthetic-bound",
+          "strategyVersion": "1",
+          "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capabilities": [
+            "text"
+          ],
+          "budget": {
+            "inputTokens": 1000,
+            "maxInputTokens": 2000,
+            "outputTokens": 100,
+            "maxOutputTokens": 1000,
+            "cacheTtl": "1h"
+          }
+        },
+        "pricingProfile": "standard-global-text-v1",
+        "quote": {
+          "modelId": "claude-opus-5-5",
+          "rateCardVersion": "2026-10-02.standard.v1",
+          "estimatedCostNanoUsd": 6000000,
+          "estimatedPriceNanoUsd": 9900000,
+          "estimatedCredits": 0.99,
+          "reservationPriceNanoUsd": 59400000,
+          "reservationCredits": 7,
+          "estimateBasis": "uncached",
+          "estimatedCacheReadTokens": 0,
+          "cacheHitGuaranteed": false,
+          "minimumReservationCredits": 2
+        },
+        "preparedAt": "2026-10-02T07:00:00.000Z",
+        "reviewFingerprint": "b890c2619d4ed88d2cd627b73c5edf64416abf31e03e322aafd4a9f71ddf610d",
+        "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987"
+      },
+      "holdId": "00000000-0000-4000-8000-000000000002",
+      "ownerId": "synthetic-owner",
+      "feature": "chat",
+      "maxPriceNanoUsd": 59400000,
+      "reservedCredits": 7,
+      "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987"
+    },
+    "submission": {
+      "attemptId": "00000000-0000-4000-8000-000000000001",
+      "holdId": "00000000-0000-4000-8000-000000000002",
+      "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987",
+      "dispatchId": "00000000-0000-4000-8000-000000000003",
+      "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "submittedAt": "2026-10-02T07:00:00.000Z"
+    },
+    "uncertain": true,
+    "evidence": [],
+    "decision": null
+  },
+  "outcome": {
+    "attemptId": "00000000-0000-4000-8000-000000000001",
+    "holdId": "00000000-0000-4000-8000-000000000002",
+    "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987",
+    "submission": "submitted",
+    "result": "completed",
+    "observedAt": "2026-10-02T07:00:00.000Z",
+    "usage": {
+      "kind": "final",
+      "usage": {
+        "provider": "anthropic",
+        "modelId": "claude-opus-5-5",
+        "at": "2026-10-02T07:00:00.000Z",
+        "rateCardVersion": "2026-10-02.standard.v1",
+        "inputMissTokens": 100,
+        "cacheReadTokens": 600,
+        "cacheWriteTokens": 0,
+        "cacheWrite5mTokens": 200,
+        "cacheWrite1hTokens": 100,
+        "totalInputTokens": 1000,
+        "outputTokens": 100
+      },
+      "provenance": {
+        "source": "adapter_completed",
+        "adapterVersion": "synthetic-adapter-v1",
+        "provider": "anthropic",
+        "providerMessageId": "synthetic-message-001",
+        "reportedModelId": "claude-opus-5-5",
+        "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dispatchId": "00000000-0000-4000-8000-000000000003",
+        "rateCardVersion": "2026-10-02.standard.v1",
+        "pricingProfile": "standard-global-text-v1",
+        "terminalEvent": "completed",
+        "unsupportedCharges": false
+      }
+    }
+  },
+  "candidate": {
+    "version": 1,
+    "revision": 2,
+    "phase": "candidate",
+    "held": {
+      "prepared": {
+        "version": 1,
+        "attemptId": "00000000-0000-4000-8000-000000000001",
+        "ownerId": "synthetic-owner",
+        "feature": "chat",
+        "conversationId": "synthetic-conversation",
+        "runId": "synthetic-run",
+        "step": 0,
+        "selection": {
+          "mode": "explicit",
+          "modelId": "claude-opus-5-5"
+        },
+        "modelId": "claude-opus-5-5",
+        "provider": "anthropic",
+        "adapterVersion": "synthetic-adapter-v1",
+        "requestFormatVersion": "synthetic-request-v1",
+        "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bounds": {
+          "strategyId": "synthetic-bound",
+          "strategyVersion": "1",
+          "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capabilities": [
+            "text"
+          ],
+          "budget": {
+            "inputTokens": 1000,
+            "maxInputTokens": 2000,
+            "outputTokens": 100,
+            "maxOutputTokens": 1000,
+            "cacheTtl": "1h"
+          }
+        },
+        "pricingProfile": "standard-global-text-v1",
+        "quote": {
+          "modelId": "claude-opus-5-5",
+          "rateCardVersion": "2026-10-02.standard.v1",
+          "estimatedCostNanoUsd": 6000000,
+          "estimatedPriceNanoUsd": 9900000,
+          "estimatedCredits": 0.99,
+          "reservationPriceNanoUsd": 59400000,
+          "reservationCredits": 7,
+          "estimateBasis": "uncached",
+          "estimatedCacheReadTokens": 0,
+          "cacheHitGuaranteed": false,
+          "minimumReservationCredits": 2
+        },
+        "preparedAt": "2026-10-02T07:00:00.000Z",
+        "reviewFingerprint": "b890c2619d4ed88d2cd627b73c5edf64416abf31e03e322aafd4a9f71ddf610d",
+        "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987"
+      },
+      "holdId": "00000000-0000-4000-8000-000000000002",
+      "ownerId": "synthetic-owner",
+      "feature": "chat",
+      "maxPriceNanoUsd": 59400000,
+      "reservedCredits": 7,
+      "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987"
+    },
+    "submission": {
+      "attemptId": "00000000-0000-4000-8000-000000000001",
+      "holdId": "00000000-0000-4000-8000-000000000002",
+      "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987",
+      "dispatchId": "00000000-0000-4000-8000-000000000003",
+      "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "submittedAt": "2026-10-02T07:00:00.000Z"
+    },
+    "uncertain": true,
+    "evidence": [
+      {
+        "attemptId": "00000000-0000-4000-8000-000000000001",
+        "holdId": "00000000-0000-4000-8000-000000000002",
+        "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987",
+        "submission": "submitted",
+        "result": "completed",
+        "observedAt": "2026-10-02T07:00:00.000Z",
+        "usage": {
+          "kind": "final",
+          "usage": {
+            "provider": "anthropic",
+            "modelId": "claude-opus-5-5",
+            "at": "2026-10-02T07:00:00.000Z",
+            "rateCardVersion": "2026-10-02.standard.v1",
+            "inputMissTokens": 100,
+            "cacheReadTokens": 600,
+            "cacheWriteTokens": 0,
+            "cacheWrite5mTokens": 200,
+            "cacheWrite1hTokens": 100,
+            "totalInputTokens": 1000,
+            "outputTokens": 100
+          },
+          "provenance": {
+            "source": "adapter_completed",
+            "adapterVersion": "synthetic-adapter-v1",
+            "provider": "anthropic",
+            "providerMessageId": "synthetic-message-001",
+            "reportedModelId": "claude-opus-5-5",
+            "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "dispatchId": "00000000-0000-4000-8000-000000000003",
+            "rateCardVersion": "2026-10-02.standard.v1",
+            "pricingProfile": "standard-global-text-v1",
+            "terminalEvent": "completed",
+            "unsupportedCharges": false
+          }
+        }
+      }
+    ],
+    "decision": {
+      "action": "settle_candidate",
+      "candidate": {
+        "version": 1,
+        "attemptId": "00000000-0000-4000-8000-000000000001",
+        "ownerId": "synthetic-owner",
+        "feature": "chat",
+        "conversationId": "synthetic-conversation",
+        "runId": "synthetic-run",
+        "step": 0,
+        "holdId": "00000000-0000-4000-8000-000000000002",
+        "bindingFingerprint": "f7ef28079b726db6be5bd5fda363c5b5f22d95ae459363622f6814536404f987",
+        "dispatchId": "00000000-0000-4000-8000-000000000003",
+        "providerMessageId": "synthetic-message-001",
+        "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "submittedAt": "2026-10-02T07:00:00.000Z",
+        "provider": "anthropic",
+        "modelId": "claude-opus-5-5",
+        "reportedModelId": "claude-opus-5-5",
+        "adapterVersion": "synthetic-adapter-v1",
+        "usage": {
+          "provider": "anthropic",
+          "modelId": "claude-opus-5-5",
+          "at": "2026-10-02T07:00:00.000Z",
+          "rateCardVersion": "2026-10-02.standard.v1",
+          "inputMissTokens": 100,
+          "cacheReadTokens": 600,
+          "cacheWriteTokens": 0,
+          "cacheWrite5mTokens": 200,
+          "cacheWrite1hTokens": 100,
+          "totalInputTokens": 1000,
+          "outputTokens": 100
+        },
+        "rateCardVersion": "2026-10-02.standard.v1",
+        "pricingProfile": "standard-global-text-v1",
+        "accountingPolicyVersion": "legacy-credit-policy-v1",
+        "fingerprint": "82caac452c814462f5cf12e209d1bd8648b0f67aa045a0e3a370b3e83fab786a"
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { CREDIT_MARKUP, NANO_USD_PER_CREDIT } from "../../credits/pricing.ts";
+import { NANO_USD_PER_CREDIT } from "../../credits/pricing.ts";
+import { markedUpPrice, pricingPolicyVersion, quotePricingPolicy } from "../../credits/pricing-policy.ts";
 import { getModel } from "../catalog.ts";
 import { quoteModel, quoteNativeModel, validBudget } from "../estimate.ts";
 import { NATIVE_BOUND_STRATEGY, NATIVE_BOUND_VERSION, NATIVE_INPUT_CAPACITY } from "../providers/native-capacity.ts";
@@ -149,8 +150,9 @@ export function readUsage(value: unknown): NormalizedUsage {
 }
 
 function quote(value: unknown, id: ModelId, b: TokenBudget, at: string, native: boolean): ModelQuote {
-  const r = record(value, ["modelId", "rateCardVersion", "estimatedCostNanoUsd", "estimatedPriceNanoUsd", "estimatedCredits", "reservationPriceNanoUsd", "reservationCredits", "estimateBasis", "estimatedCacheReadTokens", "cacheHitGuaranteed", "minimumReservationCredits"]);
+  const r = record(value, ["modelId", "rateCardVersion", "estimatedCostNanoUsd", "estimatedPriceNanoUsd", "estimatedCredits", "reservationPriceNanoUsd", "reservationCredits", "estimateBasis", "estimatedCacheReadTokens", "cacheHitGuaranteed", "minimumReservationCredits"], ["pricingPolicyVersion"]);
   const q: ModelQuote = {
+    ...(r.pricingPolicyVersion === undefined ? {} : { pricingPolicyVersion: pricingPolicyVersion(r.pricingPolicyVersion) }),
     modelId: modelId(r.modelId), rateCardVersion: identifier(r.rateCardVersion),
     estimatedCostNanoUsd: count(r.estimatedCostNanoUsd), estimatedPriceNanoUsd: count(r.estimatedPriceNanoUsd),
     estimatedCredits: typeof r.estimatedCredits === "number" && Number.isFinite(r.estimatedCredits) && r.estimatedCredits >= 0 ? r.estimatedCredits : fail("invalid_quote"),
@@ -161,7 +163,8 @@ function quote(value: unknown, id: ModelId, b: TokenBudget, at: string, native: 
   if (q.modelId !== id) fail("identity_mismatch");
   if (q.rateCardVersion !== getModel(id)!.rateCardVersion) fail("rate_card_unavailable");
   let fresh: ModelQuote;
-  try { fresh = (native ? quoteNativeModel : quoteModel)(id, b, { at }); } catch { fail("invalid_quote"); }
+  const policy = quotePricingPolicy(q);
+  try { fresh = (native ? quoteNativeModel : quoteModel)(id, b, { at, pricingPolicyVersion: policy }); } catch { fail("invalid_quote"); }
   if (q.reservationPriceNanoUsd !== fresh.reservationPriceNanoUsd || q.reservationCredits !== fresh.reservationCredits) fail("quote_mismatch");
   if (q.estimatedCacheReadTokens > b.inputTokens || (q.estimatedCacheReadTokens > 0) !== (q.estimateBasis === "compatible_cache_scenario")) fail("invalid_quote");
   // Estimates may use a compatible cache scenario; they never reduce the uncached reservation.
@@ -170,9 +173,9 @@ function quote(value: unknown, id: ModelId, b: TokenBudget, at: string, native: 
     estimated = costUsage({ provider: getModel(id)!.provider, modelId: id, at, rateCardVersion: q.rateCardVersion,
       inputMissTokens: b.inputTokens - q.estimatedCacheReadTokens, cacheReadTokens: q.estimatedCacheReadTokens,
       cacheWriteTokens: 0, cacheWrite5mTokens: 0, cacheWrite1hTokens: 0,
-      totalInputTokens: b.inputTokens, outputTokens: b.outputTokens });
+      totalInputTokens: b.inputTokens, outputTokens: b.outputTokens }, policy);
   } catch { fail("invalid_quote"); }
-  if (q.estimatedCostNanoUsd !== estimated || q.estimatedPriceNanoUsd !== Math.ceil(estimated * CREDIT_MARKUP) ||
+  if (q.estimatedCostNanoUsd !== estimated || q.estimatedPriceNanoUsd !== markedUpPrice(estimated, policy, "ceil") ||
       q.estimatedCredits !== q.estimatedPriceNanoUsd / NANO_USD_PER_CREDIT || q.estimatedPriceNanoUsd > q.reservationPriceNanoUsd) fail("invalid_quote");
   return q;
 }

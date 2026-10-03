@@ -39,15 +39,15 @@ test("successful lookups bill exactly 0.06 each, accumulating without per-call r
 
 test("concurrent tools share model carry and all appear in the answer cost", async t => {
   const db = await database(t);
-  const model = await reserveUsage(db, { ownerId: "owner", feature: "ask", maxPriceNanoUsd: 9_900_000 });
+  const model = await reserveUsage(db, { ownerId: "owner", feature: "ask", maxPriceNanoUsd: 15_000_000 });
   const billing = assistantBilling(db, "owner", "chat");
   await Promise.all([
     ...BILLED_TOOLS.map(tool => billing.tool(tool, ok, signal())),
     settleUsage(db, { ownerId: "owner", id: model.id, call: { model: "deepseek-flash", at: new Date("2026-09-28T02:00:00Z"), input: 20000, cachedInput: 0, output: 0 } }),
   ]);
   assert.ok(Math.abs(billing.credits - BILLED_TOOLS.length * TOOL_FEE_CREDITS) < 1e-10);
-  assert.equal(await carry(db), (9_900_000 + BILLED_TOOLS.length * 600_000) % 10_000_000);
-  assert.equal((await getBalance(db, { ownerId: "owner" })).available, 49);
+  assert.equal(await carry(db), (15_000_000 + BILLED_TOOLS.length * 600_000) % 10_000_000);
+  assert.equal((await getBalance(db, { ownerId: "owner" })).available, 48);
 });
 
 test("settlement replays once and rejects another owner or conflicting outcome", async t => {

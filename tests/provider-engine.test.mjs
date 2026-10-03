@@ -70,7 +70,7 @@ test("each native model completes request→quote→hold→single attempt→actu
     assert.equal(attempt.status, "settled"); assert.equal(attempt.state.held.prepared.modelId, modelId);
     assert.equal(attempt.state.held.prepared.bounds.budget.maxInputTokens, NATIVE_INPUT_CAPACITY[modelId]);
     assert.equal(Number(charge.cost_nano_usd), costUsage(attempt.state.decision.candidate.usage));
-    assert.equal(Number(charge.price_nano_usd), Math.round(Number(charge.cost_nano_usd) * 1.65));
+    assert.equal(Number(charge.price_nano_usd), Math.round(Number(charge.cost_nano_usd) * 2.5));
     assert.equal(f.billing.credits, Number(charge.price_nano_usd) / 10_000_000);
     assert.equal((await getBalance(f.db, { ownerId: f.ownerId })).reserved, 0);
     const serialized = JSON.stringify(f.events) + JSON.stringify(attempt);
@@ -104,7 +104,7 @@ test("native billing ceilings include complete vendor windows, cache writes and 
     const model = getModel(modelId), multiplier = model.provider === "openai" ? 2 : 1;
     const outputMultiplier = model.provider === "openai" ? 1.5 : 1;
     const write = model.rates.cacheWrite ?? model.rates.cacheWrite5m;
-    const maximum = Math.ceil((budget.maxInputTokens * write * multiplier + budget.maxOutputTokens * model.rates.output * outputMultiplier) * 1000 * 1.65);
+    const maximum = Math.ceil((budget.maxInputTokens * write * multiplier + budget.maxOutputTokens * model.rates.output * outputMultiplier) * 1000 * 2.5);
     assert.equal(quote.reservationPriceNanoUsd, maximum);
     assert.throws(() => quoteProviderBudget(modelId, { ...budget, maxInputTokens: 100 }, at));
     assert.throws(() => providerRequestBudget({ ...request, messages: [{ role: "user", content: "x".repeat(200_000) }] }, modelId));

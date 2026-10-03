@@ -6,6 +6,7 @@ import { migrateHistory } from "../src/lib/history/migrate.ts";
 import { AccountClosureError, closeAccount, isClosedOwner } from "../src/lib/accounts/closure.ts";
 import { getBalance, grantCredits, reserveCredits, settleReservation } from "../src/lib/credits/ledger.ts";
 import { reserveUsage, settleUsage } from "../src/lib/credits/usage-holds.ts";
+import { LEGACY_PRICING_POLICY } from "../src/lib/credits/pricing-policy.ts";
 
 // Account closure runs on the real application schema, migrated in full, in an
 // isolated in-memory database. Every account, game, chat and image below is
@@ -13,7 +14,7 @@ import { reserveUsage, settleUsage } from "../src/lib/credits/usage-holds.ts";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=", "base64");
 const PNG_SHA = createHash("sha256").update(PNG).digest("hex");
-// A single model call that really costs 4.95 credits: 100,000 peak input tokens, $0.03 cost, $0.0495 price.
+// A single model call costs $0.03: 4.95 legacy credits or 7.5 current credits.
 const heavyCall = () => ({ model: "deepseek-flash", at: new Date("2026-09-23T02:00:00Z"), input: 100_000, cachedInput: 0, output: 0 });
 
 async function database(t) {
@@ -138,7 +139,7 @@ test("closing the signed-in owner removes every private row and keeps only accou
   await db.query("INSERT INTO agent_actions(id,run_id,sequence,tool_name,tool_version,tool_scope,effect,input,reason,digest,status) VALUES($1,$2,1,'fixture','1','project','read','{}','Private reason','digest','succeeded')", [randomUUID(), runId]);
 
   await grantCredits(db, { ownerId: a.ownerId, amount: 200, operationId: `fixture-grant:${a.ownerId}` });
-  const hold = await reserveUsage(db, { ownerId: a.ownerId, feature: "chat", maxPriceNanoUsd: 49_500_000 });
+  const hold = await reserveUsage(db, { ownerId: a.ownerId, feature: "chat", maxPriceNanoUsd: 49_500_000, pricingPolicyVersion: LEGACY_PRICING_POLICY });
   const reserveOperation = `fixture-reserve:${a.ownerId}`;
   await reserveCredits(db, { ownerId: a.ownerId, operationId: reserveOperation, amount: 10 });
 
@@ -197,7 +198,7 @@ test("a closed owner cannot start new work but its open reservation still settle
   const a = await newAccount(db, 222001);
   await addProject(db, a.ownerId);
   await grantCredits(db, { ownerId: a.ownerId, amount: 200, operationId: "grant" });
-  const hold = await reserveUsage(db, { ownerId: a.ownerId, feature: "chat", maxPriceNanoUsd: 49_500_000 });
+  const hold = await reserveUsage(db, { ownerId: a.ownerId, feature: "chat", maxPriceNanoUsd: 75_000_000 });
   const reserveOperation = "reserve";
   await reserveCredits(db, { ownerId: a.ownerId, operationId: reserveOperation, amount: 10 });
 
@@ -214,9 +215,9 @@ test("a closed owner cannot start new work but its open reservation still settle
 
   // The work already reserved before closure still settles exactly once.
   const settledUsage = await settleUsage(db, { ownerId: a.ownerId, id: hold.id, call: heavyCall() });
-  assert.equal(settledUsage.charged, 4);
+  assert.equal(settledUsage.charged, 7);
   await settleReservation(db, { ownerId: a.ownerId, operationId: reserveOperation, actualCost: 10 });
-  assert.deepEqual(await getBalance(db, { ownerId: a.ownerId }), { ownerId: a.ownerId, balance: 186, reserved: 0, available: 186 });
+  assert.deepEqual(await getBalance(db, { ownerId: a.ownerId }), { ownerId: a.ownerId, balance: 183, reserved: 0, available: 183 });
   assert.equal(await count(db, "usage_charges", "owner_id=$1", [a.ownerId]), 1);
 });
 

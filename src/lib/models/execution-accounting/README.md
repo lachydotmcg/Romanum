@@ -75,7 +75,7 @@ The pure API rejects repeat submission/finalization **on the supplied current st
 
 Only the current foundation rate card is available here. A final report naming an unavailable card is retained. Revalidating a saved prepared record after its card or review disappears fails closed; preserve its existing hold and evidence for reconciliation. Do not reprice or reconstruct it under a new current card. An immutable historical rate/review registry and actual provider pricing attribution are separate prerequisites for production recovery.
 
-The current candidate adds an explicit reviewed native-window quoting path, compatible selector pinning, durable attempt persistence and normalized settlement around this pure module. Wallet rates, markup, rounding, carry and released DeepSeek execution are preserved. This module alone enables no provider; release/activation checks remain separate.
+The current candidate adds an explicit reviewed native-window quoting path, compatible selector pinning, durable attempt persistence and normalized settlement around this pure module. New quotes and candidates pin the 2.5× pricing policy with exact integer arithmetic; missing policy on historical snapshots keeps the original 1.65× arithmetic and fingerprints. Credit value, carry and released DeepSeek execution are preserved. This module alone enables no provider; release/activation checks remain separate.
 
 ## Trusted adapter handoff
 

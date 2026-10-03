@@ -146,12 +146,12 @@ test("complete normalized input, read/write and output counts cannot double-coun
   assert.equal(costUsage(usage), 2_010_000);
 });
 
-test("a 5m nano quote cannot authorize 1h cost even when both whole-credit holds equal two", () => {
+test("a 5m nano quote cannot authorize 1h cost even when both whole-credit holds equal three", () => {
   const f = submittedFixture({ cacheTtl: "5m", budget: { inputTokens: 1000, maxInputTokens: 1000,
     outputTokens: 1, maxOutputTokens: 1 } });
-  assert.equal(f.prepared.quote.reservationPriceNanoUsd, 8_283_000);
-  assert.equal(f.prepared.quote.reservationCredits, 2);
-  assert.equal(Math.round(costUsage(oneHourUsage()) * 1.65), 13_200_000);
+  assert.equal(f.prepared.quote.reservationPriceNanoUsd, 12_550_000);
+  assert.equal(f.prepared.quote.reservationCredits, 3);
+  assert.equal(Math.round(costUsage(oneHourUsage()) * 2.5), 20_000_000);
   retained(f, finalOutcome(f.state, oneHourUsage()));
 });
 

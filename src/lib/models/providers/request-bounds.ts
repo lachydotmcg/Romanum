@@ -9,6 +9,7 @@ import { OPENAI_ADAPTER_VERSION, OPENAI_REQUEST_FORMAT } from "./openai.ts";
 import { ANTHROPIC_ADAPTER_VERSION, ANTHROPIC_REQUEST_FORMAT } from "./anthropic.ts";
 import { NATIVE_BOUND_STRATEGY, NATIVE_BOUND_VERSION, NATIVE_INPUT_CAPACITY } from "./native-capacity.ts";
 import { safeJson } from "./wire.ts";
+import { CURRENT_PRICING_POLICY, type PricingPolicyVersion } from "../../credits/pricing-policy.ts";
 
 export type ProviderBoundReviews = ContractPolicy;
 export type ProviderAssistantRequest = Pick<OpenAI.Chat.ChatCompletionCreateParams, "model" | "messages" | "tools" | "max_tokens">;
@@ -57,8 +58,8 @@ export function providerRequestBudget(request: ProviderAssistantRequest, modelId
     outputTokens: request.max_tokens!, maxOutputTokens: request.max_tokens!, cacheTtl: model.cacheTtls[0] } };
 }
 
-export function quoteProviderBudget(modelId: ModelId, budget: TokenBudget, at: string, policy: ContractPolicy = PROVIDER_BOUND_POLICY) {
+export function quoteProviderBudget(modelId: ModelId, budget: TokenBudget, at: string, policy: ContractPolicy = PROVIDER_BOUND_POLICY, pricingPolicyVersion: PricingPolicyVersion = CURRENT_PRICING_POLICY) {
   const review = providerBoundReview(modelId, policy);
   if (budget.maxInputTokens !== review.maxInputTokens || budget.maxOutputTokens > review.maxOutputTokens) throw new Error("Unreviewed request bound.");
-  return quoteNativeModel(modelId, budget, { at });
+  return quoteNativeModel(modelId, budget, { at, pricingPolicyVersion });
 }

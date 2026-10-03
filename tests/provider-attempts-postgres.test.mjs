@@ -132,7 +132,7 @@ test("PostgreSQL independent duplicate final callbacks capture once and return o
   const results = await completeAll(connections.map(connection => finish(connection, f, outcome)));
   assert.ok(results.every(result => result.settled));
   assert.equal(results.filter(result => result.priceNanoUsd > 0).length, 1);
-  assert.equal(results.reduce((sum, result) => sum + result.priceNanoUsd, 0), Math.round(costUsage(anthropicUsage()) * 1.65));
+  assert.equal(results.reduce((sum, result) => sum + result.priceNanoUsd, 0), Math.round(costUsage(anthropicUsage()) * 2.5));
   assert.equal(await count(db, "usage_charges"), 1);
   assert.equal(await count(db, "provider_final_claims"), 1);
   assert.equal(await count(db, "credits_ledger", "entry_type='capture'"), 1);
@@ -162,7 +162,7 @@ test("PostgreSQL concurrent distinct settlements serialize fractional carry with
   const states = await completeAll(connections.map((connection, i) => submitted(connection, fixtures[i])));
   const results = await completeAll(connections.map((connection, i) => finish(connection, fixtures[i], final(states[i]))));
   assert.ok(results.every(result => result.settled));
-  const total = fixtures.length * Math.round(costUsage(anthropicUsage()) * 1.65), due = Math.floor(total / 10_000_000);
+  const total = fixtures.length * Math.round(costUsage(anthropicUsage()) * 2.5), due = Math.floor(total / 10_000_000);
   assert.equal(results.reduce((sum, result) => sum + result.chargedCredits, 0), due);
   assert.equal(await carry(db), total % 10_000_000);
   assert.equal((await getBalance(db, { ownerId: "synthetic-owner" })).balance, 100 - due);
@@ -191,8 +191,8 @@ test("PostgreSQL failed capture retains final candidate and concurrent accountin
   assert.equal((await submitProviderAttempt(db, f.prepared.attemptId, f.prepared.ownerId, f.prepared.requestHash, f.contract, AT)).dispatch, false);
   const retries = await completeAll(connections.map(connection => settleProviderAttempt(connection, f.prepared.attemptId, f.prepared.ownerId, f.contract)));
   assert.ok(retries.every(result => result.settled));
-  assert.equal(retries.reduce((sum, result) => sum + result.chargedCredits, 0), 3);
-  assert.equal(retries.reduce((sum, result) => sum + result.priceNanoUsd, 0), Math.round(costUsage(usage) * 1.65));
+  assert.equal(retries.reduce((sum, result) => sum + result.chargedCredits, 0), 5);
+  assert.equal(retries.reduce((sum, result) => sum + result.priceNanoUsd, 0), Math.round(costUsage(usage) * 2.5));
   assert.equal(await count(db, "usage_charges"), 1);
   assert.equal(await count(db, "credits_ledger", "entry_type='capture'"), 1);
   assert.equal((await finish(db, f, outcome)).priceNanoUsd, 0);

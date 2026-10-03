@@ -84,14 +84,14 @@ test("quotes cover a cache miss/write even after an observed hit, and cover Deep
   const write = normalizeUsage("gpt-6.1-sol", { input_tokens: 100000, output_tokens: 1,
     input_tokens_details: { cached_tokens: 0, cache_write_tokens: 100000 } }, { at });
   assert.ok(costUsage(miss) > quote.estimatedCostNanoUsd);
-  assert.ok(Math.ceil(costUsage(write) * 1.65) <= quote.reservationPriceNanoUsd);
-  assert.ok(Math.ceil(costUsage(miss) * 1.65) <= quote.reservationPriceNanoUsd);
+  assert.ok(Math.ceil(costUsage(write) * 2.5) <= quote.reservationPriceNanoUsd);
+  assert.ok(Math.ceil(costUsage(miss) * 2.5) <= quote.reservationPriceNanoUsd);
   const flash = quoteModel("deepseek-flash", budget, { at }); // noon: off-peak estimate, peak ceiling.
   const peak = normalizeUsage("deepseek-flash", { prompt_tokens: 2000, completion_tokens: 4000 }, { at: "2026-10-02T07:00:00.000Z" });
-  assert.ok(Math.ceil(costUsage(peak) * 1.65) <= flash.reservationPriceNanoUsd);
+  assert.ok(Math.ceil(costUsage(peak) * 2.5) <= flash.reservationPriceNanoUsd);
   const anthropic = quoteModel("claude-opus-5-5", { ...budget, cacheTtl: "1h" }, { at });
   const created = normalizeUsage("claude-opus-5-5", { input_tokens: 0, cache_creation_input_tokens: 2000, output_tokens: 4000 }, { at, cacheTtl: "1h" });
-  assert.ok(Math.ceil(costUsage(created) * 1.65) <= anthropic.reservationPriceNanoUsd);
+  assert.ok(Math.ceil(costUsage(created) * 2.5) <= anthropic.reservationPriceNanoUsd);
 });
 
 test("compatible cache scenarios affect Auto ranking only when their worst-case reservation is affordable", () => {
@@ -102,7 +102,7 @@ test("compatible cache scenarios affect Auto ranking only when their worst-case 
   assert.equal(chosen.reason, "auto_cache_scenario");
   const mismatch = routeModel({ ...hint, cacheObservations: [{ ...cache, binding: { ...binding, ownerId: "owner-b" } }] }, ready(["gpt-6.1-sol", "deepseek-v4-pro"]));
   assert.equal(mismatch.modelId, "deepseek-v4-pro");
-  const unaffordable = routeModel({ ...hint, availableCredits: 25 }, ready(["gpt-6.1-sol", "deepseek-v4-pro"]));
+  const unaffordable = routeModel({ ...hint, availableCredits: 40 }, ready(["gpt-6.1-sol", "deepseek-v4-pro"]));
   assert.equal(unaffordable.modelId, "deepseek-v4-pro");
   const latestMiss = { ...cache, observedAt: "2026-10-02T11:59:00.000Z", cacheReadTokens: 0 };
   assert.equal(routeModel({ ...hint, cacheObservations: [cache, latestMiss] }, ready(["gpt-6.1-sol", "deepseek-v4-pro"])).modelId, "deepseek-v4-pro");

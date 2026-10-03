@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { pricingHoldId, holdPricingPolicy } from "./hold-policy.ts";
+import { CURRENT_PRICING_POLICY, type PricingPolicyVersion } from "./pricing-policy.ts";
 import type { Database, Sql } from "../history/database.ts";
 import { CreditsError, releaseReservation, reserveCredits, settleReservation } from "./ledger.ts";
 import { NANO_USD_PER_CREDIT, callCost, isDeepSeekPeak, modelPricing, priceCalls, type CallUsage } from "./pricing.ts";
@@ -125,7 +127,8 @@ function callFingerprint(call: NormalizedCall): string {
 }
 
 // The audit record written to usage_charges, matching the shape metering.ts uses.
-const callRecord = (call: NormalizedCall) => ({
+const callRecord = (call: NormalizedCall, pricingPolicyVersion: PricingPolicyVersion) => ({
+  pricingPolicyVersion,
   model: call.model,
   at: call.at.toISOString(),
   peak: modelPricing(call.model).offPeakRates ? isDeepSeekPeak(call.at) : null,
@@ -133,7 +136,7 @@ const callRecord = (call: NormalizedCall) => ({
   cachedInput: call.cachedInput,
   cacheWrite: call.cacheWrite,
   output: call.output,
-  costNanoUsd: callCost(call),
+  costNanoUsd: callCost(call, pricingPolicyVersion),
 });
 
 async function lockHold(sql: Sql, id: string): Promise<HoldRow | undefined> {
@@ -153,12 +156,12 @@ async function lockHold(sql: Sql, id: string): Promise<HoldRow | undefined> {
  */
 export async function reserveUsage(
   database: Database,
-  input: { ownerId: string; feature: "ask" | "chat"; maxPriceNanoUsd: number },
+  input: { ownerId: string; feature: "ask" | "chat"; maxPriceNanoUsd: number; pricingPolicyVersion?: PricingPolicyVersion },
 ): Promise<{ id: string; amount: number }> {
   const ownerId = identifier(input?.ownerId, "ownerId");
   const feature = featureOf(input?.feature);
   const maxPriceNanoUsd = quoteNanoUsd(input?.maxPriceNanoUsd);
-  const id = randomUUID();
+  const id = pricingHoldId(input.pricingPolicyVersion ?? CURRENT_PRICING_POLICY);
   const operationId = `model-call:${id}`;
   const amount = heldCredits(maxPriceNanoUsd);
 
@@ -187,10 +190,6 @@ export async function settleUsage(
   const ownerId = identifier(input?.ownerId, "ownerId");
   const id = holdId(input?.id);
   const call = normalizeCall(input?.call);
-  const { cost, price } = priceCalls([call]);
-  if (!Number.isSafeInteger(cost) || !Number.isSafeInteger(price) || cost < 0 || price < 0) {
-    throw new CreditsError("invalid_input", "Usage cost exceeds the safe accounting limit.");
-  }
   const fingerprint = callFingerprint(call);
 
   return database.transaction(async (sql) => {
@@ -206,6 +205,8 @@ export async function settleUsage(
       };
     }
     if (hold.status === "released") throw new CreditsError("invalid_operation", "Usage hold was already released.");
+    const policy = holdPricingPolicy(hold.id);
+    const { cost, price } = priceCalls([call], policy);
 
     // Over-quote usage is never written off: fail and leave the hold held so an
     // operator can reconcile the real cost.
@@ -219,6 +220,7 @@ export async function settleUsage(
       [ownerId],
     );
     const total = asNumber(carryRows[0].carry_nano_usd) + price;
+    if (!Number.isSafeInteger(total) || total < 0) throw new CreditsError("conflict", "Usage carry exceeds the safe accounting limit.");
     const due = Math.floor(total / NANO_USD_PER_CREDIT);
     const remaining = total - due * NANO_USD_PER_CREDIT;
     if (due > asNumber(hold.reserved_credits)) throw new CreditsError("conflict", "Usage costs more credits than the reservation holds.");
@@ -229,7 +231,7 @@ export async function settleUsage(
     const chargeId = randomUUID();
     await sql.query(
       "INSERT INTO usage_charges(id, owner_id, feature, calls, cost_nano_usd, price_nano_usd, credits_charged, unpaid_nano_usd) VALUES ($1,$2,$3,$4,$5,$6,$7,0)",
-      [chargeId, ownerId, hold.feature, JSON.stringify([callRecord(call)]), cost, price, due],
+      [chargeId, ownerId, hold.feature, JSON.stringify([callRecord(call, policy)]), cost, price, due],
     );
     await sql.query("UPDATE usage_carry SET carry_nano_usd=$2, updated_at=now() WHERE owner_id=$1", [ownerId, remaining]);
     await sql.query(

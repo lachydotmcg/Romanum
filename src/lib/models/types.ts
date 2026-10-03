@@ -52,6 +52,8 @@ export type TokenBudget = {
   cacheTtl?: CacheTtl;
 };
 export type ModelQuote = {
+  /** Absent only on historical 1.65x server snapshots. */
+  pricingPolicyVersion?: import("../credits/pricing-policy.ts").PricingPolicyVersion;
   modelId: ModelId; rateCardVersion: string; estimatedCostNanoUsd: number;
   estimatedPriceNanoUsd: number; estimatedCredits: number;
   reservationPriceNanoUsd: number; reservationCredits: number;
@@ -68,6 +70,8 @@ export type RouteDecision =
       /** A suggestion only; never a substituted explicit model or an executed retry. */
       fallback: { modelId: ModelId; quote: ModelQuote; reason: "affordable_alternative" } | null };
 export type RouteRequest = {
+  /** Trusted server policy, never accepted from browser routing assertions. */
+  pricingPolicyVersion?: import("../credits/pricing-policy.ts").PricingPolicyVersion;
   selection: unknown; availableCredits: number; budget: TokenBudget;
   capabilities?: CapabilityRequirements; at: string;
   /** Required for cache-aware estimates; exact owner/model/etc. matches only. */

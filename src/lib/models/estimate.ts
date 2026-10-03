@@ -1,4 +1,5 @@
-import { CREDIT_MARKUP, NANO_USD_PER_CREDIT } from "../credits/pricing.ts";
+import { NANO_USD_PER_CREDIT } from "../credits/pricing.ts";
+import { CURRENT_PRICING_POLICY, LEGACY_PRICING_POLICY, markedUpPrice, pricingPolicyVersion, type PricingPolicyVersion } from "../credits/pricing-policy.ts";
 import { compatibleCacheReadTokens } from "./cache.ts";
 import { getModel } from "./catalog.ts";
 import { ceilingCostUsage, costUsage } from "./usage.ts";
@@ -20,10 +21,8 @@ export function reservationCredits(priceNanoUsd: number): number {
   if (!Number.isSafeInteger(amount)) throw new Error("Reservation exceeds the safe accounting limit.");
   return amount;
 }
-function price(cost: number): number {
-  const amount = Math.ceil(cost * CREDIT_MARKUP);
-  if (!Number.isSafeInteger(amount) || amount < 0) throw new Error("Price exceeds the safe accounting limit.");
-  return amount;
+function price(cost: number, policy: PricingPolicyVersion): number {
+  return markedUpPrice(cost, policy, "ceil");
 }
 function writeCategory(ttl: CacheTtl, count: number): Pick<NormalizedUsage, "cacheWriteTokens" | "cacheWrite5mTokens" | "cacheWrite1hTokens"> {
   return { cacheWriteTokens: ttl === "30m" ? count : 0,
@@ -33,20 +32,21 @@ function writeCategory(ttl: CacheTtl, count: number): Pick<NormalizedUsage, "cac
 /** One-call text-token quote; supplied bounds must already include framing, tools, vision and reasoning. */
 export function quoteModel(
   modelId: ModelId, budget: TokenBudget, options: {
-    at: string; cacheBinding?: CacheBinding; cacheObservations?: readonly CacheObservation[];
+    at: string; cacheBinding?: CacheBinding; cacheObservations?: readonly CacheObservation[]; pricingPolicyVersion?: PricingPolicyVersion;
   },
 ): ModelQuote {
   return quote(modelId, budget, options, false);
 }
 
 /** Reviewed native window ceiling, never a browser-selected capacity or a reduced cache promise. */
-export function quoteNativeModel(modelId: ModelId, budget: TokenBudget, options: { at: string }): ModelQuote {
+export function quoteNativeModel(modelId: ModelId, budget: TokenBudget, options: { at: string; pricingPolicyVersion?: PricingPolicyVersion }): ModelQuote {
   return quote(modelId, budget, options, true);
 }
 
 function quote(modelId: ModelId, budget: TokenBudget, options: {
-  at: string; cacheBinding?: CacheBinding; cacheObservations?: readonly CacheObservation[];
+  at: string; cacheBinding?: CacheBinding; cacheObservations?: readonly CacheObservation[]; pricingPolicyVersion?: PricingPolicyVersion;
 }, native: boolean): ModelQuote {
+  const policy = pricingPolicyVersion(options.pricingPolicyVersion ?? CURRENT_PRICING_POLICY);
   const model = getModel(modelId);
   if (!model || !validBudget(budget) || !Number.isFinite(Date.parse(options.at))) throw new Error("Invalid model quote.");
   const capacity = native ? NATIVE_INPUT_CAPACITY[modelId] : undefined;
@@ -61,14 +61,14 @@ function quote(modelId: ModelId, budget: TokenBudget, options: {
     totalInputTokens: 0, outputTokens: 0 };
   // With no compatible observation, estimate a cache miss. Writes are still covered by the ceiling.
   const estimatedCostNanoUsd = costUsage({ ...base, inputMissTokens: budget.inputTokens - cacheRead,
-    cacheReadTokens: cacheRead, totalInputTokens: budget.inputTokens, outputTokens: budget.outputTokens });
+    cacheReadTokens: cacheRead, totalInputTokens: budget.inputTokens, outputTokens: budget.outputTokens }, policy);
   const miss = { ...base, inputMissTokens: budget.maxInputTokens, totalInputTokens: budget.maxInputTokens, outputTokens: budget.maxOutputTokens };
   const write = { ...miss, inputMissTokens: ttl === "automatic" ? budget.maxInputTokens : 0,
     ...writeCategory(ttl, budget.maxInputTokens) };
   // No future hit is needed to afford this; cover the more expensive all-miss or all-write case at peak.
-  const reservationPriceNanoUsd = Math.max(1, price(Math.max(ceilingCostUsage(miss), ceilingCostUsage(write))));
-  const estimatedPriceNanoUsd = price(estimatedCostNanoUsd);
-  return { modelId: model.id, rateCardVersion: model.rateCardVersion, estimatedCostNanoUsd, estimatedPriceNanoUsd,
+  const reservationPriceNanoUsd = Math.max(1, price(Math.max(ceilingCostUsage(miss, policy), ceilingCostUsage(write, policy)), policy));
+  const estimatedPriceNanoUsd = price(estimatedCostNanoUsd, policy);
+  return { ...(policy === LEGACY_PRICING_POLICY ? {} : { pricingPolicyVersion: policy }), modelId: model.id, rateCardVersion: model.rateCardVersion, estimatedCostNanoUsd, estimatedPriceNanoUsd,
     estimatedCredits: estimatedPriceNanoUsd / NANO_USD_PER_CREDIT, reservationPriceNanoUsd,
     reservationCredits: reservationCredits(reservationPriceNanoUsd), minimumReservationCredits: 2,
     estimateBasis: cacheRead ? "compatible_cache_scenario" : "uncached", estimatedCacheReadTokens: cacheRead, cacheHitGuaranteed: false };
