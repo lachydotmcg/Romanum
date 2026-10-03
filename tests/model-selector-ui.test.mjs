@@ -118,7 +118,6 @@ test("pill opens a labeled charcoal list above the trigger with checks and disab
   assert.match(result.markup, /<label for="fixture-model" class="sr-only">Select model/);
   assert.equal(result.trigger.role, "combobox"); assert.equal(result.trigger["aria-haspopup"], "listbox");
   assert.equal(result.trigger["aria-expanded"], true); assert.equal(result.list.id, result.trigger["aria-controls"]);
-  assert.match(result.list.className, /rounded-\[18px\].*bg-surface p-3/);
   assert.equal(result.list.style.width, 255); assert.ok(result.list.style.bottom > 0); assert.equal(result.list.style.top, undefined);
   assert.equal(result.option("auto")["aria-selected"], true); assert.match(result.markup, /Budget and cache aware/);
   assert.equal(result.option("deepseek-flash")["aria-disabled"], undefined);
@@ -144,11 +143,11 @@ test("verified non-subscriber gets one optional recommendation without delaying 
   result.choose("deepseek-flash");
   assert.deepEqual(result.changes, [{ mode: "explicit", modelId: "deepseek-flash" }]);
   assert.equal(result.trigger.value, "deepseek-flash");
-  assert.match(result.markup, /Auto balances model capability with price and your credit budget/);
-  assert.match(result.markup, /Continue with .*DeepSeek Flash/);
+  assert.match(result.markup, /Auto balances model capability with price/);
+  assert.match(result.markup, /Keep choice: .*DeepSeek Flash/);
   assert.match(result.markup, /aria-label="Dismiss Auto recommendation"/);
   assert.equal(result.storage.size, 1);
-  result.button("Continue with DeepSeek Flash");
+  result.button("Keep choice: DeepSeek Flash");
   assert.doesNotMatch(result.markup, /Auto balances model capability/);
   assert.equal(result.trigger.value, "deepseek-flash");
   result.choose("auto"); result.choose("deepseek-flash"); result.choose("deepseek-flash");

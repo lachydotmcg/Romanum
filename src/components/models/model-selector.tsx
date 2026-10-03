@@ -115,7 +115,7 @@ export function ModelSelector({
     if (!rect) return;
     const width = Math.max(0, Math.min(255, window.innerWidth - 16));
     const above = rect.top - 12, below = window.innerHeight - rect.bottom - 12;
-    const upwards = above >= 160 || above >= below;
+    const upwards = above >= 320 || above >= below;
     const height = Math.max(0, Math.min(320, Math.max(88, upwards ? above : below), window.innerHeight - 16));
     const anchor = upwards ? window.innerHeight - rect.top + 8 : rect.bottom + 8;
     const offset = Math.max(8, Math.min(anchor, window.innerHeight - height - 8));
@@ -197,18 +197,19 @@ export function ModelSelector({
       <button ref={trigger} id={selectId} value={value} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={visible}
         aria-controls={visible ? listId : undefined} aria-activedescendant={visible && options[active] ? `${listId}-${active}` : undefined}
         disabled={locked} aria-describedby={`${helpId} ${statusId}${recommendationShown ? ` ${recommendationId}` : ""}`} aria-busy={loading || undefined} onKeyDown={keyDown} onClick={() => visible ? setOpen(false) : show()}
-        className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-line bg-surface px-3 text-[13px] text-fg outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
+        className="inline-flex min-h-7 pointer-coarse:min-h-11 max-w-full items-center gap-1.5 rounded-full bg-surface-hover px-[9px] text-[13px] text-fg outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
         <span className="min-w-0 truncate">{options[selectedIndex]?.label ?? value}</span><ChevronDown className="size-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
       </button>
       {visible && createPortal(<div ref={popup} id={listId} role="listbox" aria-labelledby={`${listId}-heading`}
         style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width, maxHeight: position.height }}
-        className="fixed z-[100] overflow-hidden rounded-[18px] border border-line bg-surface p-3 shadow-lg">
-        <p id={`${listId}-heading`} className="mb-2 px-1 text-xs text-fg-muted">Select model</p>
-        <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: Math.max(0, position.height - 52) }}>
+        className="fixed z-[100] overflow-hidden rounded-[18px] border border-white/[0.06] bg-[#2b2a2b] p-2 shadow-lg">
+        <p id={`${listId}-heading`} className="mb-1 mt-1 px-1 text-xs text-fg-muted">Select model</p>
+        <div className="overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10" style={{ maxHeight: Math.max(0, position.height - 40) }}>
           {options.map((option, index) => <div key={option.value} id={`${listId}-${index}`} role="option" data-index={index} aria-selected={value === option.value} aria-disabled={option.disabled || undefined}
+            title={option.disabled ? option.description : undefined}
             onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}
-            className={`flex min-h-11 items-center justify-between gap-3 rounded-lg px-2 py-2 ${option.disabled ? "cursor-not-allowed text-fg-subtle" : "cursor-pointer text-fg"} ${index === active && !option.disabled ? "bg-white/[0.04]" : ""}`}>
-            <div className="min-w-0"><p className="text-[13px] leading-5">{option.label}</p>{option.description && <p className="text-[11px] leading-4 text-fg-muted">{option.description}</p>}</div>
+            className={`flex ${option.value === "auto" ? "min-h-11" : "min-h-7"} pointer-coarse:min-h-11 items-center justify-between gap-3 rounded-lg px-1 ${option.disabled ? "cursor-not-allowed text-fg-muted" : "cursor-pointer text-fg"} ${index === active && option.value !== value && !option.disabled ? "bg-white/[0.04]" : ""}`}>
+            <div className="min-w-0"><p className="text-[13px] leading-5">{option.label}</p>{option.description && <p className={option.disabled ? "sr-only" : "text-[11px] leading-4 text-fg-muted"}>{option.description}</p>}</div>
             {value === option.value && <Check className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />}
           </div>)}
         </div>
@@ -216,26 +217,26 @@ export function ModelSelector({
       {recommendationShown && selection.mode === "explicit" && recommendationContext.subscription === "none" &&
         createPortal(<div role="group" aria-label="Auto recommendation"
           style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width, maxHeight: position.height }}
-          className="fixed z-[100] overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-lg" onKeyDown={event => {
+          className="fixed z-[100] overflow-y-auto rounded-[18px] border border-white/[0.06] bg-[#2b2a2b] px-3 py-2 shadow-lg" onKeyDown={event => {
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissRecommendation(); }
         }}>
           <div className="flex items-start gap-2">
-            <p id={recommendationId} role="status" aria-live="polite" className="flex-1 text-xs leading-5 text-fg-muted">
-              Auto balances model capability with price and your credit budget. You can keep your choice or return to Auto anytime.
+            <p id={recommendationId} role="status" aria-live="polite" className="flex-1 py-1 text-xs leading-[18px] text-fg-muted">
+              Auto balances model capability with price.
             </p>
             <button type="button" aria-label="Dismiss Auto recommendation" onClick={dismissRecommendation}
-              className="-mr-2 -mt-2 inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-fg-muted hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
+              className="-mr-2 -mt-1 inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
               <X className="size-3.5" aria-hidden="true" />
             </button>
           </div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            <button type="button" onClick={dismissRecommendation}
-              className="min-h-11 cursor-pointer rounded-lg px-2 text-xs text-fg hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
-              Continue with {selected?.label ?? selection.modelId}
+          <div className="flex flex-wrap gap-1">
+            <button type="button" aria-label={`Keep choice: ${selected?.label ?? selection.modelId}`} onClick={dismissRecommendation}
+              className="min-h-11 cursor-pointer rounded-full px-2 text-xs text-fg hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70">
+              Keep choice
             </button>
             <button type="button" disabled={locked || !hasEnabled} onClick={() => {
               if (!locked && hasEnabled) { changeSelection({ mode: "auto" }); trigger.current?.focus(); }
-            }} className="min-h-11 cursor-pointer rounded-lg px-2 text-xs text-fg-muted hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
+            }} className="min-h-11 cursor-pointer rounded-full px-2 text-xs text-fg-muted hover:bg-surface-hover outline-offset-2 focus-visible:outline-2 focus-visible:outline-fg/70 disabled:cursor-not-allowed disabled:opacity-50">
               Use Auto
             </button>
           </div>
