@@ -73,4 +73,8 @@ The pure API rejects repeat submission/finalization **on the supplied current st
 
 Only the current foundation rate card is available here. A final report naming an unavailable card is retained. Revalidating a saved prepared record after its card or review disappears fails closed; preserve its existing hold and evidence for reconciliation. Do not reprice or reconstruct it under a new current card. An immutable historical rate/review registry and actual provider pricing attribution are separate prerequisites for production recovery.
 
-The existing adapters, selector guards, billing API, ledger, holds, rate card, migrations and readiness files are untouched. This module alone enables no provider and closes none of the separate durable execution or financial integration gates.
+The core contract reducer/validators, selector guards, billing API, ledger, holds, rate card, migrations and readiness files are unchanged. The trusted adapter handoff below consumes separately strengthened disabled adapters. This module alone enables no provider and closes none of the separate durable execution or financial integration gates.
+
+## Trusted adapter handoff
+
+`adapter-evidence.ts` adds the pure `adapterOutcome(currentState, adapterResult, observedAt)` mapper for the disabled Responses and Anthropic adapters. Their compiled request hash and persisted dispatch timestamp must match the saved prepared/claimed attempt. It preserves the adapter's actual identity/version/profile evidence for contract checks, copies normalized counters separately from quotes, and excludes visible text, native reasoning continuation and diagnostic errors. Failed results remain absent/partial/unverified evidence even if `usageComplete` is true. `providerCostNanoUsd` is not copied into a candidate as an authorized debit. No provider call, mutation, database CAS or ledger bridge is added by this helper.

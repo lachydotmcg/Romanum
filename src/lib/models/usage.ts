@@ -23,7 +23,11 @@ export function normalizeUsage(modelId: ModelId, raw: unknown, options: UsageOpt
   ratesAt(model, options.at); // Validate time before returning an auditable usage record.
   if (options.cacheTtl && !model.cacheTtls.includes(options.cacheTtl)) throw new Error("Unsupported cache TTL.");
   if ((usage.service_tier !== undefined && !["standard", "default"].includes(String(usage.service_tier))) ||
-    (usage.inference_geo !== undefined && usage.inference_geo !== "global")) throw new Error("Unsupported provider pricing modifier.");
+    (usage.inference_geo !== undefined && usage.inference_geo !== "global") ||
+    (usage.speed !== undefined && usage.speed !== "standard")) throw new Error("Unsupported provider pricing modifier.");
+  if (usage.server_tool_use !== undefined && Object.values(record(usage.server_tool_use)).some(value => tokens(value) !== 0)) {
+    throw new Error("Unsupported server tool usage.");
+  }
   let inputMissTokens = 0, cacheReadTokens = 0, cacheWriteTokens = 0;
   let cacheWrite5mTokens = 0, cacheWrite1hTokens = 0, totalInputTokens = 0, outputTokens = 0;
   if (model.provider === "deepseek") {
@@ -46,6 +50,11 @@ export function normalizeUsage(modelId: ModelId, raw: unknown, options: UsageOpt
     // Mixed Responses/chat totals must agree, rather than choosing whichever makes a smaller bill.
     if ((usage.prompt_tokens !== undefined && tokens(usage.prompt_tokens) !== totalInputTokens) ||
       (usage.completion_tokens !== undefined && tokens(usage.completion_tokens) !== outputTokens)) throw new Error("Conflicting OpenAI usage totals.");
+    if (responses && usage.prompt_tokens_details !== undefined) {
+      const chatDetails = record(usage.prompt_tokens_details);
+      if (optionalTokens(chatDetails.cached_tokens) !== cacheReadTokens ||
+          optionalTokens(chatDetails.cache_write_tokens) !== cacheWriteTokens) throw new Error("Conflicting OpenAI cache details.");
+    }
   } else {
     inputMissTokens = tokens(usage.input_tokens); // Anthropic excludes BOTH cache reads and writes here.
     outputTokens = tokens(usage.output_tokens);
@@ -63,6 +72,18 @@ export function normalizeUsage(modelId: ModelId, raw: unknown, options: UsageOpt
     }
     totalInputTokens = sum([inputMissTokens, cacheReadTokens, cacheWrite5mTokens, cacheWrite1hTokens]);
     if (usage.total_input_tokens !== undefined && tokens(usage.total_input_tokens) !== totalInputTokens) throw new Error("Conflicting Anthropic input total.");
+  }
+  // Child reasoning counters describe output already billed above; they are never an extra charge.
+  for (const key of ["output_tokens_details", "completion_tokens_details"]) {
+    if (usage[key] === undefined) continue;
+    const details = record(usage[key]);
+    if (optionalTokens(details.reasoning_tokens) > outputTokens) throw new Error("Reasoning tokens exceed output tokens.");
+    if (optionalTokens(details.thinking_tokens) > outputTokens) throw new Error("Thinking tokens exceed output tokens.");
+  }
+  if (usage.output_tokens_details !== undefined && usage.completion_tokens_details !== undefined) {
+    const output = record(usage.output_tokens_details), completion = record(usage.completion_tokens_details);
+    if (output.reasoning_tokens !== undefined && completion.reasoning_tokens !== undefined &&
+        tokens(output.reasoning_tokens) !== tokens(completion.reasoning_tokens)) throw new Error("Conflicting reasoning details.");
   }
   if (sum([inputMissTokens, cacheReadTokens, cacheWriteTokens, cacheWrite5mTokens, cacheWrite1hTokens]) !== totalInputTokens) {
     throw new Error("Provider input token categories do not match the reported total.");

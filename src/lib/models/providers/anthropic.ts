@@ -3,13 +3,16 @@ import { createHash } from "node:crypto";
 import { env } from "node:process";
 import { z } from "zod";
 import { getModel } from "../catalog.ts";
-import { normalizeUsage } from "../usage.ts";
+import { costUsage, normalizeUsage } from "../usage.ts";
+import { canonicalTime, compileWire, safeJson } from "./wire.ts";
 import type { NormalizedUsage } from "../types.ts";
 import type { AdapterErrorCode, AnthropicAdapterOptions, AnthropicCallOptions, AnthropicRequest,
   AnthropicResult, AnthropicStopReason, AnthropicOutputBlock, JsonValue, ToolCall } from "./types.ts";
 
 export const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
+export const ANTHROPIC_ADAPTER_VERSION = "anthropic-messages-v2";
+export const ANTHROPIC_REQUEST_FORMAT = "anthropic-messages-json-v1";
 export const ANTHROPIC_LIMITS = Object.freeze({ requestBytes: 8 * 1024 * 1024, responseBytes: 4 * 1024 * 1024,
   eventBytes: 256 * 1024, textBytes: 1024 * 1024, toolJsonBytes: 64 * 1024, toolCalls: 16, blocks: 128, events: 20_000 });
 const messages: Record<AdapterErrorCode, string> = {
@@ -64,22 +67,7 @@ const requestSchema = z.object({ modelId: z.string(), system: z.string().optiona
 
 /** Bound JSON before stringification or tool return; reject values JSON would silently omit. */
 function checkedJson(value: unknown, code: AdapterErrorCode, maxBytes: number): string {
-  let nodes = 0;
-  function walk(item: unknown, depth: number) {
-    if (++nodes > 20_000 || depth > 32) fail(code);
-    if (typeof item === "string") { if (bytes(item) > maxBytes) fail(code); return; }
-    if (item === null || typeof item === "boolean") return;
-    if (typeof item === "number" && Number.isFinite(item)) return;
-    if (typeof item !== "object" || !item || (!Array.isArray(item) && ![Object.prototype, null].includes(Object.getPrototypeOf(item)))) fail(code);
-    for (const [key, child] of Object.entries(item)) {
-      if (["__proto__", "constructor", "prototype"].includes(key)) fail(code);
-      walk(child, depth + 1);
-    }
-  }
-  walk(value, 0);
-  const serialized = JSON.stringify(value);
-  if (bytes(serialized) > maxBytes) fail(code);
-  return serialized;
+  try { return safeJson(value, maxBytes); } catch { return fail(code); }
 }
 type WireBlock = Record<string, unknown>;
 type WireMessage = { role: "user" | "assistant"; content: WireBlock[] };
@@ -162,6 +150,12 @@ export function translateAnthropicRequest(value: AnthropicRequest): AnthropicWir
   return body;
 }
 
+export function compileAnthropicRequest(request: AnthropicRequest) {
+  return compileWire(translateAnthropicRequest(request), {
+    endpoint: ANTHROPIC_ENDPOINT, apiVersion: ANTHROPIC_VERSION, requestFormat: ANTHROPIC_REQUEST_FORMAT,
+  }, ANTHROPIC_LIMITS.requestBytes);
+}
+
 type Block = { type: "text"; text: string; closed: boolean } | {
   type: "tool_use"; id: string; name: string; initial: Record<string, unknown>; json: string; closed: boolean;
 } | { type: "thinking"; signature: string; closed: boolean } | { type: "redacted_thinking"; data: string; closed: boolean };
@@ -195,6 +189,13 @@ class MessageState {
         merged[key] = creation[key];
       }
       next.cache_creation = merged;
+    }
+    if (incoming.output_tokens_details !== undefined) {
+      const details = object(incoming.output_tokens_details);
+      const prior = next.output_tokens_details === undefined ? {} : object(next.output_tokens_details);
+      if (details.thinking_tokens !== undefined && (!Number.isSafeInteger(details.thinking_tokens) ||
+          Number(details.thinking_tokens) < Number(prior.thinking_tokens ?? 0))) fail("invalid_response");
+      next.output_tokens_details = { ...prior, ...details };
     }
     try { this.usage = normalizeUsage(this.request.modelId, next, { at: this.at, cacheTtl: this.request.cacheTtl }); }
     catch { fail("invalid_response"); }
@@ -285,7 +286,7 @@ class MessageState {
     if (!this.deltas || !this.stopReason || !this.usage) fail("incomplete_stream");
     this.stopped = true; this.usageComplete = true;
   }
-  result(): AnthropicResult {
+  result(): Omit<Extract<AnthropicResult, { status: "completed" }>, "evidence" | "providerCostNanoUsd"> {
     if (!this.stopped || !this.usage || !this.stopReason) return fail("incomplete_stream");
     if (this.usage.totalInputTokens > this.request.maxInputTokens || this.usage.outputTokens > this.request.maxTokens) fail("invalid_response");
     const truncated = this.stopReason === "max_tokens" || this.stopReason === "model_context_window_exceeded";
@@ -403,11 +404,13 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions = {}) {
     void aborted.catch(() => {});
     try {
       if (!enabled) fail("execution_disabled");
-      const body = translateAnthropicRequest(request);
+      const compiled = compileAnthropicRequest(request), body = compiled.body;
       const snapshot = JSON.parse(JSON.stringify(request)) as AnthropicRequest;
+      if (callOptions.binding && (callOptions.binding.expectedRequestHash !== compiled.requestHash ||
+          !canonicalTime(callOptions.binding.submittedAt))) fail("invalid_request");
       const apiKey = getKey()?.trim();
       if (!apiKey || /\s/.test(apiKey) || apiKey.length > 1024) fail("missing_key");
-      const at = now(); if (!Number.isFinite(Date.parse(at))) fail("invalid_request");
+      const at = callOptions.binding?.submittedAt ?? now(); if (!canonicalTime(at)) fail("invalid_request");
       if (callOptions.signal?.aborted) fail("cancelled");
       callOptions.signal?.addEventListener("abort", cancel, { once: true });
       timer = setTimeout(() => interrupt("timeout"), timeoutMs);
@@ -418,7 +421,7 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions = {}) {
       submitted = true;
       const response = await Promise.race([fetcher(ANTHROPIC_ENDPOINT, { method: "POST", redirect: "error", credentials: "omit", cache: "no-store",
         headers: { Authorization: `Bearer ${apiKey}`, "anthropic-version": ANTHROPIC_VERSION, "Content-Type": "application/json",
-          Accept: body.stream ? "text/event-stream" : "application/json" }, body: JSON.stringify(body), signal: controller.signal }), aborted]);
+          Accept: body.stream ? "text/event-stream" : "application/json" }, body: compiled.json, signal: controller.signal }), aborted]);
       if (!response.ok) fail([401, 403, 402].includes(response.status) ? "provider_unavailable" : [429, 529].includes(response.status) ? "provider_busy" : "provider_error");
       if (!response.body || !response.headers.get("content-type")?.toLowerCase().startsWith(body.stream ? "text/event-stream" : "application/json")) fail("invalid_response");
       reader = response.body.getReader();
@@ -428,7 +431,12 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions = {}) {
       };
       if (body.stream) await consumeStream(read, state); else await consumeJson(read, state);
       if (controller.signal.aborted) fail(interruption ?? "cancelled");
-      return state.result();
+      const result = state.result();
+      return { ...result, providerCostNanoUsd: costUsage(result.usage), evidence: {
+        provider: "anthropic", adapterVersion: ANTHROPIC_ADAPTER_VERSION, requestFormatVersion: ANTHROPIC_REQUEST_FORMAT,
+        requestHash: compiled.requestHash, submittedAt: at, reportedModelId: snapshot.modelId,
+        providerMessageId: result.messageId, pricingProfile: "standard-global-text-v1", terminalEvent: "completed",
+      } };
     } catch (error) {
       const code = interruption ?? (error instanceof Fault ? error.code : "network_error");
       return { status: "failed", code, message: messages[code], submission: submitted ? "uncertain" : "not_submitted",

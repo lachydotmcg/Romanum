@@ -1,12 +1,44 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAnthropicAdapter, translateAnthropicRequest, ANTHROPIC_ENDPOINT, ANTHROPIC_VERSION, ANTHROPIC_LIMITS } from "../src/lib/models/providers/anthropic.ts";
+import { createAnthropicAdapter, translateAnthropicRequest, compileAnthropicRequest, ANTHROPIC_ADAPTER_VERSION,
+  ANTHROPIC_REQUEST_FORMAT, ANTHROPIC_ENDPOINT, ANTHROPIC_VERSION, ANTHROPIC_LIMITS } from "../src/lib/models/providers/anthropic.ts";
 import { readModelReadiness } from "../src/lib/models/readiness.ts";
 import { costUsage } from "../src/lib/models/usage.ts";
 import { MODEL_CATALOG } from "../src/lib/models/catalog.ts";
 import { at, modelId, tool, request, usage, start, block, delta, close, finish, textEvents, toolEvents, sse, responseFrom, jsonMessage } from "./fixtures/anthropic-provider.mjs";
 
 const fixtureKey = "synthetic-adapter-key";
+test("Anthropic request hash and persisted dispatch time bind final accounting identity", async () => {
+  const req = request({ stream: false }), compiled = compileAnthropicRequest(req);
+  const sent = [], submittedAt = "2026-10-03T07:00:00.000Z";
+  const adapter = createAnthropicAdapter({ executionEnabled: true, getApiKey: () => { req.system = "After snapshot"; return fixtureKey; },
+    now: () => "2026-10-03T08:00:00.000Z", fetch: async (url, options) => { sent.push(options.body);
+      return responseFrom(JSON.stringify(jsonMessage()), { contentType: "application/json" }); } });
+  assert.ok(Object.isFrozen(compiled.body)); assert.ok(Object.isFrozen(compiled.body.messages));
+  const result = await adapter.complete(req, { binding: { expectedRequestHash: compiled.requestHash, submittedAt } });
+  assert.equal(result.status, "completed"); assert.equal(result.usage.at, submittedAt); assert.equal(result.evidence.submittedAt, submittedAt);
+  assert.equal(result.evidence.requestHash, compiled.requestHash); assert.equal(result.evidence.adapterVersion, ANTHROPIC_ADAPTER_VERSION);
+  assert.equal(result.evidence.requestFormatVersion, ANTHROPIC_REQUEST_FORMAT); assert.equal(result.evidence.reportedModelId, modelId);
+  assert.equal(sent[0], compiled.json);
+  const failedResult = await adapter.complete(req, { binding: { expectedRequestHash: compiled.requestHash, submittedAt } });
+  assert.equal(failedResult.submission, "not_submitted"); assert.equal(sent.length, 1);
+});
+test("Anthropic final thinking breakdown is output subset, never an additional bill", async () => {
+  const events = textEvents(); events.at(-2).usage.output_tokens_details = { thinking_tokens: 15 };
+  const h = harness(responseFrom(sse(events))), result = await h.adapter.complete(request());
+  assert.equal(result.status, "completed"); assert.equal(result.usage.outputTokens, 20);
+  assert.equal(result.providerCostNanoUsd, costUsage(result.usage));
+  for (const thinking_tokens of [-1, 21, "15", 0.5]) {
+    const invalid = textEvents(); invalid.at(-2).usage.output_tokens_details = { thinking_tokens };
+    assert.equal((await harness(responseFrom(sse(invalid))).adapter.complete(request())).status, "failed");
+  }
+});
+test("Anthropic snapshot rejects accessors without invoking private getters", async () => {
+  let reads = 0;
+  const req = request(); Object.defineProperty(req, "system", { enumerable: true, get: () => { reads++; return "Private"; } });
+  const h = harness(null);
+  assert.equal((await h.adapter.complete(req)).submission, "not_submitted"); assert.equal(reads, 0); assert.equal(h.calls.length, 0);
+});
 function harness(response, extra = {}) {
   const calls = [];
   const adapter = createAnthropicAdapter({ executionEnabled: true, getApiKey: () => fixtureKey, now: () => at,
